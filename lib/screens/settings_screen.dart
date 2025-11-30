@@ -19,7 +19,7 @@ class MutableSettings {
   DateTime? lastSitesSyncAt;
   DateTime? lastCheckinHistorySyncAt;
   DateTime? lastXlsxSyncAt;
-  
+
   MutableSettings({
     this.userId,
     this.username,
@@ -34,7 +34,7 @@ class MutableSettings {
     this.lastCheckinHistorySyncAt,
     this.lastXlsxSyncAt,
   });
-  
+
   factory MutableSettings.from(UserSettingsTableData data) {
     return MutableSettings(
       userId: data.odUserId,
@@ -51,7 +51,7 @@ class MutableSettings {
       lastXlsxSyncAt: data.lastXlsxSyncAt,
     );
   }
-  
+
   UserSettingsTableCompanion toCompanion() {
     return UserSettingsTableCompanion(
       odUserId: Value(userId),
@@ -80,14 +80,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isLoading = true;
   bool _isSyncingSites = false;
   int? _siteCount;
-  
+
   @override
   void initState() {
     super.initState();
     _loadSettings();
     _loadSiteCount();
   }
-  
+
   Future<void> _loadSettings() async {
     final settings = await DatabaseService.getUserSettings();
     setState(() {
@@ -95,14 +95,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _isLoading = false;
     });
   }
-  
+
   Future<void> _loadSiteCount() async {
     final sites = await DatabaseService.getSites();
     if (mounted) {
       setState(() => _siteCount = sites.length);
     }
   }
-  
+
   Future<void> _saveSettings() async {
     if (_settings != null) {
       await DatabaseService.updateUserSettings(_settings!.toCompanion());
@@ -112,12 +112,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Settings'), centerTitle: true),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
@@ -141,7 +138,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       : null,
                 ),
                 const Divider(),
-                
+
                 // Notifications section
                 _buildSectionHeader(theme, 'Notifications'),
                 ListTile(
@@ -159,7 +156,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onTap: () => _openNotificationSettings('first_eligible'),
                 ),
                 const Divider(),
-                
+
                 // Polling section
                 _buildSectionHeader(theme, 'Background Sync'),
                 ListTile(
@@ -172,30 +169,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ListTile(
                   leading: const Icon(Icons.radar),
                   title: const Text('Notification Radius'),
-                  subtitle: Text(_settings?.unitSystem == UnitSystem.imperial 
-                      ? '${(_settings!.notificationRadiusKm * 0.621371).toStringAsFixed(0)} mi'
-                      : '${_settings?.notificationRadiusKm.toStringAsFixed(0)} km'),
+                  subtitle: Text(
+                    _settings?.unitSystem == UnitSystem.imperial
+                        ? '${(_settings!.notificationRadiusKm * 0.621371).toStringAsFixed(0)} mi'
+                        : '${_settings?.notificationRadiusKm.toStringAsFixed(0)} km',
+                  ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: _showRadiusPicker,
                 ),
                 ListTile(
                   leading: const Icon(Icons.near_me),
                   title: const Text('Check-in Search Radius'),
-                  subtitle: Text(_settings?.unitSystem == UnitSystem.imperial 
-                      ? '${(_settings!.checkinRadiusKm * 0.621371).toStringAsFixed(0)} mi'
-                      : '${_settings?.checkinRadiusKm.toStringAsFixed(0)} km'),
+                  subtitle: Text(
+                    _settings?.unitSystem == UnitSystem.imperial
+                        ? '${(_settings!.checkinRadiusKm * 0.621371).toStringAsFixed(0)} mi'
+                        : '${_settings?.checkinRadiusKm.toStringAsFixed(0)} km',
+                  ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: _showCheckinRadiusPicker,
                 ),
                 ListTile(
                   leading: const Icon(Icons.straighten),
                   title: const Text('Distance Units'),
-                  subtitle: Text(_settings?.unitSystem == UnitSystem.metric ? 'Metric (km)' : 'Imperial (miles)'),
+                  subtitle: Text(
+                    _settings?.unitSystem == UnitSystem.metric
+                        ? 'Metric (km)'
+                        : 'Imperial (miles)',
+                  ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: _showUnitSystemPicker,
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Text(
                     'Note: iOS may limit background refresh to once per day due to system restrictions.',
                     style: theme.textTheme.bodySmall?.copyWith(
@@ -204,14 +212,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 const Divider(),
-                
+
                 // Advanced section
                 _buildSectionHeader(theme, 'Advanced'),
                 ListTile(
                   leading: const Icon(Icons.history),
                   title: const Text('Sync Visit History'),
                   subtitle: _settings?.lastXlsxSyncAt != null
-                      ? Text('Last synced: ${_formatDate(_settings!.lastXlsxSyncAt!)}')
+                      ? Text(
+                          'Last synced: ${_formatDate(_settings!.lastXlsxSyncAt!)}',
+                        )
                       : const Text('Import visits from supercharging.life'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: _handleSyncHistory,
@@ -223,7 +233,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onTap: _handleClearData,
                 ),
                 const Divider(),
-                
+
                 // About section
                 _buildSectionHeader(theme, 'About'),
                 ListTile(
@@ -238,14 +248,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onTap: () => showLicensePage(context: context),
                 ),
                 const Divider(),
-                
+
                 // Debug section
                 _buildSectionHeader(theme, 'Debug'),
                 ListTile(
                   leading: const Icon(Icons.cloud_download),
                   title: const Text('Force Sync Sites'),
                   subtitle: Text('${_siteCount ?? 0} sites in database'),
-                  trailing: _isSyncingSites 
+                  trailing: _isSyncingSites
                       ? const SizedBox(
                           width: 20,
                           height: 20,
@@ -258,7 +268,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   leading: const Icon(Icons.people),
                   title: const Text('Sync Check-in Counts'),
                   subtitle: const Text('Update which sites have been visited'),
-                  trailing: _isSyncingSites 
+                  trailing: _isSyncingSites
                       ? const SizedBox(
                           width: 20,
                           height: 20,
@@ -270,18 +280,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ListTile(
                   leading: const Icon(Icons.person_search),
                   title: const Text('Re-sync User Data'),
-                  subtitle: Text(_settings?.username != null 
-                      ? 'Sync visits for ${_settings!.username}'
-                      : 'No username set'),
-                  trailing: _isSyncingSites 
+                  subtitle: Text(
+                    _settings?.username != null
+                        ? 'Sync visits for ${_settings!.username}'
+                        : 'No username set',
+                  ),
+                  trailing: _isSyncingSites
                       ? const SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.chevron_right),
-                  onTap: (_isSyncingSites || _settings?.username == null) 
-                      ? null 
+                  onTap: (_isSyncingSites || _settings?.username == null)
+                      ? null
                       : _handleResyncUserData,
                 ),
                 ListTile(
@@ -295,7 +307,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
     );
   }
-  
+
   Widget _buildSectionHeader(ThemeData theme, String title) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -308,7 +320,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-  
+
   String _getPollingIntervalLabel() {
     switch (_settings?.pollingInterval) {
       case PollingInterval.minutes15:
@@ -326,24 +338,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return '24 hours';
     }
   }
-  
+
   String _formatDate(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
-  
+
   void _handleLogin() {
     // TODO: Navigate to WebView login screen
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Login not yet implemented')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Login not yet implemented')));
   }
-  
+
   void _handleLogout() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Log out'),
-        content: const Text('Are you sure you want to log out? Your local data will be kept.'),
+        content: const Text(
+          'Are you sure you want to log out? Your local data will be kept.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -353,9 +367,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: () {
               Navigator.pop(context);
               // TODO: Implement logout
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Logged out')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('Logged out')));
             },
             child: const Text('Log out'),
           ),
@@ -363,14 +377,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-  
+
   void _openNotificationSettings(String channel) {
     // TODO: Open system notification settings for the channel
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Opening $channel notification settings...')),
     );
   }
-  
+
   void _showPollingIntervalPicker() {
     showDialog(
       context: context,
@@ -393,8 +407,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 return ListTile(
                   title: Text(label),
                   leading: Icon(
-                    isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                    color: isSelected ? Theme.of(context).colorScheme.primary : null,
+                    isSelected
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.primary
+                        : null,
                   ),
                   selected: isSelected,
                   onTap: () {
@@ -412,15 +430,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-  
+
   void _showRadiusPicker() {
     final controller = TextEditingController();
     final isImperial = _settings?.unitSystem == UnitSystem.imperial;
-    final initialDisplayValue = isImperial 
-        ? (_settings?.notificationRadiusKm ?? 100) * 0.621371 
+    final initialDisplayValue = isImperial
+        ? (_settings?.notificationRadiusKm ?? 100) * 0.621371
         : (_settings?.notificationRadiusKm ?? 100);
     controller.text = initialDisplayValue.toStringAsFixed(0);
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -428,13 +446,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         content: StatefulBuilder(
           builder: (context, setDialogState) {
             final isImperial = _settings?.unitSystem == UnitSystem.imperial;
-            final displayValue = isImperial 
-                ? (_settings?.notificationRadiusKm ?? 100) * 0.621371 
+            final displayValue = isImperial
+                ? (_settings?.notificationRadiusKm ?? 100) * 0.621371
                 : (_settings?.notificationRadiusKm ?? 100);
             final unit = isImperial ? 'mi' : 'km';
             final minValue = isImperial ? 6.0 : 10.0;
             final maxValue = isImperial ? 1000.0 : 1609.0;
-            
+
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -446,7 +464,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   label: '${displayValue.toStringAsFixed(0)} $unit',
                   onChanged: (value) {
                     setDialogState(() {
-                      _settings?.notificationRadiusKm = isImperial ? value / 0.621371 : value;
+                      _settings?.notificationRadiusKm = isImperial
+                          ? value / 0.621371
+                          : value;
                     });
                     setState(() {});
                     controller.text = value.toStringAsFixed(0);
@@ -465,9 +485,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                         onChanged: (value) {
                           final numValue = double.tryParse(value);
-                          if (numValue != null && numValue >= minValue && numValue <= maxValue) {
+                          if (numValue != null &&
+                              numValue >= minValue &&
+                              numValue <= maxValue) {
                             setDialogState(() {
-                              _settings?.notificationRadiusKm = isImperial ? numValue / 0.621371 : numValue;
+                              _settings?.notificationRadiusKm = isImperial
+                                  ? numValue / 0.621371
+                                  : numValue;
                             });
                             setState(() {});
                           }
@@ -500,15 +524,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-  
+
   void _showCheckinRadiusPicker() {
     final controller = TextEditingController();
     final isImperial = _settings?.unitSystem == UnitSystem.imperial;
-    final initialDisplayValue = isImperial 
-        ? (_settings?.checkinRadiusKm ?? 5000) * 0.621371 
+    final initialDisplayValue = isImperial
+        ? (_settings?.checkinRadiusKm ?? 5000) * 0.621371
         : (_settings?.checkinRadiusKm ?? 5000);
     controller.text = initialDisplayValue.toStringAsFixed(0);
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -516,13 +540,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         content: StatefulBuilder(
           builder: (context, setDialogState) {
             final isImperial = _settings?.unitSystem == UnitSystem.imperial;
-            final displayValue = isImperial 
-                ? (_settings?.checkinRadiusKm ?? 5000) * 0.621371 
+            final displayValue = isImperial
+                ? (_settings?.checkinRadiusKm ?? 5000) * 0.621371
                 : (_settings?.checkinRadiusKm ?? 5000);
             final unit = isImperial ? 'mi' : 'km';
             final minValue = isImperial ? 62.0 : 100.0;
             final maxValue = isImperial ? 6214.0 : 10000.0;
-            
+
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -534,7 +558,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   label: '${displayValue.toStringAsFixed(0)} $unit',
                   onChanged: (value) {
                     setDialogState(() {
-                      _settings?.checkinRadiusKm = isImperial ? value / 0.621371 : value;
+                      _settings?.checkinRadiusKm = isImperial
+                          ? value / 0.621371
+                          : value;
                     });
                     setState(() {});
                     controller.text = value.toStringAsFixed(0);
@@ -553,9 +579,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                         onChanged: (value) {
                           final numValue = double.tryParse(value);
-                          if (numValue != null && numValue >= minValue && numValue <= maxValue) {
+                          if (numValue != null &&
+                              numValue >= minValue &&
+                              numValue <= maxValue) {
                             setDialogState(() {
-                              _settings?.checkinRadiusKm = isImperial ? numValue / 0.621371 : numValue;
+                              _settings?.checkinRadiusKm = isImperial
+                                  ? numValue / 0.621371
+                                  : numValue;
                             });
                             setState(() {});
                           }
@@ -588,7 +618,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-  
+
   void _showUnitSystemPicker() {
     showDialog(
       context: context,
@@ -626,7 +656,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-  
+
   void _handleSyncHistory() {
     showDialog(
       context: context,
@@ -656,7 +686,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-  
+
   void _handleClearData() {
     showDialog(
       context: context,
@@ -693,11 +723,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-  
+
   Future<void> _handleForceSyncSites() async {
     setState(() => _isSyncingSites = true);
     final messenger = ScaffoldMessenger.of(context);
-    
+
     try {
       await SyncService.instance.syncSites();
       await _loadSiteCount();
@@ -708,9 +738,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(content: Text('Sync failed: $e')),
-        );
+        messenger.showSnackBar(SnackBar(content: Text('Sync failed: $e')));
       }
     } finally {
       if (mounted) {
@@ -718,11 +746,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     }
   }
-  
+
   Future<void> _handleSyncCheckinCounts() async {
     setState(() => _isSyncingSites = true);
     final messenger = ScaffoldMessenger.of(context);
-    
+
     try {
       await SyncService.instance.syncSuperchargerCheckinCounts();
       if (mounted) {
@@ -732,9 +760,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(content: Text('Sync failed: $e')),
-        );
+        messenger.showSnackBar(SnackBar(content: Text('Sync failed: $e')));
       }
     } finally {
       if (mounted) {
@@ -742,14 +768,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     }
   }
-  
+
   Future<void> _handleResyncUserData() async {
     final username = _settings?.username;
     if (username == null) return;
-    
+
     setState(() => _isSyncingSites = true);
     final messenger = ScaffoldMessenger.of(context);
-    
+
     try {
       final success = await SyncService.instance.syncUserByUsername(username);
       await _loadSettings();
@@ -766,9 +792,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(content: Text('Sync failed: $e')),
-        );
+        messenger.showSnackBar(SnackBar(content: Text('Sync failed: $e')));
       }
     } finally {
       if (mounted) {
@@ -776,11 +800,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     }
   }
-  
+
   void _handleResetDatabase() {
     // Remember current username before reset
     final currentUsername = _settings?.username;
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -803,30 +827,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: () async {
               final messenger = ScaffoldMessenger.of(context);
               Navigator.pop(context);
-              
+
               setState(() => _isSyncingSites = true);
-              
+
               try {
                 // Clear everything
                 await DatabaseService.clearAll();
-                
+
                 // Re-sync sites first
                 await SyncService.instance.syncSites();
                 await _loadSiteCount();
-                
+
                 // Sync check-in counts
                 await SyncService.instance.syncSuperchargerCheckinCounts();
-                
+
                 // Re-sync user data if we had a username
                 if (currentUsername != null && currentUsername.isNotEmpty) {
-                  await SyncService.instance.syncUserByUsername(currentUsername);
+                  await SyncService.instance.syncUserByUsername(
+                    currentUsername,
+                  );
                 }
-                
+
                 await _loadSettings();
-                
+
                 if (mounted) {
                   messenger.showSnackBar(
-                    SnackBar(content: Text('Database reset. Synced $_siteCount sites.')),
+                    SnackBar(
+                      content: Text(
+                        'Database reset. Synced $_siteCount sites.',
+                      ),
+                    ),
                   );
                 }
               } catch (e) {

@@ -55,8 +55,8 @@ class _NativeWebViewState extends State<_NativeWebView> {
   bool _isLoading = true;
 
   // Use a standard Chrome user agent to avoid Google blocking embedded webviews
-  static const String _userAgent = 
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+  static const String _userAgent =
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
   @override
   void initState() {
@@ -68,26 +68,28 @@ class _NativeWebViewState extends State<_NativeWebView> {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setUserAgent(_userAgent)
-      ..setNavigationDelegate(NavigationDelegate(
-        onPageStarted: (url) {
-          setState(() => _isLoading = true);
-        },
-        onPageFinished: (url) async {
-          setState(() => _isLoading = false);
-          widget.onUrlChanged(url);
-          await _extractCookies();
-        },
-        onNavigationRequest: (request) {
-          return NavigationDecision.navigate;
-        },
-      ))
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (url) {
+            setState(() => _isLoading = true);
+          },
+          onPageFinished: (url) async {
+            setState(() => _isLoading = false);
+            widget.onUrlChanged(url);
+            await _extractCookies();
+          },
+          onNavigationRequest: (request) {
+            return NavigationDecision.navigate;
+          },
+        ),
+      )
       ..loadRequest(Uri.parse(widget.initialUrl));
   }
 
   Future<void> _extractCookies() async {
     try {
       final cookieResult = await _controller.runJavaScriptReturningResult(
-        'document.cookie'
+        'document.cookie',
       );
       widget.onCookiesAvailable(cookieResult.toString());
     } catch (_) {}
@@ -102,8 +104,7 @@ class _NativeWebViewState extends State<_NativeWebView> {
     return Stack(
       children: [
         WebViewWidget(controller: _controller),
-        if (_isLoading)
-          const LinearProgressIndicator(),
+        if (_isLoading) const LinearProgressIndicator(),
       ],
     );
   }

@@ -58,31 +58,28 @@ class _WebIframeViewState extends State<_WebIframeView> {
 
   void _registerIframe() {
     // Register the iframe factory
-    ui_web.platformViewRegistry.registerViewFactory(
-      _viewType,
-      (int viewId) {
-        _iframe = html.IFrameElement()
-          ..src = widget.initialUrl
-          ..style.border = 'none'
-          ..style.width = '100%'
-          ..style.height = '100%'
-          ..allow = 'cross-origin-isolated';
+    ui_web.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
+      _iframe = html.IFrameElement()
+        ..src = widget.initialUrl
+        ..style.border = 'none'
+        ..style.width = '100%'
+        ..style.height = '100%'
+        ..allow = 'cross-origin-isolated';
 
-        // Listen for load events
-        _iframe!.onLoad.listen((event) {
-          setState(() => _isLoading = false);
-          _checkLoginStatus();
-        });
+      // Listen for load events
+      _iframe!.onLoad.listen((event) {
+        setState(() => _isLoading = false);
+        _checkLoginStatus();
+      });
 
-        return _iframe!;
-      },
-    );
+      return _iframe!;
+    });
   }
 
   void _checkLoginStatus() {
     // Note: Due to cross-origin restrictions, we can't directly access
     // the iframe's document or cookies from JavaScript.
-    // 
+    //
     // For web, we'll need to use a different approach:
     // 1. Use window.postMessage() if the login page supports it
     // 2. Or redirect to a callback URL that the Flutter app can intercept
@@ -90,11 +87,11 @@ class _WebIframeViewState extends State<_WebIframeView> {
     // For now, we'll pass the current document cookies (not iframe cookies)
     // The user will need to configure supercharging.life to post messages
     // or use a redirect-based OAuth flow.
-    
+
     try {
       final cookies = html.document.cookie ?? '';
       widget.onCookiesAvailable(cookies);
-      
+
       // Try to get iframe URL (may fail due to CORS)
       try {
         final location = _iframe?.contentWindow?.location;
@@ -124,8 +121,7 @@ class _WebIframeViewState extends State<_WebIframeView> {
     return Stack(
       children: [
         HtmlElementView(viewType: _viewType),
-        if (_isLoading)
-          const LinearProgressIndicator(),
+        if (_isLoading) const LinearProgressIndicator(),
       ],
     );
   }

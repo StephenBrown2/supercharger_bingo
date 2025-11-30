@@ -9,12 +9,9 @@ import '../services/sync_service.dart';
 /// Simple username entry screen (OAuth login temporarily disabled)
 class LoginScreen extends StatefulWidget {
   final VoidCallback onLoginSuccess;
-  
-  const LoginScreen({
-    super.key,
-    required this.onLoginSuccess,
-  });
-  
+
+  const LoginScreen({super.key, required this.onLoginSuccess});
+
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
@@ -33,15 +30,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _continue() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     setState(() {
       _isLoading = true;
       _statusMessage = kIsWeb ? 'Saving...' : 'Looking up user...';
     });
-    
+
     try {
       final username = _usernameController.text.trim();
-      
+
       if (username.isNotEmpty) {
         if (kIsWeb) {
           // On web, CORS prevents API calls to supercharging.life
@@ -56,8 +53,10 @@ class _LoginScreenState extends State<LoginScreen> {
         } else {
           // On desktop/mobile, try to sync user data from supercharging.life
           setState(() => _statusMessage = 'Syncing your check-ins...');
-          final userFound = await SyncService.instance.syncUserByUsername(username);
-          
+          final userFound = await SyncService.instance.syncUserByUsername(
+            username,
+          );
+
           if (!userFound) {
             // User not found, just save username locally
             setState(() => _statusMessage = 'User not found, continuing...');
@@ -68,7 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
             );
             await DatabaseService.updateUserSettings(companion);
           }
-          
+
           // Sync supercharger check-in counts to know which sites have been visited
           setState(() => _statusMessage = 'Syncing site data...');
           await SyncService.instance.syncSuperchargerCheckinCounts();
@@ -81,13 +80,13 @@ class _LoginScreenState extends State<LoginScreen> {
         );
         await DatabaseService.updateUserSettings(companion);
       }
-      
+
       widget.onLoginSuccess();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) {
@@ -104,13 +103,13 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
       _statusMessage = kIsWeb ? 'Loading...' : 'Syncing site data...';
     });
-    
+
     try {
       if (!kIsWeb) {
         // On desktop/mobile, sync check-in counts
         await SyncService.instance.syncSuperchargerCheckinCounts();
       }
-      
+
       final companion = UserSettingsTableCompanion(
         isAuthenticated: const Value(false),
         lastLoginAt: Value(DateTime.now()),
@@ -138,7 +137,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -159,7 +158,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: theme.colorScheme.primary,
                     ),
                     const SizedBox(height: 24),
-                    
+
                     // Title
                     Text(
                       'Supercharger Bingo',
@@ -169,7 +168,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
-                    
+
                     Text(
                       'Track your Tesla Supercharger visits',
                       style: theme.textTheme.bodyLarge?.copyWith(
@@ -178,7 +177,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 48),
-                    
+
                     // Info card about login
                     Card(
                       color: theme.colorScheme.surfaceContainerHighest,
@@ -204,7 +203,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    
+
                     // Username field
                     TextFormField(
                       controller: _usernameController,
@@ -219,7 +218,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       onFieldSubmitted: (_) => _continue(),
                     ),
                     const SizedBox(height: 24),
-                    
+
                     // Status message
                     if (_statusMessage != null) ...[
                       Text(
@@ -231,11 +230,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 16),
                     ],
-                    
+
                     // Continue button
                     FilledButton.icon(
                       onPressed: _isLoading ? null : _continue,
-                      icon: _isLoading 
+                      icon: _isLoading
                           ? const SizedBox(
                               width: 20,
                               height: 20,
@@ -245,7 +244,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       label: Text(_isLoading ? 'Syncing...' : 'Continue'),
                     ),
                     const SizedBox(height: 12),
-                    
+
                     // Skip button
                     TextButton(
                       onPressed: _isLoading ? null : _skipForNow,

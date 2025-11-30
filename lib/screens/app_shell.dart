@@ -15,13 +15,13 @@ class _AppShellState extends State<AppShell> {
   int _selectedIndex = 0;
   bool _showCheckinDrawer = false;
   final GlobalKey<State<MapScreen>> _mapKey = GlobalKey();
-  
+
   void _onDrawerClosed() {
     setState(() {
       _showCheckinDrawer = false;
     });
   }
-  
+
   void _onDestinationSelected(int index) {
     setState(() {
       if (index == 0) {
@@ -29,7 +29,8 @@ class _AppShellState extends State<AppShell> {
         _showCheckinDrawer = !_showCheckinDrawer;
         _selectedIndex = 0; // Stay on map screen
       } else {
-        _selectedIndex = index - 1; // Map or Settings (offset by 1 since checkin is removed)
+        _selectedIndex =
+            index - 1; // Map or Settings (offset by 1 since checkin is removed)
         _showCheckinDrawer = false; // Close drawer when switching away
       }
     });

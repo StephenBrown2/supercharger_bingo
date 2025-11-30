@@ -11,31 +11,33 @@ import '../database/database.dart';
 class ApiService {
   static ApiService? _instance;
   static ApiService get instance => _instance ??= ApiService._();
-  
+
   late final Dio _dio;
   CookieJar? _cookieJar;
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
-  
+
   // API endpoints
   static const String superchargeInfoBaseUrl = 'https://supercharge.info';
   static const String superchargingLifeBaseUrl = 'https://supercharging.life';
-  
+
   ApiService._() {
-    _dio = Dio(BaseOptions(
-      connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 30),
-      headers: {
-        'User-Agent': 'SuperchargerBingo/1.0 (Flutter)',
-        'Accept': 'application/json',
-      },
-    ));
+    _dio = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+        headers: {
+          'User-Agent': 'SuperchargerBingo/1.0 (Flutter)',
+          'Accept': 'application/json',
+        },
+      ),
+    );
     // CookieManager doesn't work on web
     if (!kIsWeb) {
       _cookieJar = CookieJar();
       _dio.interceptors.add(CookieManager(_cookieJar!));
     }
   }
-  
+
   /// Set session cookie for supercharging.life
   Future<void> setSessionCookie(String sessionId) async {
     await _secureStorage.write(key: 'sclphpsessid', value: sessionId);
@@ -50,22 +52,24 @@ class ApiService {
       ]);
     }
   }
-  
+
   /// Get stored session cookie
   Future<String?> getSessionCookie() async {
     return _secureStorage.read(key: 'sclphpsessid');
   }
-  
+
   /// Clear session cookie (logout)
   Future<void> clearSessionCookie() async {
     await _secureStorage.delete(key: 'sclphpsessid');
     await _cookieJar?.deleteAll();
   }
-  
+
   /// Fetch all supercharger sites from supercharge.info
   Future<List<SitesCompanion>> fetchAllSites() async {
-    final response = await _dio.get('$superchargeInfoBaseUrl/service/supercharge/allSites');
-    
+    final response = await _dio.get(
+      '$superchargeInfoBaseUrl/service/supercharge/allSites',
+    );
+
     if (response.statusCode == 200) {
       final List<dynamic> data = response.data;
       return data.map((json) => _parseSite(json)).toList();
@@ -76,11 +80,13 @@ class ApiService {
       message: 'Failed to fetch sites: ${response.statusCode}',
     );
   }
-  
+
   /// Fetch recent changes from supercharge.info
   Future<List<Map<String, dynamic>>> fetchAllChanges() async {
-    final response = await _dio.get('$superchargeInfoBaseUrl/service/supercharge/allChanges');
-    
+    final response = await _dio.get(
+      '$superchargeInfoBaseUrl/service/supercharge/allChanges',
+    );
+
     if (response.statusCode == 200) {
       final List<dynamic> data = response.data;
       return data.cast<Map<String, dynamic>>();
@@ -91,16 +97,14 @@ class ApiService {
       message: 'Failed to fetch changes: ${response.statusCode}',
     );
   }
-  
+
   /// Fetch check-in history from supercharging.life
   Future<List<SiteCheckinsCompanion>> fetchCheckinHistory() async {
     final response = await _dio.get(
       '$superchargingLifeBaseUrl/supercharging/ajax.php',
-      queryParameters: {
-        'content': 'first_checkin_history_list_for_datatables',
-      },
+      queryParameters: {'content': 'first_checkin_history_list_for_datatables'},
     );
-    
+
     if (response.statusCode == 200) {
       final data = response.data;
       if (data is Map && data['data'] is List) {
@@ -115,7 +119,7 @@ class ApiService {
       message: 'Failed to fetch check-in history',
     );
   }
-  
+
   /// Fetch user list from supercharging.life to find user by username
   Future<Map<String, dynamic>?> fetchUserByUsername(String username) async {
     final response = await _dio.get(
@@ -125,15 +129,16 @@ class ApiService {
         'search[value]': username, // Use server-side search to filter results
       },
     );
-    
+
     if (response.statusCode == 200) {
       final data = response.data;
       if (data is Map && data['data'] is List) {
         final users = data['data'] as List;
         // Find user by display name (case-insensitive)
         for (final user in users) {
-          if (user is Map && 
-              (user['displayname'] as String?)?.toLowerCase() == username.toLowerCase()) {
+          if (user is Map &&
+              (user['displayname'] as String?)?.toLowerCase() ==
+                  username.toLowerCase()) {
             return Map<String, dynamic>.from(user);
           }
         }
@@ -141,7 +146,7 @@ class ApiService {
     }
     return null;
   }
-  
+
   /// Fetch supercharger list with check-in counts from supercharging.life
   /// Returns a map of siteId -> total check-in count
   Future<Map<int, int>> fetchSuperchargerCheckinCounts() async {
@@ -155,7 +160,7 @@ class ApiService {
         'address_state': '',
       },
     );
-    
+
     if (response.statusCode == 200) {
       final data = response.data;
       if (data is Map && data['data'] is List) {
@@ -163,8 +168,11 @@ class ApiService {
         for (final item in data['data']) {
           if (item is Map) {
             // The supercharger_id field and checkin_qty field
-            final siteId = int.tryParse(item['supercharger_id']?.toString() ?? '');
-            final checkinCount = int.tryParse(item['checkin_qty']?.toString() ?? '0') ?? 0;
+            final siteId = int.tryParse(
+              item['supercharger_id']?.toString() ?? '',
+            );
+            final checkinCount =
+                int.tryParse(item['checkin_qty']?.toString() ?? '0') ?? 0;
             if (siteId != null) {
               result[siteId] = checkinCount;
             }
@@ -179,7 +187,7 @@ class ApiService {
       message: 'Failed to fetch supercharger check-in counts',
     );
   }
-  
+
   /// Submit a check-in to supercharging.life
   Future<bool> submitCheckin({
     required int siteId,
@@ -191,7 +199,8 @@ class ApiService {
   }) async {
     final formData = FormData.fromMap({
       'supercharger_id': siteId.toString(),
-      'checkin_date': '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
+      'checkin_date':
+          '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
       if (latitude != null && longitude != null) ...{
         'method': 'gps',
         'lat': latitude.toString(),
@@ -202,30 +211,25 @@ class ApiService {
       },
       if (notes != null && notes.isNotEmpty) 'notes_public': notes,
     });
-    
+
     final response = await _dio.post(
       '$superchargingLifeBaseUrl/supercharging/checkin.php',
       data: formData,
-      options: Options(
-        contentType: 'application/x-www-form-urlencoded',
-      ),
+      options: Options(contentType: 'application/x-www-form-urlencoded'),
     );
-    
+
     // Check if the response indicates success
     return response.statusCode == 200;
   }
-  
+
   /// Download user's XLSX export
   Future<List<int>> downloadUserXlsx(int userId) async {
     final response = await _dio.get(
       '$superchargingLifeBaseUrl/supercharging/export.php',
-      queryParameters: {
-        'action': 'user_xlsx',
-        'user_id': userId.toString(),
-      },
+      queryParameters: {'action': 'user_xlsx', 'user_id': userId.toString()},
       options: Options(responseType: ResponseType.bytes),
     );
-    
+
     if (response.statusCode == 200) {
       return response.data;
     }
@@ -235,7 +239,7 @@ class ApiService {
       message: 'Failed to download XLSX: ${response.statusCode}',
     );
   }
-  
+
   /// Parse a site from supercharge.info JSON
   SitesCompanion _parseSite(Map<String, dynamic> json) {
     DateTime? dateOpened;
@@ -244,7 +248,7 @@ class ApiService {
         dateOpened = DateTime.parse(json['dateOpened'] as String);
       } catch (_) {}
     }
-    
+
     int? stallsV2, stallsV3, stallsV4;
     if (json['stalls'] is Map) {
       final stalls = json['stalls'] as Map;
@@ -252,7 +256,7 @@ class ApiService {
       stallsV3 = stalls['v3'] as int?;
       stallsV4 = stalls['v4'] as int?;
     }
-    
+
     return SitesCompanion(
       siteId: Value(json['id'] as int),
       locationId: Value(json['locationId'] as String?),
@@ -275,7 +279,7 @@ class ApiService {
       lastSynced: Value(DateTime.now()),
     );
   }
-  
+
   SiteStatus _parseSiteStatus(String? status) {
     switch (status?.toUpperCase()) {
       case 'OPEN':
@@ -292,7 +296,7 @@ class ApiService {
         return SiteStatus.unknown;
     }
   }
-  
+
   /// Parse a site check-in from supercharging.life JSON
   SiteCheckinsCompanion _parseSiteCheckin(Map<String, dynamic> json) {
     DateTime checkinDate;
@@ -301,7 +305,7 @@ class ApiService {
     } catch (_) {
       checkinDate = DateTime.now();
     }
-    
+
     DateTime checkinTime;
     try {
       final timeStr = json['checkin_time'] as String?;
@@ -313,12 +317,12 @@ class ApiService {
     } catch (_) {
       checkinTime = checkinDate;
     }
-    
+
     int? daysAfterOpen;
     if (json['checkin_days_after_open'] != null) {
       daysAfterOpen = int.tryParse(json['checkin_days_after_open'] as String);
     }
-    
+
     return SiteCheckinsCompanion(
       checkinId: Value(int.parse(json['checkin_id'] as String)),
       siteId: Value(int.parse(json['supercharger_id'] as String)),
@@ -327,7 +331,9 @@ class ApiService {
       displayName: Value(json['user_displayname'] as String?),
       checkinDate: Value(checkinDate),
       checkinTime: Value(checkinTime),
-      isFirstAtSupercharger: Value(json['is_first_at_supercharger_cache'] == 'Y'),
+      isFirstAtSupercharger: Value(
+        json['is_first_at_supercharger_cache'] == 'Y',
+      ),
       daysAfterOpen: Value(daysAfterOpen),
       syncedAt: Value(DateTime.now()),
     );

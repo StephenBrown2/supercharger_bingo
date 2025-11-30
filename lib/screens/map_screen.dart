@@ -17,7 +17,7 @@ class MapScreen extends StatefulWidget {
   final double? initialLng;
   final bool showCheckinDrawer;
   final VoidCallback? onDrawerClosed;
-  
+
   const MapScreen({
     super.key,
     this.initialLat,
@@ -41,7 +41,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   late Animation<double> _drawerAnimation;
   Stream<LocationMarkerPosition?>? _locationMarkerStream;
   Stream<LocationMarkerHeading?>? _headingStream;
-  
+
   // Checkin drawer state
   bool _showCheckinDrawer = false;
   Position? _userPosition;
@@ -49,31 +49,37 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   bool _isLoadingLocation = false;
   bool _isLoadingSites = false;
   String? _locationError;
-  
+
   @override
   void initState() {
     super.initState();
-        // Build unified location marker stream for plugin
-        final unified = LocationService.instance.unifiedPositionStream();
-        _locationMarkerStream = unified.map(
-          (pos) => LocationMarkerPosition(
-            latitude: pos.latitude,
-            longitude: pos.longitude,
-            accuracy: pos.accuracy,
+    // Build unified location marker stream for plugin
+    final unified = LocationService.instance.unifiedPositionStream();
+    _locationMarkerStream = unified.map(
+      (pos) => LocationMarkerPosition(
+        latitude: pos.latitude,
+        longitude: pos.longitude,
+        accuracy: pos.accuracy,
+      ),
+    );
+
+    // Build heading stream conditionally: only forward heading when available and accurate
+    final headingController =
+        StreamController<LocationMarkerHeading?>.broadcast();
+    _headingStream = headingController.stream;
+    unified.listen((pos) {
+      // If heading is non-zero and accuracy is reasonable (< 1000m), emit it; else emit null
+      if (pos.heading != 0 && pos.accuracy < 1000) {
+        headingController.add(
+          LocationMarkerHeading(
+            heading: pos.heading,
+            accuracy: pos.headingAccuracy,
           ),
         );
-
-        // Build heading stream conditionally: only forward heading when available and accurate
-        final headingController = StreamController<LocationMarkerHeading?>.broadcast();
-        _headingStream = headingController.stream;
-        unified.listen((pos) {
-          // If heading is non-zero and accuracy is reasonable (< 1000m), emit it; else emit null
-          if (pos.heading != 0 && pos.accuracy < 1000) {
-            headingController.add(LocationMarkerHeading(heading: pos.heading, accuracy: pos.headingAccuracy));
-          } else {
-            headingController.add(null);
-          }
-        });
+      } else {
+        headingController.add(null);
+      }
+    });
     _locationAnimController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 1),
@@ -99,14 +105,14 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
 
     _fetchLocationForCheckin();
   }
-  
+
   @override
   void dispose() {
     _locationAnimController.dispose();
     _drawerAnimController.dispose();
     super.dispose();
   }
-  
+
   Future<void> _loadSites() async {
     setState(() => _isLoading = true);
     try {
@@ -114,12 +120,21 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       switch (_currentFilter) {
         case MapFilter.openUnvisited:
           // Open and unvisited
-          sites = await DatabaseService.getSites(status: SiteStatus.open, visited: false);
+          sites = await DatabaseService.getSites(
+            status: SiteStatus.open,
+            visited: false,
+          );
           break;
         case MapFilter.openUnvisitedConstruction:
           // Open + construction, unvisited
-          final openSites = await DatabaseService.getSites(status: SiteStatus.open, visited: false);
-          final constructionSites = await DatabaseService.getSites(status: SiteStatus.construction, visited: false);
+          final openSites = await DatabaseService.getSites(
+            status: SiteStatus.open,
+            visited: false,
+          );
+          final constructionSites = await DatabaseService.getSites(
+            status: SiteStatus.construction,
+            visited: false,
+          );
           sites = [...openSites, ...constructionSites];
           break;
         case MapFilter.all:
@@ -136,7 +151,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       setState(() => _isLoading = false);
     }
   }
-  
+
   @override
   void didUpdateWidget(MapScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -156,10 +171,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     // Center map on new coordinates if provided
     if (widget.initialLat != null && widget.initialLng != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _mapController.move(
-          LatLng(widget.initialLat!, widget.initialLng!),
-          14,
-        );
+        _mapController.move(LatLng(widget.initialLat!, widget.initialLng!), 14);
       });
     }
     // Open/close drawer based on prop change
@@ -172,7 +184,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       });
     }
   }
-  
+
   /// Get initial center for map - uses widget params, cached location, or US center
   LatLng _getInitialCenter() {
     if (widget.initialLat != null && widget.initialLng != null) {
@@ -184,7 +196,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     }
     return const LatLng(39.8283, -98.5795); // US center
   }
-  
+
   /// Get initial zoom for map
   double _getInitialZoom() {
     if (widget.initialLat != null && widget.initialLng != null) {
@@ -200,7 +212,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Map'),
@@ -243,7 +255,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                     computeSize: (markers) {
                       // Don't cluster if only 3 markers
                       if (markers.length <= 3) {
-                        return const Size(0, 0); // Return invalid size to prevent clustering
+                        return const Size(
+                          0,
+                          0,
+                        ); // Return invalid size to prevent clustering
                       }
                       return const Size(40, 40);
                     },
@@ -290,9 +305,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 ),
             ],
           ),
-          
+
           // Removed full-screen loading overlay; map renders while sites load.
-          
+
           // Site count badge
           if (!_isLoading)
             Positioned(
@@ -300,12 +315,15 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               right: 8,
               child: Card(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   child: Text('${_sites.length} sites'),
                 ),
               ),
             ),
-          
+
           // Filter chips at top
           Positioned(
             top: 8,
@@ -313,14 +331,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             right: 8,
             child: _buildFilterChips(theme),
           ),
-          
+
           // Legend at bottom
-          Positioned(
-            bottom: 16,
-            left: 16,
-            child: _buildLegend(theme),
-          ),
-          
+          Positioned(bottom: 16, left: 16, child: _buildLegend(theme)),
+
           // Zoom controls for desktop (positioned above legend)
           Positioned(
             bottom: _showCheckinDrawer ? 240 : 80,
@@ -332,7 +346,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                   heroTag: 'zoom_in',
                   onPressed: () {
                     final currentZoom = _mapController.camera.zoom;
-                    _mapController.move(_mapController.camera.center, currentZoom + 1);
+                    _mapController.move(
+                      _mapController.camera.center,
+                      currentZoom + 1,
+                    );
                   },
                   child: const Icon(Icons.add),
                 ),
@@ -341,14 +358,17 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                   heroTag: 'zoom_out',
                   onPressed: () {
                     final currentZoom = _mapController.camera.zoom;
-                    _mapController.move(_mapController.camera.center, currentZoom - 1);
+                    _mapController.move(
+                      _mapController.camera.center,
+                      currentZoom - 1,
+                    );
                   },
                   child: const Icon(Icons.remove),
                 ),
               ],
             ),
           ),
-          
+
           // Checkin drawer at bottom
           if (_showCheckinDrawer)
             Positioned(
@@ -367,7 +387,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       ),
     );
   }
-  
+
   Widget _buildFilterChips(ThemeData theme) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -389,7 +409,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             selected: _currentFilter == MapFilter.openUnvisitedConstruction,
             onSelected: (selected) {
               if (selected) {
-                setState(() => _currentFilter = MapFilter.openUnvisitedConstruction);
+                setState(
+                  () => _currentFilter = MapFilter.openUnvisitedConstruction,
+                );
                 _loadSites();
               }
             },
@@ -409,7 +431,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       ),
     );
   }
-  
+
   Widget _buildLegend(ThemeData theme) {
     return Card(
       child: Padding(
@@ -434,7 +456,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       ),
     );
   }
-  
+
   Widget _legendItem(IconData icon, Color color, String label) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -445,7 +467,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       ],
     );
   }
-  
+
   List<Marker> _buildMarkers() {
     return _sites.map((site) {
       return Marker(
@@ -454,14 +476,12 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         height: 24,
         child: GestureDetector(
           onTap: () => _showSiteInfo(site),
-          child: _MapMarker(
-            site: site,
-          ),
+          child: _MapMarker(site: site),
         ),
       );
     }).toList();
   }
-  
+
   void _showSiteInfo(Site site) {
     showModalBottomSheet(
       context: context,
@@ -471,20 +491,16 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              site.name,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text(site.name, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
-            Text('${site.city ?? "Unknown"}, ${site.state ?? ""}, ${site.country}'),
+            Text(
+              '${site.city ?? "Unknown"}, ${site.state ?? ""}, ${site.country}',
+            ),
             const SizedBox(height: 4),
             Text('Status: ${site.status.name}'),
             Text('Stalls: ${site.stallCount ?? "Unknown"}'),
             if (site.visited)
-              const Chip(
-                label: Text('Visited'),
-                backgroundColor: Colors.green,
-              ),
+              const Chip(label: Text('Visited'), backgroundColor: Colors.green),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
@@ -496,11 +512,16 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 const SizedBox(width: 8),
                 OutlinedButton.icon(
                   onPressed: () async {
-                    await DatabaseService.markSiteVisited(site.siteId, !site.visited);
+                    await DatabaseService.markSiteVisited(
+                      site.siteId,
+                      !site.visited,
+                    );
                     if (context.mounted) Navigator.pop(context);
                     _loadSites(); // Refresh markers
                   },
-                  icon: Icon(site.visited ? Icons.visibility_off : Icons.check_circle),
+                  icon: Icon(
+                    site.visited ? Icons.visibility_off : Icons.check_circle,
+                  ),
                   label: Text(site.visited ? 'Mark Unvisited' : 'Mark Visited'),
                 ),
               ],
@@ -510,41 +531,55 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       ),
     );
   }
-  
+
   Future<void> _centerOnUser() async {
     setState(() => _isLocating = true);
     _locationAnimController.repeat();
-    
+
     try {
       final position = await LocationService.instance.getCurrentPosition();
-      
+
       if (position == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not determine location. Check location permissions.')),
+            const SnackBar(
+              content: Text(
+                'Could not determine location. Check location permissions.',
+              ),
+            ),
           );
         }
         return;
       }
-      
-      debugPrint('Got position: ${position.latitude}, ${position.longitude} (accuracy: ${position.accuracy}m)');
+
+      debugPrint(
+        'Got position: ${position.latitude}, ${position.longitude} (accuracy: ${position.accuracy}m)',
+      );
 
       if (mounted) {
         _mapController.move(
           LatLng(position.latitude, position.longitude),
-          position.accuracy > 1000 ? 8 : 10, // Zoom out more for IP-based (less accurate)
+          position.accuracy > 1000
+              ? 8
+              : 10, // Zoom out more for IP-based (less accurate)
         );
-        
+
         final accuracyNote = position.accuracy > 1000 ? ' (approximate)' : '';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Located: ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}$accuracyNote')),
+          SnackBar(
+            content: Text(
+              'Located: ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}$accuracyNote',
+            ),
+          ),
         );
       }
     } catch (e) {
       debugPrint('Failed to get location: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Location error: ${e.toString().split('\n').first}')),
+          SnackBar(
+            content: Text('Location error: ${e.toString().split('\n').first}'),
+          ),
         );
       }
     } finally {
@@ -553,22 +588,27 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       if (mounted) setState(() => _isLocating = false);
     }
   }
-  
+
   // ============================================================================
   // Checkin Drawer Methods
   // ============================================================================
-  
+
   Widget _buildCheckinDrawer(ThemeData theme) {
     return GestureDetector(
       onVerticalDragUpdate: (details) {
         // Update animation based on drag
         if (details.primaryDelta != null && details.primaryDelta! > 0) {
-          _drawerAnimController.value = (_drawerAnimController.value - details.primaryDelta! / 300).clamp(0.0, 1.0);
+          _drawerAnimController.value =
+              (_drawerAnimController.value - details.primaryDelta! / 300).clamp(
+                0.0,
+                1.0,
+              );
         }
       },
       onVerticalDragEnd: (details) {
         // Close if dragged down more than halfway or with velocity
-        if (_drawerAnimController.value < 0.5 || (details.primaryVelocity ?? 0) > 500) {
+        if (_drawerAnimController.value < 0.5 ||
+            (details.primaryVelocity ?? 0) > 500) {
           _closeDrawer();
         } else {
           _drawerAnimController.forward();
@@ -602,109 +642,120 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-          
-          // Header
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                Icon(Icons.near_me, color: theme.colorScheme.primary),
-                const SizedBox(width: 8),
-                Text(
-                  'Nearby Superchargers',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
-                if (_userPosition != null)
-                  Text(
-                    '${_nearbySites.length} found',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: _closeDrawer,
-                  tooltip: 'Close',
-                ),
-              ],
-            ),
-          ),
-          
-          // Location error
-          if (_locationError != null)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(8),
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.errorContainer,
-                borderRadius: BorderRadius.circular(8),
-              ),
+
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(16.0),
               child: Row(
                 children: [
-                  Icon(Icons.error_outline, color: theme.colorScheme.error),
+                  Icon(Icons.near_me, color: theme.colorScheme.primary),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(_locationError!, style: TextStyle(color: theme.colorScheme.error)),
+                  Text(
+                    'Nearby Superchargers',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  TextButton(
-                    onPressed: () {
-                      LocationService.instance.clearCache();
-                      _fetchLocationForCheckin();
-                    },
-                    child: const Text('Retry'),
+                  const Spacer(),
+                  if (_userPosition != null)
+                    Text(
+                      '${_nearbySites.length} found',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: _closeDrawer,
+                    tooltip: 'Close',
                   ),
                 ],
               ),
             ),
-          
-          // Site list
-          Flexible(
-            child: _isLoadingLocation || _isLoadingSites
-                ? const Center(child: CircularProgressIndicator())
-                : _nearbySites.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.location_off, size: 48, color: theme.disabledColor),
-                              const SizedBox(height: 16),
-                              Text(
-                                _userPosition == null
-                                    ? 'Getting location...'
-                                    : 'No superchargers nearby',
-                                style: theme.textTheme.bodyLarge,
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    : ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: _nearbySites.length,
-                        itemBuilder: (context, index) {
-                          final siteWithDist = _nearbySites[index];
-                          return FutureBuilder<UserSettingsTableData>(
-                            future: DatabaseService.getUserSettings(),
-                            builder: (context, snapshot) {
-                              if (!snapshot.hasData) {
-                                return const SizedBox.shrink();
-                              }
-                              return _buildCheckinListTile(siteWithDist, theme, snapshot.data!);
-                            },
-                          );
-                        },
+
+            // Location error
+            if (_locationError != null)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(8),
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.errorContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.error_outline, color: theme.colorScheme.error),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _locationError!,
+                        style: TextStyle(color: theme.colorScheme.error),
                       ),
-          ),
-        ],
-      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        LocationService.instance.clearCache();
+                        _fetchLocationForCheckin();
+                      },
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Site list
+            Flexible(
+              child: _isLoadingLocation || _isLoadingSites
+                  ? const Center(child: CircularProgressIndicator())
+                  : _nearbySites.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.location_off,
+                              size: 48,
+                              color: theme.disabledColor,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _userPosition == null
+                                  ? 'Getting location...'
+                                  : 'No superchargers nearby',
+                              style: theme.textTheme.bodyLarge,
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: _nearbySites.length,
+                      itemBuilder: (context, index) {
+                        final siteWithDist = _nearbySites[index];
+                        return FutureBuilder<UserSettingsTableData>(
+                          future: DatabaseService.getUserSettings(),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData) {
+                              return const SizedBox.shrink();
+                            }
+                            return _buildCheckinListTile(
+                              siteWithDist,
+                              theme,
+                              snapshot.data!,
+                            );
+                          },
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
-  
+
   void _zoomToSite(Site site) {
     _mapController.move(
       LatLng(site.latitude, site.longitude),
@@ -712,7 +763,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     );
     _closeDrawer();
   }
-  
+
   void _closeDrawer() {
     _drawerAnimController.reverse().then((_) {
       if (mounted) {
@@ -721,17 +772,26 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       }
     });
   }
-  
-  Widget _buildCheckinListTile(SiteWithDistance siteWithDist, ThemeData theme, UserSettingsTableData settings) {
+
+  Widget _buildCheckinListTile(
+    SiteWithDistance siteWithDist,
+    ThemeData theme,
+    UserSettingsTableData settings,
+  ) {
     final site = siteWithDist.site;
-    final distanceStr = _formatDistance(siteWithDist.distanceKm, settings.unitSystem);
-    
+    final distanceStr = _formatDistance(
+      siteWithDist.distanceKm,
+      settings.unitSystem,
+    );
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: ListTile(
         leading: _buildCheckinLeadingIcon(theme, site),
         title: Text(site.name),
-        subtitle: Text('$distanceStr${!site.hasCheckins ? " • FIRST eligible" : ""}'),
+        subtitle: Text(
+          '$distanceStr${!site.hasCheckins ? " • FIRST eligible" : ""}',
+        ),
         trailing: FilledButton.tonal(
           onPressed: () => _handleCheckin(siteWithDist),
           child: const Text('Check In'),
@@ -740,7 +800,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       ),
     );
   }
-  
+
   /// Format distance based on unit system
   String _formatDistance(double distanceKm, UnitSystem unitSystem) {
     if (unitSystem == UnitSystem.imperial) {
@@ -749,7 +809,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     }
     return '${distanceKm.toStringAsFixed(1)} km';
   }
-  
+
   Widget _buildCheckinLeadingIcon(ThemeData theme, Site site) {
     // First eligible (no check-ins yet)
     if (!site.hasCheckins) {
@@ -774,20 +834,20 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       child: const Icon(Icons.ev_station, color: Colors.green),
     );
   }
-  
+
   Future<void> _fetchLocationForCheckin() async {
     setState(() {
       _isLoadingLocation = true;
       _locationError = null;
     });
-    
+
     try {
       // Try to use cached location first
       Position? position = LocationService.instance.cachedPosition;
       if (position == null) {
         position = await LocationService.instance.getCurrentPosition();
       }
-      
+
       if (position == null) {
         setState(() {
           _isLoadingLocation = false;
@@ -795,15 +855,15 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         });
         return;
       }
-      
+
       setState(() {
         _userPosition = position;
         _isLoadingLocation = false;
       });
-      
+
       // Load nearby sites first
       await _loadNearbySites();
-      
+
       // Then auto-zoom to include user and nearest site
       _autoZoomMapToCheckin();
     } catch (e) {
@@ -814,16 +874,16 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       });
     }
   }
-  
+
   Future<void> _loadNearbySites() async {
     if (_userPosition == null) return;
-    
+
     setState(() => _isLoadingSites = true);
-    
+
     try {
       // Get user settings for radius
       final settings = await DatabaseService.getUserSettings();
-      
+
       final sites = await DatabaseService.getNearbySites(
         latitude: _userPosition!.latitude,
         longitude: _userPosition!.longitude,
@@ -832,7 +892,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         status: SiteStatus.open,
         visited: false,
       );
-      
+
       setState(() {
         _nearbySites = sites;
         _isLoadingSites = false;
@@ -842,29 +902,29 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       setState(() => _isLoadingSites = false);
     }
   }
-  
+
   void _autoZoomMapToCheckin() {
     if (_userPosition == null) return;
-    
-    final userLatLng = LatLng(_userPosition!.latitude, _userPosition!.longitude);
-    
+
+    final userLatLng = LatLng(
+      _userPosition!.latitude,
+      _userPosition!.longitude,
+    );
+
     if (_nearbySites.isEmpty) {
-      _mapController.move(
-        userLatLng,
-        _userPosition!.accuracy > 1000 ? 10 : 12,
-      );
+      _mapController.move(userLatLng, _userPosition!.accuracy > 1000 ? 10 : 12);
       return;
     }
-    
+
     // Get up to 3 nearest sites for map bounds
     final sitesToShow = _nearbySites.take(3).toList();
-    
+
     // Calculate bounds to include user and all sites to show
     double minLat = userLatLng.latitude;
     double maxLat = userLatLng.latitude;
     double minLng = userLatLng.longitude;
     double maxLng = userLatLng.longitude;
-    
+
     for (final siteWithDist in sitesToShow) {
       final site = siteWithDist.site;
       if (site.latitude < minLat) minLat = site.latitude;
@@ -872,19 +932,21 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       if (site.longitude < minLng) minLng = site.longitude;
       if (site.longitude > maxLng) maxLng = site.longitude;
     }
-    
+
     // Add padding (10%)
     final latPadding = (maxLat - minLat) * 0.1;
     final lngPadding = (maxLng - minLng) * 0.1;
-    
+
     final bounds = LatLngBounds(
       LatLng(minLat - latPadding, minLng - lngPadding),
       LatLng(maxLat + latPadding, maxLng + lngPadding),
     );
-    
-      _mapController.fitCamera(CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(20)));
+
+    _mapController.fitCamera(
+      CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(20)),
+    );
   }
-  
+
   void _handleCheckin(SiteWithDistance siteWithDist) {
     final site = siteWithDist.site;
     showDialog(
@@ -905,7 +967,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.amber.shade100,
                     borderRadius: BorderRadius.circular(4),
@@ -944,7 +1009,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
 /// Custom map marker with accessible design (color + shape)
 class _MapMarker extends StatelessWidget {
   final Site site;
-  
+
   const _MapMarker({required this.site});
 
   @override
