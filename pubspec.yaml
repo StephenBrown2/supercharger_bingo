@@ -1,0 +1,79 @@
+name: supercharger_bingo
+description: "Fast check-in interface for supercharging.life - track Tesla Supercharger visits"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  
+  # Map display
+  flutter_map: ^8.2.2
+  flutter_map_marker_cluster: ^8.2.2
+  latlong2: ^0.9.1
+  flutter_map_location_marker: ^10.1.0
+  
+  # Local database (Drift with SQLite)
+  drift: ^2.22.1
+  drift_flutter: ^0.2.4
+  sqlite3_flutter_libs: ^0.5.28
+  path_provider: ^2.1.4
+  path: ^1.9.0
+  
+  # Networking
+  dio: ^5.7.0
+  dio_cookie_manager: ^3.1.1
+  cookie_jar: ^4.0.8
+  
+  # Authentication
+  webview_flutter: ^4.10.0
+  flutter_secure_storage: ^9.2.2
+  
+  # Location
+  geolocator: ^14.0.2
+  
+  # Background tasks & notifications
+  workmanager: ^0.9.0+3
+  flutter_local_notifications: ^19.5.0
+  
+  # Excel parsing for XLSX import
+  excel: ^4.0.6
+  
+  # Connectivity detection
+  connectivity_plus: ^7.0.0
+  
+  # Timezone handling
+  timezone: ^0.10.1
+  webview_win_floating: ^3.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+  drift_dev: ^2.22.1
+  build_runner: ^2.4.13
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+
+  uses-material-design: true
+
+  assets:
+    - assets/tz/
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
+  #         weight: 700
+  #
+  # For details regarding fonts from package dependencies,
+  # see https://flutter.dev/to/font-from-package

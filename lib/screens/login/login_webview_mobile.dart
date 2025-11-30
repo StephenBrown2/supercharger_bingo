@@ -1,0 +1,110 @@
+// Native webview implementation for Android/iOS/Linux
+// Uses webview_flutter package on mobile
+// Uses webview_win_floating on Linux (registers automatically)
+
+import 'dart:io' show Platform;
+
+import 'package:flutter/material.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+// Import Linux/Windows implementation - registers itself as platform implementation
+// ignore: unused_import
+import 'package:webview_win_floating/webview_win_floating.dart';
+
+/// Whether this platform supports inline webview
+bool get supportsInlineWebView {
+  return Platform.isAndroid || Platform.isIOS || Platform.isLinux;
+}
+
+/// Build a webview widget for native mobile platforms
+Widget buildPlatformWebView({
+  Key? key,
+  required String initialUrl,
+  required void Function(String url) onUrlChanged,
+  required void Function(String cookies) onCookiesAvailable,
+  required VoidCallback onReload,
+}) {
+  return _NativeWebView(
+    key: key,
+    initialUrl: initialUrl,
+    onUrlChanged: onUrlChanged,
+    onCookiesAvailable: onCookiesAvailable,
+    onReload: onReload,
+  );
+}
+
+class _NativeWebView extends StatefulWidget {
+  final String initialUrl;
+  final void Function(String url) onUrlChanged;
+  final void Function(String cookies) onCookiesAvailable;
+  final VoidCallback onReload;
+
+  const _NativeWebView({
+    super.key,
+    required this.initialUrl,
+    required this.onUrlChanged,
+    required this.onCookiesAvailable,
+    required this.onReload,
+  });
+
+  @override
+  State<_NativeWebView> createState() => _NativeWebViewState();
+}
+
+class _NativeWebViewState extends State<_NativeWebView> {
+  late final WebViewController _controller;
+  bool _isLoading = true;
+
+  // Use a standard Chrome user agent to avoid Google blocking embedded webviews
+  static const String _userAgent = 
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+  @override
+  void initState() {
+    super.initState();
+    _initWebView();
+  }
+
+  void _initWebView() {
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setUserAgent(_userAgent)
+      ..setNavigationDelegate(NavigationDelegate(
+        onPageStarted: (url) {
+          setState(() => _isLoading = true);
+        },
+        onPageFinished: (url) async {
+          setState(() => _isLoading = false);
+          widget.onUrlChanged(url);
+          await _extractCookies();
+        },
+        onNavigationRequest: (request) {
+          return NavigationDecision.navigate;
+        },
+      ))
+      ..loadRequest(Uri.parse(widget.initialUrl));
+  }
+
+  Future<void> _extractCookies() async {
+    try {
+      final cookieResult = await _controller.runJavaScriptReturningResult(
+        'document.cookie'
+      );
+      widget.onCookiesAvailable(cookieResult.toString());
+    } catch (_) {}
+  }
+
+  void reload() {
+    _controller.reload();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        WebViewWidget(controller: _controller),
+        if (_isLoading)
+          const LinearProgressIndicator(),
+      ],
+    );
+  }
+}
