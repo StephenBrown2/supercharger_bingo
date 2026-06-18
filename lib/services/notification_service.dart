@@ -285,8 +285,8 @@ void backgroundSyncCallback() {
         // Sync sites from supercharge.info
         await SyncService.instance.syncSites();
 
-        // Sync check-in history from supercharging.life
-        await SyncService.instance.syncCheckinHistory();
+        // Sync community First data from supercharging.life
+        await SyncService.instance.syncCommunityData();
 
         // Check for new superchargers within radius
         if (settings.lastLatitude != null && settings.lastLongitude != null) {

@@ -315,8 +315,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                       final site = siteWithDist.site;
                       return Marker(
                         point: LatLng(site.latitude, site.longitude),
-                        width: 28,
-                        height: 28,
+                        width: 32,
+                        height: 32,
                         child: _MapMarker(
                           site: site,
                           firstDate: _firstDates[site.siteId],
@@ -515,8 +515,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     return _sites.map((site) {
       return Marker(
         point: LatLng(site.latitude, site.longitude),
-        width: 24,
-        height: 24,
+        width: 32,
+        height: 32,
         child: GestureDetector(
           onTap: () => _showSiteInfo(site),
           child: _MapMarker(site: site, firstDate: _firstDates[site.siteId]),
@@ -1050,12 +1050,21 @@ class _MapMarker extends StatelessWidget {
       visited: site.visited,
     );
 
-    return Icon(
-      style.glyph,
-      color: style.color,
-      size: 20,
-      shadows: const [Shadow(blurRadius: 4, color: Colors.black45)],
-      semanticLabel: style.label,
+    return Container(
+      width: 28,
+      height: 28,
+      decoration: BoxDecoration(
+        color: style.color,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.black45)],
+      ),
+      child: Icon(
+        style.glyph,
+        color: glyphForeground(style.color),
+        size: 16,
+        semanticLabel: style.label,
+      ),
     );
   }
 }

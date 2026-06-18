@@ -17,6 +17,7 @@ class SyncService {
   final Connectivity _connectivity = Connectivity();
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   bool _isSyncingSites = false;
+  bool _isSyncingCheckinHistory = false;
   bool _isSyncingCheckinCounts = false;
   bool _isSyncingUser = false;
 
@@ -65,8 +66,8 @@ class SyncService {
 
   /// Sync check-in history from supercharging.life
   Future<void> syncCheckinHistory() async {
-    if (_isSyncingSites) return;
-    _isSyncingSites = true;
+    if (_isSyncingCheckinHistory) return;
+    _isSyncingCheckinHistory = true;
 
     try {
       final checkins = await ApiService.instance.fetchCheckinHistory();
@@ -86,7 +87,24 @@ class SyncService {
         ),
       );
     } finally {
-      _isSyncingSites = false;
+      _isSyncingCheckinHistory = false;
+    }
+  }
+
+  /// Sync the community First data used to colour pins: the check-in history
+  /// (drives first_date) and the per-site check-in counts (drives hasCheckins).
+  /// Best-effort: the unofficial endpoints are fragile, so failures are logged
+  /// and swallowed rather than blocking startup or the periodic sync.
+  Future<void> syncCommunityData() async {
+    try {
+      await syncCheckinHistory();
+    } catch (e) {
+      debugPrint('syncCommunityData: check-in history failed: $e');
+    }
+    try {
+      await syncSuperchargerCheckinCounts();
+    } catch (e) {
+      debugPrint('syncCommunityData: check-in counts failed: $e');
     }
   }
 

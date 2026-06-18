@@ -44,8 +44,9 @@ class DesktopBackgroundService {
   /// Perform a single sync operation
   Future<void> _performSync() async {
     try {
-      // Sync sites first, then pending checkins
+      // Sync sites, then community First data, then flush pending checkins.
       await SyncService.instance.syncSites();
+      await SyncService.instance.syncCommunityData();
       await SyncService.instance.syncPendingCheckins();
     } catch (e) {
       // Log error but don't crash

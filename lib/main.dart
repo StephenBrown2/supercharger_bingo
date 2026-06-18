@@ -53,6 +53,10 @@ class _SuperchargerBingoAppState extends State<SuperchargerBingoApp> {
       debugPrint('Failed to sync sites: $e');
     }
 
+    // Sync community check-in data (drives the First pin colours). Best-effort
+    // and unawaited so the map renders without waiting on the fragile endpoint.
+    SyncService.instance.syncCommunityData();
+
     // Background sync only on native platforms (not web)
     if (!kIsWeb && settings.isAuthenticated) {
       await NotificationService.instance.scheduleBackgroundSync(settings);

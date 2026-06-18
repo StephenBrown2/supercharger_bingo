@@ -44,6 +44,11 @@ class MarkerStyle {
   const MarkerStyle(this.color, this.glyph, this.label);
 }
 
+/// Readable glyph colour on a filled [background]: black on light fills (e.g.
+/// the yellow First-today pin), white on dark ones.
+Color glyphForeground(Color background) =>
+    background.computeLuminance() > 0.5 ? Colors.black : Colors.white;
+
 /// Whether a status is operational (chargeable, First applies): OPEN/EXPANDING.
 bool isOperational(SiteStatus status) =>
     status == SiteStatus.open || status == SiteStatus.expanding;
