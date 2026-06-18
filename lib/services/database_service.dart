@@ -200,6 +200,30 @@ class DatabaseService {
     await db.clearAll();
   }
 
+  // -------------------------------------------------------------------------
+  // Vehicles
+  // -------------------------------------------------------------------------
+
+  static Future<List<Vehicle>> getVehicles() => db.getAllVehicles();
+
+  static Future<void> upsertVehicle(VehiclesCompanion vehicle) =>
+      db.upsertVehicle(vehicle);
+
+  static Future<void> deleteVehicle(String id) => db.deleteVehicle(id);
+
+  /// Map of siteId -> the current user's most recent check-in date (or absent
+  /// if none), for the "most-recent check-in" annotation in the nearby list.
+  static Future<Map<int, DateTime>> getLastVisitDates(
+    List<int> siteIds,
+  ) async {
+    final result = <int, DateTime>{};
+    for (final id in siteIds) {
+      final date = await db.getLastVisitDate(id);
+      if (date != null) result[id] = date;
+    }
+    return result;
+  }
+
   /// Get nearby sites sorted by distance from a given location
   /// Returns sites within [radiusKm] kilometers, sorted by distance
   static Future<List<SiteWithDistance>> getNearbySites({

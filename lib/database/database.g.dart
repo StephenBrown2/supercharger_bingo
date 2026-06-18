@@ -1048,6 +1048,28 @@ class $VisitsTable extends Visits with TableInfo<$VisitsTable, Visit> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _notesPrivateMeta = const VerificationMeta(
+    'notesPrivate',
+  );
+  @override
+  late final GeneratedColumn<String> notesPrivate = GeneratedColumn<String>(
+    'notes_private',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _vehicleIdMeta = const VerificationMeta(
+    'vehicleId',
+  );
+  @override
+  late final GeneratedColumn<String> vehicleId = GeneratedColumn<String>(
+    'vehicle_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _geoDistanceAccuracyMeta =
       const VerificationMeta('geoDistanceAccuracy');
   @override
@@ -1100,6 +1122,8 @@ class $VisitsTable extends Visits with TableInfo<$VisitsTable, Visit> {
     isFirst,
     method,
     notesPublic,
+    notesPrivate,
+    vehicleId,
     geoDistanceAccuracy,
     geoDistance,
     distinctUserSuperSeq,
@@ -1171,6 +1195,21 @@ class $VisitsTable extends Visits with TableInfo<$VisitsTable, Visit> {
           data['notes_public']!,
           _notesPublicMeta,
         ),
+      );
+    }
+    if (data.containsKey('notes_private')) {
+      context.handle(
+        _notesPrivateMeta,
+        notesPrivate.isAcceptableOrUnknown(
+          data['notes_private']!,
+          _notesPrivateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('vehicle_id')) {
+      context.handle(
+        _vehicleIdMeta,
+        vehicleId.isAcceptableOrUnknown(data['vehicle_id']!, _vehicleIdMeta),
       );
     }
     if (data.containsKey('geo_distance_accuracy')) {
@@ -1251,6 +1290,14 @@ class $VisitsTable extends Visits with TableInfo<$VisitsTable, Visit> {
         DriftSqlType.string,
         data['${effectivePrefix}notes_public'],
       ),
+      notesPrivate: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}notes_private'],
+      ),
+      vehicleId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}vehicle_id'],
+      ),
       geoDistanceAccuracy: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}geo_distance_accuracy'],
@@ -1288,6 +1335,10 @@ class Visit extends DataClass implements Insertable<Visit> {
   final bool isFirst;
   final CheckinMethod method;
   final String? notesPublic;
+  final String? notesPrivate;
+
+  /// Local-only association with a Vehicle; never sent to supercharging.life.
+  final String? vehicleId;
   final int? geoDistanceAccuracy;
   final int? geoDistance;
   final int? distinctUserSuperSeq;
@@ -1301,6 +1352,8 @@ class Visit extends DataClass implements Insertable<Visit> {
     required this.isFirst,
     required this.method,
     this.notesPublic,
+    this.notesPrivate,
+    this.vehicleId,
     this.geoDistanceAccuracy,
     this.geoDistance,
     this.distinctUserSuperSeq,
@@ -1322,6 +1375,12 @@ class Visit extends DataClass implements Insertable<Visit> {
     }
     if (!nullToAbsent || notesPublic != null) {
       map['notes_public'] = Variable<String>(notesPublic);
+    }
+    if (!nullToAbsent || notesPrivate != null) {
+      map['notes_private'] = Variable<String>(notesPrivate);
+    }
+    if (!nullToAbsent || vehicleId != null) {
+      map['vehicle_id'] = Variable<String>(vehicleId);
     }
     if (!nullToAbsent || geoDistanceAccuracy != null) {
       map['geo_distance_accuracy'] = Variable<int>(geoDistanceAccuracy);
@@ -1348,6 +1407,12 @@ class Visit extends DataClass implements Insertable<Visit> {
       notesPublic: notesPublic == null && nullToAbsent
           ? const Value.absent()
           : Value(notesPublic),
+      notesPrivate: notesPrivate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notesPrivate),
+      vehicleId: vehicleId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(vehicleId),
       geoDistanceAccuracy: geoDistanceAccuracy == null && nullToAbsent
           ? const Value.absent()
           : Value(geoDistanceAccuracy),
@@ -1377,6 +1442,8 @@ class Visit extends DataClass implements Insertable<Visit> {
         serializer.fromJson<String>(json['method']),
       ),
       notesPublic: serializer.fromJson<String?>(json['notesPublic']),
+      notesPrivate: serializer.fromJson<String?>(json['notesPrivate']),
+      vehicleId: serializer.fromJson<String?>(json['vehicleId']),
       geoDistanceAccuracy: serializer.fromJson<int?>(
         json['geoDistanceAccuracy'],
       ),
@@ -1401,6 +1468,8 @@ class Visit extends DataClass implements Insertable<Visit> {
         $VisitsTable.$convertermethod.toJson(method),
       ),
       'notesPublic': serializer.toJson<String?>(notesPublic),
+      'notesPrivate': serializer.toJson<String?>(notesPrivate),
+      'vehicleId': serializer.toJson<String?>(vehicleId),
       'geoDistanceAccuracy': serializer.toJson<int?>(geoDistanceAccuracy),
       'geoDistance': serializer.toJson<int?>(geoDistance),
       'distinctUserSuperSeq': serializer.toJson<int?>(distinctUserSuperSeq),
@@ -1417,6 +1486,8 @@ class Visit extends DataClass implements Insertable<Visit> {
     bool? isFirst,
     CheckinMethod? method,
     Value<String?> notesPublic = const Value.absent(),
+    Value<String?> notesPrivate = const Value.absent(),
+    Value<String?> vehicleId = const Value.absent(),
     Value<int?> geoDistanceAccuracy = const Value.absent(),
     Value<int?> geoDistance = const Value.absent(),
     Value<int?> distinctUserSuperSeq = const Value.absent(),
@@ -1430,6 +1501,8 @@ class Visit extends DataClass implements Insertable<Visit> {
     isFirst: isFirst ?? this.isFirst,
     method: method ?? this.method,
     notesPublic: notesPublic.present ? notesPublic.value : this.notesPublic,
+    notesPrivate: notesPrivate.present ? notesPrivate.value : this.notesPrivate,
+    vehicleId: vehicleId.present ? vehicleId.value : this.vehicleId,
     geoDistanceAccuracy: geoDistanceAccuracy.present
         ? geoDistanceAccuracy.value
         : this.geoDistanceAccuracy,
@@ -1455,6 +1528,10 @@ class Visit extends DataClass implements Insertable<Visit> {
       notesPublic: data.notesPublic.present
           ? data.notesPublic.value
           : this.notesPublic,
+      notesPrivate: data.notesPrivate.present
+          ? data.notesPrivate.value
+          : this.notesPrivate,
+      vehicleId: data.vehicleId.present ? data.vehicleId.value : this.vehicleId,
       geoDistanceAccuracy: data.geoDistanceAccuracy.present
           ? data.geoDistanceAccuracy.value
           : this.geoDistanceAccuracy,
@@ -1481,6 +1558,8 @@ class Visit extends DataClass implements Insertable<Visit> {
           ..write('isFirst: $isFirst, ')
           ..write('method: $method, ')
           ..write('notesPublic: $notesPublic, ')
+          ..write('notesPrivate: $notesPrivate, ')
+          ..write('vehicleId: $vehicleId, ')
           ..write('geoDistanceAccuracy: $geoDistanceAccuracy, ')
           ..write('geoDistance: $geoDistance, ')
           ..write('distinctUserSuperSeq: $distinctUserSuperSeq, ')
@@ -1499,6 +1578,8 @@ class Visit extends DataClass implements Insertable<Visit> {
     isFirst,
     method,
     notesPublic,
+    notesPrivate,
+    vehicleId,
     geoDistanceAccuracy,
     geoDistance,
     distinctUserSuperSeq,
@@ -1516,6 +1597,8 @@ class Visit extends DataClass implements Insertable<Visit> {
           other.isFirst == this.isFirst &&
           other.method == this.method &&
           other.notesPublic == this.notesPublic &&
+          other.notesPrivate == this.notesPrivate &&
+          other.vehicleId == this.vehicleId &&
           other.geoDistanceAccuracy == this.geoDistanceAccuracy &&
           other.geoDistance == this.geoDistance &&
           other.distinctUserSuperSeq == this.distinctUserSuperSeq &&
@@ -1531,6 +1614,8 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
   final Value<bool> isFirst;
   final Value<CheckinMethod> method;
   final Value<String?> notesPublic;
+  final Value<String?> notesPrivate;
+  final Value<String?> vehicleId;
   final Value<int?> geoDistanceAccuracy;
   final Value<int?> geoDistance;
   final Value<int?> distinctUserSuperSeq;
@@ -1544,6 +1629,8 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
     this.isFirst = const Value.absent(),
     this.method = const Value.absent(),
     this.notesPublic = const Value.absent(),
+    this.notesPrivate = const Value.absent(),
+    this.vehicleId = const Value.absent(),
     this.geoDistanceAccuracy = const Value.absent(),
     this.geoDistance = const Value.absent(),
     this.distinctUserSuperSeq = const Value.absent(),
@@ -1558,6 +1645,8 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
     this.isFirst = const Value.absent(),
     this.method = const Value.absent(),
     this.notesPublic = const Value.absent(),
+    this.notesPrivate = const Value.absent(),
+    this.vehicleId = const Value.absent(),
     this.geoDistanceAccuracy = const Value.absent(),
     this.geoDistance = const Value.absent(),
     this.distinctUserSuperSeq = const Value.absent(),
@@ -1576,6 +1665,8 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
     Expression<bool>? isFirst,
     Expression<String>? method,
     Expression<String>? notesPublic,
+    Expression<String>? notesPrivate,
+    Expression<String>? vehicleId,
     Expression<int>? geoDistanceAccuracy,
     Expression<int>? geoDistance,
     Expression<int>? distinctUserSuperSeq,
@@ -1590,6 +1681,8 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
       if (isFirst != null) 'is_first': isFirst,
       if (method != null) 'method': method,
       if (notesPublic != null) 'notes_public': notesPublic,
+      if (notesPrivate != null) 'notes_private': notesPrivate,
+      if (vehicleId != null) 'vehicle_id': vehicleId,
       if (geoDistanceAccuracy != null)
         'geo_distance_accuracy': geoDistanceAccuracy,
       if (geoDistance != null) 'geo_distance': geoDistance,
@@ -1608,6 +1701,8 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
     Value<bool>? isFirst,
     Value<CheckinMethod>? method,
     Value<String?>? notesPublic,
+    Value<String?>? notesPrivate,
+    Value<String?>? vehicleId,
     Value<int?>? geoDistanceAccuracy,
     Value<int?>? geoDistance,
     Value<int?>? distinctUserSuperSeq,
@@ -1622,6 +1717,8 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
       isFirst: isFirst ?? this.isFirst,
       method: method ?? this.method,
       notesPublic: notesPublic ?? this.notesPublic,
+      notesPrivate: notesPrivate ?? this.notesPrivate,
+      vehicleId: vehicleId ?? this.vehicleId,
       geoDistanceAccuracy: geoDistanceAccuracy ?? this.geoDistanceAccuracy,
       geoDistance: geoDistance ?? this.geoDistance,
       distinctUserSuperSeq: distinctUserSuperSeq ?? this.distinctUserSuperSeq,
@@ -1658,6 +1755,12 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
     if (notesPublic.present) {
       map['notes_public'] = Variable<String>(notesPublic.value);
     }
+    if (notesPrivate.present) {
+      map['notes_private'] = Variable<String>(notesPrivate.value);
+    }
+    if (vehicleId.present) {
+      map['vehicle_id'] = Variable<String>(vehicleId.value);
+    }
     if (geoDistanceAccuracy.present) {
       map['geo_distance_accuracy'] = Variable<int>(geoDistanceAccuracy.value);
     }
@@ -1686,6 +1789,8 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
           ..write('isFirst: $isFirst, ')
           ..write('method: $method, ')
           ..write('notesPublic: $notesPublic, ')
+          ..write('notesPrivate: $notesPrivate, ')
+          ..write('vehicleId: $vehicleId, ')
           ..write('geoDistanceAccuracy: $geoDistanceAccuracy, ')
           ..write('geoDistance: $geoDistance, ')
           ..write('distinctUserSuperSeq: $distinctUserSuperSeq, ')
@@ -1789,6 +1894,28 @@ class $PendingCheckinsTable extends PendingCheckins
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _notesPrivateMeta = const VerificationMeta(
+    'notesPrivate',
+  );
+  @override
+  late final GeneratedColumn<String> notesPrivate = GeneratedColumn<String>(
+    'notes_private',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _vehicleIdMeta = const VerificationMeta(
+    'vehicleId',
+  );
+  @override
+  late final GeneratedColumn<String> vehicleId = GeneratedColumn<String>(
+    'vehicle_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   late final GeneratedColumnWithTypeConverter<PendingStatus, String> status =
       GeneratedColumn<String>(
@@ -1844,6 +1971,8 @@ class $PendingCheckinsTable extends PendingCheckins
     longitude,
     accuracy,
     notesPublic,
+    notesPrivate,
+    vehicleId,
     status,
     attempts,
     lastAttemptAt,
@@ -1918,6 +2047,21 @@ class $PendingCheckinsTable extends PendingCheckins
         ),
       );
     }
+    if (data.containsKey('notes_private')) {
+      context.handle(
+        _notesPrivateMeta,
+        notesPrivate.isAcceptableOrUnknown(
+          data['notes_private']!,
+          _notesPrivateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('vehicle_id')) {
+      context.handle(
+        _vehicleIdMeta,
+        vehicleId.isAcceptableOrUnknown(data['vehicle_id']!, _vehicleIdMeta),
+      );
+    }
     if (data.containsKey('attempts')) {
       context.handle(
         _attemptsMeta,
@@ -1980,6 +2124,14 @@ class $PendingCheckinsTable extends PendingCheckins
         DriftSqlType.string,
         data['${effectivePrefix}notes_public'],
       ),
+      notesPrivate: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}notes_private'],
+      ),
+      vehicleId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}vehicle_id'],
+      ),
       status: $PendingCheckinsTable.$converterstatus.fromSql(
         attachedDatabase.typeMapping.read(
           DriftSqlType.string,
@@ -2019,6 +2171,10 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
   final double? longitude;
   final double? accuracy;
   final String? notesPublic;
+  final String? notesPrivate;
+
+  /// Local-only association with a Vehicle; never sent to supercharging.life.
+  final String? vehicleId;
   final PendingStatus status;
   final int attempts;
   final DateTime? lastAttemptAt;
@@ -2032,6 +2188,8 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
     this.longitude,
     this.accuracy,
     this.notesPublic,
+    this.notesPrivate,
+    this.vehicleId,
     required this.status,
     required this.attempts,
     this.lastAttemptAt,
@@ -2055,6 +2213,12 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
     }
     if (!nullToAbsent || notesPublic != null) {
       map['notes_public'] = Variable<String>(notesPublic);
+    }
+    if (!nullToAbsent || notesPrivate != null) {
+      map['notes_private'] = Variable<String>(notesPrivate);
+    }
+    if (!nullToAbsent || vehicleId != null) {
+      map['vehicle_id'] = Variable<String>(vehicleId);
     }
     {
       map['status'] = Variable<String>(
@@ -2089,6 +2253,12 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
       notesPublic: notesPublic == null && nullToAbsent
           ? const Value.absent()
           : Value(notesPublic),
+      notesPrivate: notesPrivate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notesPrivate),
+      vehicleId: vehicleId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(vehicleId),
       status: Value(status),
       attempts: Value(attempts),
       lastAttemptAt: lastAttemptAt == null && nullToAbsent
@@ -2114,6 +2284,8 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
       longitude: serializer.fromJson<double?>(json['longitude']),
       accuracy: serializer.fromJson<double?>(json['accuracy']),
       notesPublic: serializer.fromJson<String?>(json['notesPublic']),
+      notesPrivate: serializer.fromJson<String?>(json['notesPrivate']),
+      vehicleId: serializer.fromJson<String?>(json['vehicleId']),
       status: $PendingCheckinsTable.$converterstatus.fromJson(
         serializer.fromJson<String>(json['status']),
       ),
@@ -2134,6 +2306,8 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
       'longitude': serializer.toJson<double?>(longitude),
       'accuracy': serializer.toJson<double?>(accuracy),
       'notesPublic': serializer.toJson<String?>(notesPublic),
+      'notesPrivate': serializer.toJson<String?>(notesPrivate),
+      'vehicleId': serializer.toJson<String?>(vehicleId),
       'status': serializer.toJson<String>(
         $PendingCheckinsTable.$converterstatus.toJson(status),
       ),
@@ -2152,6 +2326,8 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
     Value<double?> longitude = const Value.absent(),
     Value<double?> accuracy = const Value.absent(),
     Value<String?> notesPublic = const Value.absent(),
+    Value<String?> notesPrivate = const Value.absent(),
+    Value<String?> vehicleId = const Value.absent(),
     PendingStatus? status,
     int? attempts,
     Value<DateTime?> lastAttemptAt = const Value.absent(),
@@ -2165,6 +2341,8 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
     longitude: longitude.present ? longitude.value : this.longitude,
     accuracy: accuracy.present ? accuracy.value : this.accuracy,
     notesPublic: notesPublic.present ? notesPublic.value : this.notesPublic,
+    notesPrivate: notesPrivate.present ? notesPrivate.value : this.notesPrivate,
+    vehicleId: vehicleId.present ? vehicleId.value : this.vehicleId,
     status: status ?? this.status,
     attempts: attempts ?? this.attempts,
     lastAttemptAt: lastAttemptAt.present
@@ -2186,6 +2364,10 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
       notesPublic: data.notesPublic.present
           ? data.notesPublic.value
           : this.notesPublic,
+      notesPrivate: data.notesPrivate.present
+          ? data.notesPrivate.value
+          : this.notesPrivate,
+      vehicleId: data.vehicleId.present ? data.vehicleId.value : this.vehicleId,
       status: data.status.present ? data.status.value : this.status,
       attempts: data.attempts.present ? data.attempts.value : this.attempts,
       lastAttemptAt: data.lastAttemptAt.present
@@ -2206,6 +2388,8 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
           ..write('longitude: $longitude, ')
           ..write('accuracy: $accuracy, ')
           ..write('notesPublic: $notesPublic, ')
+          ..write('notesPrivate: $notesPrivate, ')
+          ..write('vehicleId: $vehicleId, ')
           ..write('status: $status, ')
           ..write('attempts: $attempts, ')
           ..write('lastAttemptAt: $lastAttemptAt, ')
@@ -2224,6 +2408,8 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
     longitude,
     accuracy,
     notesPublic,
+    notesPrivate,
+    vehicleId,
     status,
     attempts,
     lastAttemptAt,
@@ -2241,6 +2427,8 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
           other.longitude == this.longitude &&
           other.accuracy == this.accuracy &&
           other.notesPublic == this.notesPublic &&
+          other.notesPrivate == this.notesPrivate &&
+          other.vehicleId == this.vehicleId &&
           other.status == this.status &&
           other.attempts == this.attempts &&
           other.lastAttemptAt == this.lastAttemptAt &&
@@ -2256,6 +2444,8 @@ class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
   final Value<double?> longitude;
   final Value<double?> accuracy;
   final Value<String?> notesPublic;
+  final Value<String?> notesPrivate;
+  final Value<String?> vehicleId;
   final Value<PendingStatus> status;
   final Value<int> attempts;
   final Value<DateTime?> lastAttemptAt;
@@ -2269,6 +2459,8 @@ class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
     this.longitude = const Value.absent(),
     this.accuracy = const Value.absent(),
     this.notesPublic = const Value.absent(),
+    this.notesPrivate = const Value.absent(),
+    this.vehicleId = const Value.absent(),
     this.status = const Value.absent(),
     this.attempts = const Value.absent(),
     this.lastAttemptAt = const Value.absent(),
@@ -2283,6 +2475,8 @@ class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
     this.longitude = const Value.absent(),
     this.accuracy = const Value.absent(),
     this.notesPublic = const Value.absent(),
+    this.notesPrivate = const Value.absent(),
+    this.vehicleId = const Value.absent(),
     this.status = const Value.absent(),
     this.attempts = const Value.absent(),
     this.lastAttemptAt = const Value.absent(),
@@ -2299,6 +2493,8 @@ class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
     Expression<double>? longitude,
     Expression<double>? accuracy,
     Expression<String>? notesPublic,
+    Expression<String>? notesPrivate,
+    Expression<String>? vehicleId,
     Expression<String>? status,
     Expression<int>? attempts,
     Expression<DateTime>? lastAttemptAt,
@@ -2313,6 +2509,8 @@ class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
       if (longitude != null) 'longitude': longitude,
       if (accuracy != null) 'accuracy': accuracy,
       if (notesPublic != null) 'notes_public': notesPublic,
+      if (notesPrivate != null) 'notes_private': notesPrivate,
+      if (vehicleId != null) 'vehicle_id': vehicleId,
       if (status != null) 'status': status,
       if (attempts != null) 'attempts': attempts,
       if (lastAttemptAt != null) 'last_attempt_at': lastAttemptAt,
@@ -2329,6 +2527,8 @@ class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
     Value<double?>? longitude,
     Value<double?>? accuracy,
     Value<String?>? notesPublic,
+    Value<String?>? notesPrivate,
+    Value<String?>? vehicleId,
     Value<PendingStatus>? status,
     Value<int>? attempts,
     Value<DateTime?>? lastAttemptAt,
@@ -2343,6 +2543,8 @@ class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
       longitude: longitude ?? this.longitude,
       accuracy: accuracy ?? this.accuracy,
       notesPublic: notesPublic ?? this.notesPublic,
+      notesPrivate: notesPrivate ?? this.notesPrivate,
+      vehicleId: vehicleId ?? this.vehicleId,
       status: status ?? this.status,
       attempts: attempts ?? this.attempts,
       lastAttemptAt: lastAttemptAt ?? this.lastAttemptAt,
@@ -2377,6 +2579,12 @@ class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
     if (notesPublic.present) {
       map['notes_public'] = Variable<String>(notesPublic.value);
     }
+    if (notesPrivate.present) {
+      map['notes_private'] = Variable<String>(notesPrivate.value);
+    }
+    if (vehicleId.present) {
+      map['vehicle_id'] = Variable<String>(vehicleId.value);
+    }
     if (status.present) {
       map['status'] = Variable<String>(
         $PendingCheckinsTable.$converterstatus.toSql(status.value),
@@ -2405,6 +2613,8 @@ class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
           ..write('longitude: $longitude, ')
           ..write('accuracy: $accuracy, ')
           ..write('notesPublic: $notesPublic, ')
+          ..write('notesPrivate: $notesPrivate, ')
+          ..write('vehicleId: $vehicleId, ')
           ..write('status: $status, ')
           ..write('attempts: $attempts, ')
           ..write('lastAttemptAt: $lastAttemptAt, ')
@@ -4201,6 +4411,556 @@ class UserSettingsTableCompanion
   }
 }
 
+class $VehiclesTable extends Vehicles with TableInfo<$VehiclesTable, Vehicle> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $VehiclesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _labelMeta = const VerificationMeta('label');
+  @override
+  late final GeneratedColumn<String> label = GeneratedColumn<String>(
+    'label',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _makeMeta = const VerificationMeta('make');
+  @override
+  late final GeneratedColumn<String> make = GeneratedColumn<String>(
+    'make',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _modelMeta = const VerificationMeta('model');
+  @override
+  late final GeneratedColumn<String> model = GeneratedColumn<String>(
+    'model',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _yearMeta = const VerificationMeta('year');
+  @override
+  late final GeneratedColumn<String> year = GeneratedColumn<String>(
+    'year',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _trimMeta = const VerificationMeta('trim');
+  @override
+  late final GeneratedColumn<String> trim = GeneratedColumn<String>(
+    'trim',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _displayOptInMeta = const VerificationMeta(
+    'displayOptIn',
+  );
+  @override
+  late final GeneratedColumn<bool> displayOptIn = GeneratedColumn<bool>(
+    'display_opt_in',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("display_opt_in" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _hasVinMeta = const VerificationMeta('hasVin');
+  @override
+  late final GeneratedColumn<bool> hasVin = GeneratedColumn<bool>(
+    'has_vin',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("has_vin" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    label,
+    make,
+    model,
+    year,
+    trim,
+    displayOptIn,
+    hasVin,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'vehicles';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Vehicle> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('label')) {
+      context.handle(
+        _labelMeta,
+        label.isAcceptableOrUnknown(data['label']!, _labelMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_labelMeta);
+    }
+    if (data.containsKey('make')) {
+      context.handle(
+        _makeMeta,
+        make.isAcceptableOrUnknown(data['make']!, _makeMeta),
+      );
+    }
+    if (data.containsKey('model')) {
+      context.handle(
+        _modelMeta,
+        model.isAcceptableOrUnknown(data['model']!, _modelMeta),
+      );
+    }
+    if (data.containsKey('year')) {
+      context.handle(
+        _yearMeta,
+        year.isAcceptableOrUnknown(data['year']!, _yearMeta),
+      );
+    }
+    if (data.containsKey('trim')) {
+      context.handle(
+        _trimMeta,
+        trim.isAcceptableOrUnknown(data['trim']!, _trimMeta),
+      );
+    }
+    if (data.containsKey('display_opt_in')) {
+      context.handle(
+        _displayOptInMeta,
+        displayOptIn.isAcceptableOrUnknown(
+          data['display_opt_in']!,
+          _displayOptInMeta,
+        ),
+      );
+    }
+    if (data.containsKey('has_vin')) {
+      context.handle(
+        _hasVinMeta,
+        hasVin.isAcceptableOrUnknown(data['has_vin']!, _hasVinMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Vehicle map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Vehicle(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      label: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}label'],
+      )!,
+      make: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}make'],
+      ),
+      model: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}model'],
+      ),
+      year: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}year'],
+      ),
+      trim: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trim'],
+      ),
+      displayOptIn: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}display_opt_in'],
+      )!,
+      hasVin: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}has_vin'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $VehiclesTable createAlias(String alias) {
+    return $VehiclesTable(attachedDatabase, alias);
+  }
+}
+
+class Vehicle extends DataClass implements Insertable<Vehicle> {
+  final String id;
+  final String label;
+  final String? make;
+  final String? model;
+  final String? year;
+  final String? trim;
+  final bool displayOptIn;
+  final bool hasVin;
+  final DateTime createdAt;
+  const Vehicle({
+    required this.id,
+    required this.label,
+    this.make,
+    this.model,
+    this.year,
+    this.trim,
+    required this.displayOptIn,
+    required this.hasVin,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['label'] = Variable<String>(label);
+    if (!nullToAbsent || make != null) {
+      map['make'] = Variable<String>(make);
+    }
+    if (!nullToAbsent || model != null) {
+      map['model'] = Variable<String>(model);
+    }
+    if (!nullToAbsent || year != null) {
+      map['year'] = Variable<String>(year);
+    }
+    if (!nullToAbsent || trim != null) {
+      map['trim'] = Variable<String>(trim);
+    }
+    map['display_opt_in'] = Variable<bool>(displayOptIn);
+    map['has_vin'] = Variable<bool>(hasVin);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  VehiclesCompanion toCompanion(bool nullToAbsent) {
+    return VehiclesCompanion(
+      id: Value(id),
+      label: Value(label),
+      make: make == null && nullToAbsent ? const Value.absent() : Value(make),
+      model: model == null && nullToAbsent
+          ? const Value.absent()
+          : Value(model),
+      year: year == null && nullToAbsent ? const Value.absent() : Value(year),
+      trim: trim == null && nullToAbsent ? const Value.absent() : Value(trim),
+      displayOptIn: Value(displayOptIn),
+      hasVin: Value(hasVin),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory Vehicle.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Vehicle(
+      id: serializer.fromJson<String>(json['id']),
+      label: serializer.fromJson<String>(json['label']),
+      make: serializer.fromJson<String?>(json['make']),
+      model: serializer.fromJson<String?>(json['model']),
+      year: serializer.fromJson<String?>(json['year']),
+      trim: serializer.fromJson<String?>(json['trim']),
+      displayOptIn: serializer.fromJson<bool>(json['displayOptIn']),
+      hasVin: serializer.fromJson<bool>(json['hasVin']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'label': serializer.toJson<String>(label),
+      'make': serializer.toJson<String?>(make),
+      'model': serializer.toJson<String?>(model),
+      'year': serializer.toJson<String?>(year),
+      'trim': serializer.toJson<String?>(trim),
+      'displayOptIn': serializer.toJson<bool>(displayOptIn),
+      'hasVin': serializer.toJson<bool>(hasVin),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  Vehicle copyWith({
+    String? id,
+    String? label,
+    Value<String?> make = const Value.absent(),
+    Value<String?> model = const Value.absent(),
+    Value<String?> year = const Value.absent(),
+    Value<String?> trim = const Value.absent(),
+    bool? displayOptIn,
+    bool? hasVin,
+    DateTime? createdAt,
+  }) => Vehicle(
+    id: id ?? this.id,
+    label: label ?? this.label,
+    make: make.present ? make.value : this.make,
+    model: model.present ? model.value : this.model,
+    year: year.present ? year.value : this.year,
+    trim: trim.present ? trim.value : this.trim,
+    displayOptIn: displayOptIn ?? this.displayOptIn,
+    hasVin: hasVin ?? this.hasVin,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  Vehicle copyWithCompanion(VehiclesCompanion data) {
+    return Vehicle(
+      id: data.id.present ? data.id.value : this.id,
+      label: data.label.present ? data.label.value : this.label,
+      make: data.make.present ? data.make.value : this.make,
+      model: data.model.present ? data.model.value : this.model,
+      year: data.year.present ? data.year.value : this.year,
+      trim: data.trim.present ? data.trim.value : this.trim,
+      displayOptIn: data.displayOptIn.present
+          ? data.displayOptIn.value
+          : this.displayOptIn,
+      hasVin: data.hasVin.present ? data.hasVin.value : this.hasVin,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Vehicle(')
+          ..write('id: $id, ')
+          ..write('label: $label, ')
+          ..write('make: $make, ')
+          ..write('model: $model, ')
+          ..write('year: $year, ')
+          ..write('trim: $trim, ')
+          ..write('displayOptIn: $displayOptIn, ')
+          ..write('hasVin: $hasVin, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    label,
+    make,
+    model,
+    year,
+    trim,
+    displayOptIn,
+    hasVin,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Vehicle &&
+          other.id == this.id &&
+          other.label == this.label &&
+          other.make == this.make &&
+          other.model == this.model &&
+          other.year == this.year &&
+          other.trim == this.trim &&
+          other.displayOptIn == this.displayOptIn &&
+          other.hasVin == this.hasVin &&
+          other.createdAt == this.createdAt);
+}
+
+class VehiclesCompanion extends UpdateCompanion<Vehicle> {
+  final Value<String> id;
+  final Value<String> label;
+  final Value<String?> make;
+  final Value<String?> model;
+  final Value<String?> year;
+  final Value<String?> trim;
+  final Value<bool> displayOptIn;
+  final Value<bool> hasVin;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const VehiclesCompanion({
+    this.id = const Value.absent(),
+    this.label = const Value.absent(),
+    this.make = const Value.absent(),
+    this.model = const Value.absent(),
+    this.year = const Value.absent(),
+    this.trim = const Value.absent(),
+    this.displayOptIn = const Value.absent(),
+    this.hasVin = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  VehiclesCompanion.insert({
+    required String id,
+    required String label,
+    this.make = const Value.absent(),
+    this.model = const Value.absent(),
+    this.year = const Value.absent(),
+    this.trim = const Value.absent(),
+    this.displayOptIn = const Value.absent(),
+    this.hasVin = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       label = Value(label);
+  static Insertable<Vehicle> custom({
+    Expression<String>? id,
+    Expression<String>? label,
+    Expression<String>? make,
+    Expression<String>? model,
+    Expression<String>? year,
+    Expression<String>? trim,
+    Expression<bool>? displayOptIn,
+    Expression<bool>? hasVin,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (label != null) 'label': label,
+      if (make != null) 'make': make,
+      if (model != null) 'model': model,
+      if (year != null) 'year': year,
+      if (trim != null) 'trim': trim,
+      if (displayOptIn != null) 'display_opt_in': displayOptIn,
+      if (hasVin != null) 'has_vin': hasVin,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  VehiclesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? label,
+    Value<String?>? make,
+    Value<String?>? model,
+    Value<String?>? year,
+    Value<String?>? trim,
+    Value<bool>? displayOptIn,
+    Value<bool>? hasVin,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return VehiclesCompanion(
+      id: id ?? this.id,
+      label: label ?? this.label,
+      make: make ?? this.make,
+      model: model ?? this.model,
+      year: year ?? this.year,
+      trim: trim ?? this.trim,
+      displayOptIn: displayOptIn ?? this.displayOptIn,
+      hasVin: hasVin ?? this.hasVin,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (label.present) {
+      map['label'] = Variable<String>(label.value);
+    }
+    if (make.present) {
+      map['make'] = Variable<String>(make.value);
+    }
+    if (model.present) {
+      map['model'] = Variable<String>(model.value);
+    }
+    if (year.present) {
+      map['year'] = Variable<String>(year.value);
+    }
+    if (trim.present) {
+      map['trim'] = Variable<String>(trim.value);
+    }
+    if (displayOptIn.present) {
+      map['display_opt_in'] = Variable<bool>(displayOptIn.value);
+    }
+    if (hasVin.present) {
+      map['has_vin'] = Variable<bool>(hasVin.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('VehiclesCompanion(')
+          ..write('id: $id, ')
+          ..write('label: $label, ')
+          ..write('make: $make, ')
+          ..write('model: $model, ')
+          ..write('year: $year, ')
+          ..write('trim: $trim, ')
+          ..write('displayOptIn: $displayOptIn, ')
+          ..write('hasVin: $hasVin, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -4212,6 +4972,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $SiteCheckinsTable siteCheckins = $SiteCheckinsTable(this);
   late final $UserSettingsTableTable userSettingsTable =
       $UserSettingsTableTable(this);
+  late final $VehiclesTable vehicles = $VehiclesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -4222,6 +4983,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     pendingCheckins,
     siteCheckins,
     userSettingsTable,
+    vehicles,
   ];
 }
 
@@ -4661,6 +5423,8 @@ typedef $$VisitsTableCreateCompanionBuilder =
       Value<bool> isFirst,
       Value<CheckinMethod> method,
       Value<String?> notesPublic,
+      Value<String?> notesPrivate,
+      Value<String?> vehicleId,
       Value<int?> geoDistanceAccuracy,
       Value<int?> geoDistance,
       Value<int?> distinctUserSuperSeq,
@@ -4676,6 +5440,8 @@ typedef $$VisitsTableUpdateCompanionBuilder =
       Value<bool> isFirst,
       Value<CheckinMethod> method,
       Value<String?> notesPublic,
+      Value<String?> notesPrivate,
+      Value<String?> vehicleId,
       Value<int?> geoDistanceAccuracy,
       Value<int?> geoDistance,
       Value<int?> distinctUserSuperSeq,
@@ -4729,6 +5495,16 @@ class $$VisitsTableFilterComposer
 
   ColumnFilters<String> get notesPublic => $composableBuilder(
     column: $table.notesPublic,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get notesPrivate => $composableBuilder(
+    column: $table.notesPrivate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get vehicleId => $composableBuilder(
+    column: $table.vehicleId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4802,6 +5578,16 @@ class $$VisitsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get notesPrivate => $composableBuilder(
+    column: $table.notesPrivate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get vehicleId => $composableBuilder(
+    column: $table.vehicleId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get geoDistanceAccuracy => $composableBuilder(
     column: $table.geoDistanceAccuracy,
     builder: (column) => ColumnOrderings(column),
@@ -4862,6 +5648,14 @@ class $$VisitsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get notesPrivate => $composableBuilder(
+    column: $table.notesPrivate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get vehicleId =>
+      $composableBuilder(column: $table.vehicleId, builder: (column) => column);
+
   GeneratedColumn<int> get geoDistanceAccuracy => $composableBuilder(
     column: $table.geoDistanceAccuracy,
     builder: (column) => column,
@@ -4919,6 +5713,8 @@ class $$VisitsTableTableManager
                 Value<bool> isFirst = const Value.absent(),
                 Value<CheckinMethod> method = const Value.absent(),
                 Value<String?> notesPublic = const Value.absent(),
+                Value<String?> notesPrivate = const Value.absent(),
+                Value<String?> vehicleId = const Value.absent(),
                 Value<int?> geoDistanceAccuracy = const Value.absent(),
                 Value<int?> geoDistance = const Value.absent(),
                 Value<int?> distinctUserSuperSeq = const Value.absent(),
@@ -4932,6 +5728,8 @@ class $$VisitsTableTableManager
                 isFirst: isFirst,
                 method: method,
                 notesPublic: notesPublic,
+                notesPrivate: notesPrivate,
+                vehicleId: vehicleId,
                 geoDistanceAccuracy: geoDistanceAccuracy,
                 geoDistance: geoDistance,
                 distinctUserSuperSeq: distinctUserSuperSeq,
@@ -4947,6 +5745,8 @@ class $$VisitsTableTableManager
                 Value<bool> isFirst = const Value.absent(),
                 Value<CheckinMethod> method = const Value.absent(),
                 Value<String?> notesPublic = const Value.absent(),
+                Value<String?> notesPrivate = const Value.absent(),
+                Value<String?> vehicleId = const Value.absent(),
                 Value<int?> geoDistanceAccuracy = const Value.absent(),
                 Value<int?> geoDistance = const Value.absent(),
                 Value<int?> distinctUserSuperSeq = const Value.absent(),
@@ -4960,6 +5760,8 @@ class $$VisitsTableTableManager
                 isFirst: isFirst,
                 method: method,
                 notesPublic: notesPublic,
+                notesPrivate: notesPrivate,
+                vehicleId: vehicleId,
                 geoDistanceAccuracy: geoDistanceAccuracy,
                 geoDistance: geoDistance,
                 distinctUserSuperSeq: distinctUserSuperSeq,
@@ -4997,6 +5799,8 @@ typedef $$PendingCheckinsTableCreateCompanionBuilder =
       Value<double?> longitude,
       Value<double?> accuracy,
       Value<String?> notesPublic,
+      Value<String?> notesPrivate,
+      Value<String?> vehicleId,
       Value<PendingStatus> status,
       Value<int> attempts,
       Value<DateTime?> lastAttemptAt,
@@ -5012,6 +5816,8 @@ typedef $$PendingCheckinsTableUpdateCompanionBuilder =
       Value<double?> longitude,
       Value<double?> accuracy,
       Value<String?> notesPublic,
+      Value<String?> notesPrivate,
+      Value<String?> vehicleId,
       Value<PendingStatus> status,
       Value<int> attempts,
       Value<DateTime?> lastAttemptAt,
@@ -5064,6 +5870,16 @@ class $$PendingCheckinsTableFilterComposer
 
   ColumnFilters<String> get notesPublic => $composableBuilder(
     column: $table.notesPublic,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get notesPrivate => $composableBuilder(
+    column: $table.notesPrivate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get vehicleId => $composableBuilder(
+    column: $table.vehicleId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5138,6 +5954,16 @@ class $$PendingCheckinsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get notesPrivate => $composableBuilder(
+    column: $table.notesPrivate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get vehicleId => $composableBuilder(
+    column: $table.vehicleId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get status => $composableBuilder(
     column: $table.status,
     builder: (column) => ColumnOrderings(column),
@@ -5195,6 +6021,14 @@ class $$PendingCheckinsTableAnnotationComposer
     column: $table.notesPublic,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get notesPrivate => $composableBuilder(
+    column: $table.notesPrivate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get vehicleId =>
+      $composableBuilder(column: $table.vehicleId, builder: (column) => column);
 
   GeneratedColumnWithTypeConverter<PendingStatus, String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
@@ -5256,6 +6090,8 @@ class $$PendingCheckinsTableTableManager
                 Value<double?> longitude = const Value.absent(),
                 Value<double?> accuracy = const Value.absent(),
                 Value<String?> notesPublic = const Value.absent(),
+                Value<String?> notesPrivate = const Value.absent(),
+                Value<String?> vehicleId = const Value.absent(),
                 Value<PendingStatus> status = const Value.absent(),
                 Value<int> attempts = const Value.absent(),
                 Value<DateTime?> lastAttemptAt = const Value.absent(),
@@ -5269,6 +6105,8 @@ class $$PendingCheckinsTableTableManager
                 longitude: longitude,
                 accuracy: accuracy,
                 notesPublic: notesPublic,
+                notesPrivate: notesPrivate,
+                vehicleId: vehicleId,
                 status: status,
                 attempts: attempts,
                 lastAttemptAt: lastAttemptAt,
@@ -5284,6 +6122,8 @@ class $$PendingCheckinsTableTableManager
                 Value<double?> longitude = const Value.absent(),
                 Value<double?> accuracy = const Value.absent(),
                 Value<String?> notesPublic = const Value.absent(),
+                Value<String?> notesPrivate = const Value.absent(),
+                Value<String?> vehicleId = const Value.absent(),
                 Value<PendingStatus> status = const Value.absent(),
                 Value<int> attempts = const Value.absent(),
                 Value<DateTime?> lastAttemptAt = const Value.absent(),
@@ -5297,6 +6137,8 @@ class $$PendingCheckinsTableTableManager
                 longitude: longitude,
                 accuracy: accuracy,
                 notesPublic: notesPublic,
+                notesPrivate: notesPrivate,
+                vehicleId: vehicleId,
                 status: status,
                 attempts: attempts,
                 lastAttemptAt: lastAttemptAt,
@@ -6134,6 +6976,278 @@ typedef $$UserSettingsTableTableProcessedTableManager =
       UserSettingsTableData,
       PrefetchHooks Function()
     >;
+typedef $$VehiclesTableCreateCompanionBuilder =
+    VehiclesCompanion Function({
+      required String id,
+      required String label,
+      Value<String?> make,
+      Value<String?> model,
+      Value<String?> year,
+      Value<String?> trim,
+      Value<bool> displayOptIn,
+      Value<bool> hasVin,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+typedef $$VehiclesTableUpdateCompanionBuilder =
+    VehiclesCompanion Function({
+      Value<String> id,
+      Value<String> label,
+      Value<String?> make,
+      Value<String?> model,
+      Value<String?> year,
+      Value<String?> trim,
+      Value<bool> displayOptIn,
+      Value<bool> hasVin,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+
+class $$VehiclesTableFilterComposer
+    extends Composer<_$AppDatabase, $VehiclesTable> {
+  $$VehiclesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get make => $composableBuilder(
+    column: $table.make,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get model => $composableBuilder(
+    column: $table.model,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get year => $composableBuilder(
+    column: $table.year,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get trim => $composableBuilder(
+    column: $table.trim,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get displayOptIn => $composableBuilder(
+    column: $table.displayOptIn,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get hasVin => $composableBuilder(
+    column: $table.hasVin,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$VehiclesTableOrderingComposer
+    extends Composer<_$AppDatabase, $VehiclesTable> {
+  $$VehiclesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get make => $composableBuilder(
+    column: $table.make,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get model => $composableBuilder(
+    column: $table.model,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get year => $composableBuilder(
+    column: $table.year,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get trim => $composableBuilder(
+    column: $table.trim,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get displayOptIn => $composableBuilder(
+    column: $table.displayOptIn,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get hasVin => $composableBuilder(
+    column: $table.hasVin,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$VehiclesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $VehiclesTable> {
+  $$VehiclesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get label =>
+      $composableBuilder(column: $table.label, builder: (column) => column);
+
+  GeneratedColumn<String> get make =>
+      $composableBuilder(column: $table.make, builder: (column) => column);
+
+  GeneratedColumn<String> get model =>
+      $composableBuilder(column: $table.model, builder: (column) => column);
+
+  GeneratedColumn<String> get year =>
+      $composableBuilder(column: $table.year, builder: (column) => column);
+
+  GeneratedColumn<String> get trim =>
+      $composableBuilder(column: $table.trim, builder: (column) => column);
+
+  GeneratedColumn<bool> get displayOptIn => $composableBuilder(
+    column: $table.displayOptIn,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get hasVin =>
+      $composableBuilder(column: $table.hasVin, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$VehiclesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $VehiclesTable,
+          Vehicle,
+          $$VehiclesTableFilterComposer,
+          $$VehiclesTableOrderingComposer,
+          $$VehiclesTableAnnotationComposer,
+          $$VehiclesTableCreateCompanionBuilder,
+          $$VehiclesTableUpdateCompanionBuilder,
+          (Vehicle, BaseReferences<_$AppDatabase, $VehiclesTable, Vehicle>),
+          Vehicle,
+          PrefetchHooks Function()
+        > {
+  $$VehiclesTableTableManager(_$AppDatabase db, $VehiclesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$VehiclesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$VehiclesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$VehiclesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> label = const Value.absent(),
+                Value<String?> make = const Value.absent(),
+                Value<String?> model = const Value.absent(),
+                Value<String?> year = const Value.absent(),
+                Value<String?> trim = const Value.absent(),
+                Value<bool> displayOptIn = const Value.absent(),
+                Value<bool> hasVin = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => VehiclesCompanion(
+                id: id,
+                label: label,
+                make: make,
+                model: model,
+                year: year,
+                trim: trim,
+                displayOptIn: displayOptIn,
+                hasVin: hasVin,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String label,
+                Value<String?> make = const Value.absent(),
+                Value<String?> model = const Value.absent(),
+                Value<String?> year = const Value.absent(),
+                Value<String?> trim = const Value.absent(),
+                Value<bool> displayOptIn = const Value.absent(),
+                Value<bool> hasVin = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => VehiclesCompanion.insert(
+                id: id,
+                label: label,
+                make: make,
+                model: model,
+                year: year,
+                trim: trim,
+                displayOptIn: displayOptIn,
+                hasVin: hasVin,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$VehiclesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $VehiclesTable,
+      Vehicle,
+      $$VehiclesTableFilterComposer,
+      $$VehiclesTableOrderingComposer,
+      $$VehiclesTableAnnotationComposer,
+      $$VehiclesTableCreateCompanionBuilder,
+      $$VehiclesTableUpdateCompanionBuilder,
+      (Vehicle, BaseReferences<_$AppDatabase, $VehiclesTable, Vehicle>),
+      Vehicle,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -6148,4 +7262,6 @@ class $AppDatabaseManager {
       $$SiteCheckinsTableTableManager(_db, _db.siteCheckins);
   $$UserSettingsTableTableTableManager get userSettingsTable =>
       $$UserSettingsTableTableTableManager(_db, _db.userSettingsTable);
+  $$VehiclesTableTableManager get vehicles =>
+      $$VehiclesTableTableManager(_db, _db.vehicles);
 }

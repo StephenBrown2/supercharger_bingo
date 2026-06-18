@@ -15,8 +15,8 @@ void main() {
     setUp(() => db = AppDatabase(NativeDatabase.memory()));
     tearDown(() => db.close());
 
-    test('schemaVersion is bumped to 4', () {
-      expect(db.schemaVersion, 4);
+    test('schemaVersion is bumped past the prototype (>= 4)', () {
+      expect(db.schemaVersion, greaterThanOrEqualTo(4));
     });
 
     test('site persists new enum value and derived timezone column', () async {

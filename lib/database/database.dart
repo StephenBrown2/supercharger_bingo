@@ -74,6 +74,10 @@ class Visits extends Table {
     Constant(CheckinMethod.manual.name),
   )();
   TextColumn get notesPublic => text().nullable()();
+  TextColumn get notesPrivate => text().nullable()();
+
+  /// Local-only association with a Vehicle; never sent to supercharging.life.
+  TextColumn get vehicleId => text().nullable()();
   IntColumn get geoDistanceAccuracy => integer().nullable()();
   IntColumn get geoDistance => integer().nullable()();
   IntColumn get distinctUserSuperSeq => integer().nullable()();
@@ -90,6 +94,10 @@ class PendingCheckins extends Table {
   RealColumn get longitude => real().nullable()();
   RealColumn get accuracy => real().nullable()();
   TextColumn get notesPublic => text().nullable()();
+  TextColumn get notesPrivate => text().nullable()();
+
+  /// Local-only association with a Vehicle; never sent to supercharging.life.
+  TextColumn get vehicleId => text().nullable()();
   TextColumn get status => textEnum<PendingStatus>().withDefault(
     Constant(PendingStatus.pending.name),
   )();
@@ -112,6 +120,27 @@ class SiteCheckins extends Table {
       boolean().withDefault(const Constant(false))();
   IntColumn get daysAfterOpen => integer().nullable()();
   DateTimeColumn get syncedAt => dateTime()();
+}
+
+/// Local vehicles (SPEC Section 3). Purely local; never synced. The raw VIN is
+/// never stored here: it lives in flutter_secure_storage keyed by [id], and
+/// only the derived fields (decoded from vPIC) are kept, shown only when the
+/// user opts in.
+class Vehicles extends Table {
+  TextColumn get id => text()(); // client-generated UUID
+  TextColumn get label => text()(); // required nickname
+  TextColumn get make => text().nullable()();
+  TextColumn get model => text().nullable()();
+  TextColumn get year => text().nullable()();
+  TextColumn get trim => text().nullable()();
+  BoolColumn get displayOptIn =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get hasVin => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {id};
 }
 
 /// User settings and authentication state
@@ -153,7 +182,14 @@ class UserSettingsTable extends Table {
 // ============================================================================
 
 @DriftDatabase(
-  tables: [Sites, Visits, PendingCheckins, SiteCheckins, UserSettingsTable],
+  tables: [
+    Sites,
+    Visits,
+    PendingCheckins,
+    SiteCheckins,
+    UserSettingsTable,
+    Vehicles,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   /// Create database with the given [executor].
@@ -162,7 +198,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration {
@@ -206,6 +242,23 @@ class AppDatabase extends _$AppDatabase {
           // columns (street/zip/stallsV2-4/powerKilowatt) and adds the nullable
           // timezone column (null until backfilled on next site sync).
           await m.alterTable(TableMigration(sites));
+        }
+        if (from < 5) {
+          // SPEC Phase 3: private notes + local vehicle association, plus the
+          // Vehicles table.
+          await customStatement(
+            'ALTER TABLE visits ADD COLUMN notes_private TEXT',
+          );
+          await customStatement(
+            'ALTER TABLE visits ADD COLUMN vehicle_id TEXT',
+          );
+          await customStatement(
+            'ALTER TABLE pending_checkins ADD COLUMN notes_private TEXT',
+          );
+          await customStatement(
+            'ALTER TABLE pending_checkins ADD COLUMN vehicle_id TEXT',
+          );
+          await m.createTable(vehicles);
         }
       },
     );
@@ -435,6 +488,27 @@ class AppDatabase extends _$AppDatabase {
   }
 
   // -------------------------------------------------------------------------
+  // Vehicles
+  // -------------------------------------------------------------------------
+
+  Future<List<Vehicle>> getAllVehicles() {
+    return (select(vehicles)..orderBy([(t) => OrderingTerm(expression: t.label)]))
+        .get();
+  }
+
+  Future<Vehicle?> getVehicle(String id) {
+    return (select(vehicles)..where((t) => t.id.equals(id))).getSingleOrNull();
+  }
+
+  Future<void> upsertVehicle(VehiclesCompanion vehicle) async {
+    await into(vehicles).insertOnConflictUpdate(vehicle);
+  }
+
+  Future<void> deleteVehicle(String id) async {
+    await (delete(vehicles)..where((t) => t.id.equals(id))).go();
+  }
+
+  // -------------------------------------------------------------------------
   // Clear All
   // -------------------------------------------------------------------------
 
@@ -443,6 +517,7 @@ class AppDatabase extends _$AppDatabase {
     await delete(visits).go();
     await delete(pendingCheckins).go();
     await delete(siteCheckins).go();
+    await delete(vehicles).go();
     await delete(userSettingsTable).go();
     // Re-create default settings
     await into(userSettingsTable).insert(UserSettingsTableCompanion.insert());

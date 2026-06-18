@@ -10,6 +10,7 @@ import '../database/database.dart';
 import '../services/database_service.dart';
 import '../services/location_service.dart';
 import '../services/timezone_service.dart';
+import 'checkin_dialog.dart';
 import 'map_marker_style.dart';
 
 /// Full-screen map with filter controls and accessible markers
@@ -50,6 +51,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   bool _showCheckinDrawer = false;
   Position? _userPosition;
   List<SiteWithDistance> _nearbySites = [];
+  Map<int, DateTime> _lastVisits = {};
   bool _isLoadingLocation = false;
   bool _isLoadingSites = false;
   String? _locationError;
@@ -824,14 +826,24 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       siteWithDist.distanceKm,
       settings.unitSystem,
     );
+    final lastVisit = _lastVisits[site.siteId];
+    final recent = lastVisit != null
+        ? 'Last: ${_formatShortDate(lastVisit)}'
+        : 'No previous check-in';
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: ListTile(
         leading: _buildCheckinLeadingIcon(theme, site),
         title: Text(site.name),
-        subtitle: Text(
-          '$distanceStr${!site.hasCheckins ? " • FIRST eligible" : ""}',
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '$distanceStr${!site.hasCheckins ? " • FIRST eligible" : ""}',
+            ),
+            Text(recent, style: theme.textTheme.bodySmall),
+          ],
         ),
         trailing: FilledButton.tonal(
           onPressed: () => _handleCheckin(siteWithDist),
@@ -850,6 +862,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     }
     return '${distanceKm.toStringAsFixed(1)} km';
   }
+
+  String _formatShortDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   Widget _buildCheckinLeadingIcon(ThemeData theme, Site site) {
     // First eligible (no check-ins yet)
@@ -934,8 +949,13 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         visited: false,
       );
 
+      final lastVisits = await DatabaseService.getLastVisitDates(
+        sites.map((s) => s.site.siteId).toList(),
+      );
+
       setState(() {
         _nearbySites = sites;
+        _lastVisits = lastVisits;
         _isLoadingSites = false;
       });
     } catch (e) {
@@ -988,62 +1008,22 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     );
   }
 
-  void _handleCheckin(SiteWithDistance siteWithDist) {
+  Future<void> _handleCheckin(SiteWithDistance siteWithDist) async {
     final site = siteWithDist.site;
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Check In'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Check in to ${site.name}?'),
-            const SizedBox(height: 8),
-            Text(
-              '${siteWithDist.distanceKm.toStringAsFixed(1)} km away',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            if (!site.hasCheckins)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.shade100,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Text(
-                    '⭐ First Check-in Eligible!',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: Submit check-in to API
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Checked in to ${site.name}')),
-              );
-              // Close drawer after checkin
-              _closeDrawer();
-            },
-            child: const Text('Check In'),
-          ),
-        ],
-      ),
+    final messenger = ScaffoldMessenger.of(context);
+    final queued = await showCheckinDialog(
+      context,
+      site: site,
+      distanceKm: siteWithDist.distanceKm,
+      position: _userPosition,
     );
+    if (!queued) return;
+
+    messenger.showSnackBar(
+      SnackBar(content: Text('Checked in to ${site.name}')),
+    );
+    _closeDrawer();
+    _loadSites();
   }
 }
 

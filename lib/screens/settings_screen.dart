@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../database/database.dart';
 import '../services/database_service.dart';
 import '../services/sync_service.dart';
+import 'vehicles_screen.dart';
 
 /// Mutable settings wrapper for the UI
 class MutableSettings {
@@ -208,6 +209,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     'Note: iOS may limit background refresh to once per day due to system restrictions.',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.outline,
+                    ),
+                  ),
+                ),
+                const Divider(),
+
+                // Garage section
+                _buildSectionHeader(theme, 'Garage'),
+                ListTile(
+                  leading: const Icon(Icons.directions_car),
+                  title: const Text('Vehicles'),
+                  subtitle: const Text('Manage your vehicles (local only)'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const VehiclesScreen(),
                     ),
                   ),
                 ),

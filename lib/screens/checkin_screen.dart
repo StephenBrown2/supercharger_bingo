@@ -9,6 +9,7 @@ import 'package:latlong2/latlong.dart';
 import '../database/database.dart';
 import '../services/database_service.dart';
 import '../services/location_service.dart';
+import 'checkin_dialog.dart';
 
 /// Check-in screen with mini-map and site list
 class CheckinScreen extends StatefulWidget {
@@ -25,6 +26,8 @@ class _CheckinScreenState extends State<CheckinScreen> {
 
   Position? _userPosition;
   List<SiteWithDistance> _nearbySites = [];
+  // siteId -> current user's most recent check-in date at that site.
+  Map<int, DateTime> _lastVisits = {};
   bool _isLoadingLocation = true;
   bool _isLoadingSites = false;
   String? _locationError;
@@ -90,8 +93,13 @@ class _CheckinScreenState extends State<CheckinScreen> {
         visited: false, // Exclude visited sites
       );
 
+      final lastVisits = await DatabaseService.getLastVisitDates(
+        sites.map((s) => s.site.siteId).toList(),
+      );
+
       setState(() {
         _nearbySites = sites;
+        _lastVisits = lastVisits;
         _isLoadingSites = false;
       });
     } catch (e) {
@@ -393,6 +401,7 @@ class _CheckinScreenState extends State<CheckinScreen> {
                       final siteWithDist = _nearbySites[index];
                       return _SiteListTile(
                         siteWithDistance: siteWithDist,
+                        lastVisit: _lastVisits[siteWithDist.site.siteId],
                         onCheckin: () => _handleCheckin(siteWithDist),
                       );
                     },
@@ -403,75 +412,34 @@ class _CheckinScreenState extends State<CheckinScreen> {
     );
   }
 
-  void _handleCheckin(SiteWithDistance siteWithDist) {
+  Future<void> _handleCheckin(SiteWithDistance siteWithDist) async {
     final site = siteWithDist.site;
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Check In'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Check in to ${site.name}?'),
-            const SizedBox(height: 8),
-            Text(
-              '${siteWithDist.distanceKm.toStringAsFixed(1)} km away',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            if (!site.hasCheckins)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.shade100,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Text(
-                    '⭐ First Check-in Eligible!',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: Submit check-in to API
-              widget.onCheckinComplete?.call(
-                site.siteId,
-                site.latitude,
-                site.longitude,
-              );
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Checked in to ${site.name}')),
-              );
-            },
-            child: const Text('Check In'),
-          ),
-        ],
-      ),
+    final messenger = ScaffoldMessenger.of(context);
+    final queued = await showCheckinDialog(
+      context,
+      site: site,
+      distanceKm: siteWithDist.distanceKm,
+      position: _userPosition,
     );
+    if (!queued) return;
+
+    widget.onCheckinComplete?.call(site.siteId, site.latitude, site.longitude);
+    messenger.showSnackBar(
+      SnackBar(content: Text('Checked in to ${site.name}')),
+    );
+    await _loadNearbySites();
   }
 }
 
 /// List tile for a site in the check-in list
 class _SiteListTile extends StatelessWidget {
   final SiteWithDistance siteWithDistance;
+  final DateTime? lastVisit;
   final VoidCallback onCheckin;
 
   const _SiteListTile({
     required this.siteWithDistance,
+    required this.lastVisit,
     required this.onCheckin,
   });
 
@@ -533,34 +501,48 @@ class _SiteListTile extends StatelessWidget {
 
   Widget _buildSubtitle(ThemeData theme, Site site) {
     final distanceText = '${siteWithDistance.distanceKm.toStringAsFixed(1)} km';
+    // Most-recent check-in indicator (SPEC Section 6, item 3).
+    final recent = lastVisit != null
+        ? 'Last: ${_formatDate(lastVisit!)}'
+        : 'No previous check-in';
 
     // First eligible
     if (!site.hasCheckins) {
-      return Row(
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(distanceText),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.amber.shade100,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: const Text(
-              'FIRST eligible',
-              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
-            ),
+          Row(
+            children: [
+              Text(distanceText),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade100,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'FIRST eligible',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
           ),
+          Text(recent, style: theme.textTheme.bodySmall),
         ],
       );
     }
 
-    // Visited
-    if (site.visited) {
-      return Text('$distanceText • Visited');
-    }
-
-    // Unvisited
-    return Text('$distanceText • Unvisited');
+    final status = site.visited ? 'Visited' : 'Unvisited';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('$distanceText • $status'),
+        Text(recent, style: theme.textTheme.bodySmall),
+      ],
+    );
   }
+
+  static String _formatDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 }
