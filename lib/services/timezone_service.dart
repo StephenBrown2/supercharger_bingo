@@ -76,9 +76,11 @@ class TimezoneService {
     return 'Etc/GMT${offsetHours >= 0 ? '-' : '+'}${offsetHours.abs()}';
   }
 
-  /// Get the local time at a site
+  /// Get the local time at a site. Prefers the timezone stored at ingestion,
+  /// falling back to a coordinate-based lookup for older rows.
   DateTime getLocalTimeAtSite(Site site) {
-    final tzName = getTimezoneForLocation(site.latitude, site.longitude);
+    final tzName =
+        site.timezone ?? getTimezoneForLocation(site.latitude, site.longitude);
     try {
       final location = tz.getLocation(tzName);
       return tz.TZDateTime.now(location);

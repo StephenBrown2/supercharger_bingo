@@ -86,7 +86,17 @@ class DatabaseService {
     if (visited == false) {
       return db.getUnvisitedSites();
     }
+    if (visited == true) {
+      return db.getVisitedSites();
+    }
     return db.getAllSites();
+  }
+
+  /// Earliest community check-in date per site, used to derive First state.
+  static Future<Map<int, DateTime>> getEarliestCheckinDates(
+    List<int> siteIds,
+  ) async {
+    return db.getEarliestCheckinDates(siteIds);
   }
 
   /// Get a site by its supercharge.info ID

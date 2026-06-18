@@ -9,6 +9,8 @@ import 'package:latlong2/latlong.dart';
 import '../database/database.dart';
 import '../services/database_service.dart';
 import '../services/location_service.dart';
+import '../services/timezone_service.dart';
+import 'map_marker_style.dart';
 
 /// Full-screen map with filter controls and accessible markers
 /// Can show a bottom drawer with nearby sites for check-in
@@ -34,6 +36,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   MapFilter _currentFilter = MapFilter.openUnvisited;
   List<Site> _sites = [];
+  // Earliest community check-in date per site, used to derive First state.
+  Map<int, DateTime> _firstDates = {};
   bool _isLoading = true;
   bool _isLocating = false;
   late AnimationController _locationAnimController;
@@ -137,13 +141,26 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           );
           sites = [...openSites, ...constructionSites];
           break;
+        case MapFilter.visited:
+          // Any site the current user has checked into, regardless of status.
+          sites = await DatabaseService.getSites(visited: true);
+          break;
         case MapFilter.all:
           // All sites
           sites = await DatabaseService.getSites();
           break;
       }
+      // Derive First state inputs for the operational sites on screen.
+      final operationalIds = sites
+          .where((s) => isOperational(s.status))
+          .map((s) => s.siteId)
+          .toList();
+      final firstDates = await DatabaseService.getEarliestCheckinDates(
+        operationalIds,
+      );
       setState(() {
         _sites = sites;
+        _firstDates = firstDates;
         _isLoading = false;
       });
     } catch (e) {
@@ -298,7 +315,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                         point: LatLng(site.latitude, site.longitude),
                         width: 28,
                         height: 28,
-                        child: _MapMarker(site: site),
+                        child: _MapMarker(
+                          site: site,
+                          firstDate: _firstDates[site.siteId],
+                        ),
                       );
                     }),
                   ],
@@ -418,6 +438,17 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           ),
           const SizedBox(width: 8),
           FilterChip(
+            label: const Text('Visited'),
+            selected: _currentFilter == MapFilter.visited,
+            onSelected: (selected) {
+              if (selected) {
+                setState(() => _currentFilter = MapFilter.visited);
+                _loadSites();
+              }
+            },
+          ),
+          const SizedBox(width: 8),
+          FilterChip(
             label: const Text('All Statuses'),
             selected: _currentFilter == MapFilter.all,
             onSelected: (selected) {
@@ -440,17 +471,27 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _legendItem(Icons.star, Colors.green, 'First eligible'),
+            _legendItem(
+              Icons.circle_outlined,
+              OkabeIto.green,
+              'First up for grabs',
+            ),
             const SizedBox(height: 4),
-            _legendItem(Icons.circle, Colors.red, 'Open'),
+            _legendItem(Icons.schedule, OkabeIto.yellow, 'First today'),
             const SizedBox(height: 4),
-            _legendItem(Icons.construction, Colors.orange, 'Construction'),
+            _legendItem(Icons.task_alt, OkabeIto.vermillion, 'First taken'),
             const SizedBox(height: 4),
-            _legendItem(Icons.description, Colors.blue, 'Permit'),
+            _legendItem(Icons.construction, OkabeIto.blue, 'Construction'),
             const SizedBox(height: 4),
-            _legendItem(Icons.schedule, Colors.purple, 'Planned'),
+            _legendItem(
+              Icons.description,
+              OkabeIto.reddishPurple,
+              'Permit / plan / voting',
+            ),
             const SizedBox(height: 4),
-            _legendItem(Icons.circle, Colors.grey, 'Visited'),
+            _legendItem(Icons.block, OkabeIto.grey, 'Closed'),
+            const SizedBox(height: 4),
+            _legendItem(Icons.check_circle, OkabeIto.grey, 'Visited'),
           ],
         ),
       ),
@@ -476,7 +517,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         height: 24,
         child: GestureDetector(
           onTap: () => _showSiteInfo(site),
-          child: _MapMarker(site: site),
+          child: _MapMarker(site: site, firstDate: _firstDates[site.siteId]),
         ),
       );
     }).toList();
@@ -1006,72 +1047,35 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   }
 }
 
-/// Custom map marker with accessible design (color + shape)
+/// Custom map marker with accessible design: Okabe-Ito colour paired with a
+/// redundant glyph (SPEC Section 5). The green/yellow/red First boundary is
+/// recomputed here at render time from the site's earliest check-in date and
+/// its local timezone, never from date_opened.
 class _MapMarker extends StatelessWidget {
   final Site site;
+  final DateTime? firstDate;
 
-  const _MapMarker({required this.site});
+  const _MapMarker({required this.site, this.firstDate});
 
   @override
   Widget build(BuildContext context) {
-    // If visited, show grey circle
-    if (site.visited) {
-      return Container(
-        width: 12,
-        height: 12,
-        decoration: BoxDecoration(
-          color: Colors.grey,
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white, width: 2),
-          boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.black45)],
-        ),
-      );
-    }
-
-    // If first eligible (open AND no checkins), show green star
-    if (site.status == SiteStatus.open && !site.hasCheckins) {
-      return const Icon(
-        Icons.star,
-        color: Colors.green,
-        size: 20,
-        shadows: [Shadow(blurRadius: 4, color: Colors.black45)],
-      );
-    }
-
-    // Otherwise, show icon based on status
-    IconData icon;
-    Color color;
-    double size = 20;
-
-    switch (site.status) {
-      case SiteStatus.open:
-      case SiteStatus.expanding:
-        icon = Icons.circle;
-        color = Colors.red;
-        size = 16;
-        break;
-      case SiteStatus.construction:
-        icon = Icons.construction;
-        color = Colors.orange;
-        break;
-      case SiteStatus.permit:
-      case SiteStatus.plan:
-      case SiteStatus.voting:
-        icon = Icons.description;
-        color = Colors.purple;
-        break;
-      case SiteStatus.closedTemp:
-      case SiteStatus.closedPerm:
-        icon = Icons.close;
-        color = Colors.grey;
-        break;
-    }
+    final siteLocalNow = TimezoneService.instance.getLocalTimeAtSite(site);
+    final firstState = computeFirstState(
+      firstDate: firstDate,
+      siteLocalNow: siteLocalNow,
+    );
+    final style = markerStyleFor(
+      status: site.status,
+      firstState: firstState,
+      visited: site.visited,
+    );
 
     return Icon(
-      icon,
-      color: color,
-      size: size,
+      style.glyph,
+      color: style.color,
+      size: 20,
       shadows: const [Shadow(blurRadius: 4, color: Colors.black45)],
+      semanticLabel: style.label,
     );
   }
 }

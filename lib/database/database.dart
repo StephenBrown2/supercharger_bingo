@@ -25,7 +25,7 @@ enum CheckinMethod { gps, manual }
 
 enum PollingInterval { minutes15, hour1, hours4, hours6, hours12, hours24 }
 
-enum MapFilter { openUnvisited, openUnvisitedConstruction, all }
+enum MapFilter { openUnvisited, openUnvisitedConstruction, visited, all }
 
 enum UnitSystem { metric, imperial }
 
@@ -255,6 +255,30 @@ class AppDatabase extends _$AppDatabase {
 
   Future<List<Site>> getUnvisitedSites() {
     return (select(sites)..where((t) => t.visited.equals(false))).get();
+  }
+
+  Future<List<Site>> getVisitedSites() {
+    return (select(sites)..where((t) => t.visited.equals(true))).get();
+  }
+
+  /// Earliest community check-in date per site (the site-local "first_date"
+  /// that drives pin colour, SPEC Section 4/5). Derived at render time rather
+  /// than stored, so it always reflects the current SiteCheckins data.
+  Future<Map<int, DateTime>> getEarliestCheckinDates(List<int> siteIds) async {
+    if (siteIds.isEmpty) return {};
+    final minDate = siteCheckins.checkinDate.min();
+    final query = selectOnly(siteCheckins)
+      ..addColumns([siteCheckins.siteId, minDate])
+      ..where(siteCheckins.siteId.isIn(siteIds))
+      ..groupBy([siteCheckins.siteId]);
+    final rows = await query.get();
+    final result = <int, DateTime>{};
+    for (final row in rows) {
+      final id = row.read(siteCheckins.siteId);
+      final date = row.read(minDate);
+      if (id != null && date != null) result[id] = date;
+    }
+    return result;
   }
 
   Future<Site?> getSiteBySiteId(int siteId) {
