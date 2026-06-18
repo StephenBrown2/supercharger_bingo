@@ -6,7 +6,18 @@ part 'database.g.dart';
 // Enums (stored as text in SQLite)
 // ============================================================================
 
-enum SiteStatus { open, construction, permit, planned, closed, unknown }
+/// Authoritative 8-value supercharge.info status (SPEC Section 2.1).
+/// No catch-all: sites with an unrecognized status are skipped on ingestion.
+enum SiteStatus {
+  open,
+  expanding,
+  construction,
+  permit,
+  plan,
+  voting,
+  closedTemp,
+  closedPerm,
+}
 
 enum PendingStatus { pending, submitting, failed, completed }
 
@@ -29,20 +40,18 @@ class Sites extends Table {
   TextColumn get locationId => text().nullable()();
   TextColumn get name => text()();
   TextColumn get status =>
-      textEnum<SiteStatus>().withDefault(Constant(SiteStatus.unknown.name))();
+      textEnum<SiteStatus>().withDefault(Constant(SiteStatus.plan.name))();
   RealColumn get latitude => real().withDefault(const Constant(0.0))();
   RealColumn get longitude => real().withDefault(const Constant(0.0))();
-  TextColumn get street => text().nullable()();
   TextColumn get city => text().nullable()();
   TextColumn get state => text().nullable()();
-  TextColumn get zip => text().nullable()();
   TextColumn get country => text().withDefault(const Constant('Unknown'))();
   TextColumn get region => text().withDefault(const Constant('Unknown'))();
+
+  /// IANA timezone derived from coordinates at ingestion (SPEC Section 3).
+  /// Drives the site-local "First" day boundary.
+  TextColumn get timezone => text().nullable()();
   IntColumn get stallCount => integer().nullable()();
-  IntColumn get powerKilowatt => integer().nullable()();
-  IntColumn get stallsV2 => integer().nullable()();
-  IntColumn get stallsV3 => integer().nullable()();
-  IntColumn get stallsV4 => integer().nullable()();
   DateTimeColumn get dateOpened => dateTime().nullable()();
 
   /// Whether this site has any check-ins from any user (false = first eligible)
@@ -153,7 +162,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration {
@@ -180,6 +189,23 @@ class AppDatabase extends _$AppDatabase {
           await customStatement(
             'ALTER TABLE user_settings ADD COLUMN unit_system TEXT NOT NULL DEFAULT \'metric\'',
           );
+        }
+        if (from < 4) {
+          // SPEC Phase 1: move to the authoritative 8-value status enum, drop
+          // speculative columns, and add the derived timezone column.
+          // Remap legacy status strings to the new enum, then delete any rows
+          // whose status has no equivalent in the strict 8-value set.
+          await customStatement(
+            "UPDATE sites SET status = 'plan' WHERE status = 'planned'",
+          );
+          await customStatement(
+            "UPDATE sites SET status = 'closedPerm' WHERE status = 'closed'",
+          );
+          await customStatement("DELETE FROM sites WHERE status = 'unknown'");
+          // Recreate the sites table from the current schema: drops the removed
+          // columns (street/zip/stallsV2-4/powerKilowatt) and adds the nullable
+          // timezone column (null until backfilled on next site sync).
+          await m.alterTable(TableMigration(sites));
         }
       },
     );

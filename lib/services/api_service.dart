@@ -2,10 +2,11 @@ import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:drift/drift.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../database/database.dart';
+import 'timezone_service.dart';
 
 /// API service for supercharge.info and supercharging.life
 class ApiService {
@@ -72,7 +73,12 @@ class ApiService {
 
     if (response.statusCode == 200) {
       final List<dynamic> data = response.data;
-      return data.map((json) => _parseSite(json)).toList();
+      // Skip sites whose status is not one of the authoritative 8 values
+      // (SPEC Section 2.1): _parseSite returns null for those.
+      return data
+          .map((json) => _parseSite(json))
+          .whereType<SitesCompanion>()
+          .toList();
     }
     throw DioException(
       requestOptions: response.requestOptions,
@@ -240,8 +246,13 @@ class ApiService {
     );
   }
 
-  /// Parse a site from supercharge.info JSON
-  SitesCompanion _parseSite(Map<String, dynamic> json) {
+  /// Parse a site from supercharge.info JSON.
+  /// Returns null when the status is not one of the authoritative 8 values,
+  /// so unrecognized sites are skipped on ingestion (SPEC Section 2.1).
+  SitesCompanion? _parseSite(Map<String, dynamic> json) {
+    final status = parseSiteStatus(json['status'] as String?);
+    if (status == null) return null;
+
     DateTime? dateOpened;
     if (json['dateOpened'] != null) {
       try {
@@ -249,51 +260,53 @@ class ApiService {
       } catch (_) {}
     }
 
-    int? stallsV2, stallsV3, stallsV4;
-    if (json['stalls'] is Map) {
-      final stalls = json['stalls'] as Map;
-      stallsV2 = stalls['v2'] as int?;
-      stallsV3 = stalls['v3'] as int?;
-      stallsV4 = stalls['v4'] as int?;
-    }
+    final latitude = (json['gps']?['latitude'] as num?)?.toDouble() ?? 0.0;
+    final longitude = (json['gps']?['longitude'] as num?)?.toDouble() ?? 0.0;
 
     return SitesCompanion(
       siteId: Value(json['id'] as int),
       locationId: Value(json['locationId'] as String?),
       name: Value(json['name'] as String),
-      status: Value(_parseSiteStatus(json['status'] as String?)),
-      latitude: Value((json['gps']?['latitude'] as num?)?.toDouble() ?? 0.0),
-      longitude: Value((json['gps']?['longitude'] as num?)?.toDouble() ?? 0.0),
-      street: Value(json['address']?['street'] as String?),
+      status: Value(status),
+      latitude: Value(latitude),
+      longitude: Value(longitude),
       city: Value(json['address']?['city'] as String?),
       state: Value(json['address']?['state'] as String?),
-      zip: Value(json['address']?['zip'] as String?),
       country: Value(json['address']?['country'] as String? ?? 'Unknown'),
       region: Value(json['address']?['region'] as String? ?? 'Unknown'),
+      // Derived at ingestion from coordinates (SPEC Section 3).
+      timezone: Value(
+        TimezoneService.instance.getTimezoneForLocation(latitude, longitude),
+      ),
       stallCount: Value(json['stallCount'] as int?),
-      powerKilowatt: Value(json['powerKilowatt'] as int?),
-      stallsV2: Value(stallsV2),
-      stallsV3: Value(stallsV3),
-      stallsV4: Value(stallsV4),
       dateOpened: Value(dateOpened),
       lastSynced: Value(DateTime.now()),
     );
   }
 
-  SiteStatus _parseSiteStatus(String? status) {
+  /// Map a supercharge.info status string to the authoritative 8-value enum.
+  /// Returns null for null/unrecognized values (caller skips the site).
+  @visibleForTesting
+  static SiteStatus? parseSiteStatus(String? status) {
     switch (status?.toUpperCase()) {
       case 'OPEN':
         return SiteStatus.open;
+      case 'EXPANDING':
+        return SiteStatus.expanding;
       case 'CONSTRUCTION':
         return SiteStatus.construction;
       case 'PERMIT':
         return SiteStatus.permit;
-      case 'PLANNED':
-        return SiteStatus.planned;
-      case 'CLOSED':
-        return SiteStatus.closed;
+      case 'PLAN':
+        return SiteStatus.plan;
+      case 'VOTING':
+        return SiteStatus.voting;
+      case 'CLOSED_TEMP':
+        return SiteStatus.closedTemp;
+      case 'CLOSED_PERM':
+        return SiteStatus.closedPerm;
       default:
-        return SiteStatus.unknown;
+        return null;
     }
   }
 

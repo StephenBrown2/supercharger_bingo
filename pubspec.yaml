@@ -58,6 +58,8 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   drift_dev: ^2.22.1
   build_runner: ^2.4.13
+  # Used by tests to load libsqlite3 for VM-based drift databases.
+  sqlite3: ^2.4.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

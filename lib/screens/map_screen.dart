@@ -1045,6 +1045,7 @@ class _MapMarker extends StatelessWidget {
 
     switch (site.status) {
       case SiteStatus.open:
+      case SiteStatus.expanding:
         icon = Icons.circle;
         color = Colors.red;
         size = 16;
@@ -1054,19 +1055,14 @@ class _MapMarker extends StatelessWidget {
         color = Colors.orange;
         break;
       case SiteStatus.permit:
+      case SiteStatus.plan:
+      case SiteStatus.voting:
         icon = Icons.description;
-        color = Colors.blue;
-        break;
-      case SiteStatus.planned:
-        icon = Icons.schedule;
         color = Colors.purple;
         break;
-      case SiteStatus.closed:
+      case SiteStatus.closedTemp:
+      case SiteStatus.closedPerm:
         icon = Icons.close;
-        color = Colors.black;
-        break;
-      case SiteStatus.unknown:
-        icon = Icons.help_outline;
         color = Colors.grey;
         break;
     }

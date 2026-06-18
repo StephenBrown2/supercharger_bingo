@@ -59,7 +59,7 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
         false,
         type: DriftSqlType.string,
         requiredDuringInsert: false,
-        defaultValue: Constant(SiteStatus.unknown.name),
+        defaultValue: Constant(SiteStatus.plan.name),
       ).withConverter<SiteStatus>($SitesTable.$converterstatus);
   static const VerificationMeta _latitudeMeta = const VerificationMeta(
     'latitude',
@@ -85,15 +85,6 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0.0),
   );
-  static const VerificationMeta _streetMeta = const VerificationMeta('street');
-  @override
-  late final GeneratedColumn<String> street = GeneratedColumn<String>(
-    'street',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
   static const VerificationMeta _cityMeta = const VerificationMeta('city');
   @override
   late final GeneratedColumn<String> city = GeneratedColumn<String>(
@@ -107,15 +98,6 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
   @override
   late final GeneratedColumn<String> state = GeneratedColumn<String>(
     'state',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _zipMeta = const VerificationMeta('zip');
-  @override
-  late final GeneratedColumn<String> zip = GeneratedColumn<String>(
-    'zip',
     aliasedName,
     true,
     type: DriftSqlType.string,
@@ -143,56 +125,23 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
     requiredDuringInsert: false,
     defaultValue: const Constant('Unknown'),
   );
+  static const VerificationMeta _timezoneMeta = const VerificationMeta(
+    'timezone',
+  );
+  @override
+  late final GeneratedColumn<String> timezone = GeneratedColumn<String>(
+    'timezone',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _stallCountMeta = const VerificationMeta(
     'stallCount',
   );
   @override
   late final GeneratedColumn<int> stallCount = GeneratedColumn<int>(
     'stall_count',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _powerKilowattMeta = const VerificationMeta(
-    'powerKilowatt',
-  );
-  @override
-  late final GeneratedColumn<int> powerKilowatt = GeneratedColumn<int>(
-    'power_kilowatt',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _stallsV2Meta = const VerificationMeta(
-    'stallsV2',
-  );
-  @override
-  late final GeneratedColumn<int> stallsV2 = GeneratedColumn<int>(
-    'stalls_v2',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _stallsV3Meta = const VerificationMeta(
-    'stallsV3',
-  );
-  @override
-  late final GeneratedColumn<int> stallsV3 = GeneratedColumn<int>(
-    'stalls_v3',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _stallsV4Meta = const VerificationMeta(
-    'stallsV4',
-  );
-  @override
-  late final GeneratedColumn<int> stallsV4 = GeneratedColumn<int>(
-    'stalls_v4',
     aliasedName,
     true,
     type: DriftSqlType.int,
@@ -259,17 +208,12 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
     status,
     latitude,
     longitude,
-    street,
     city,
     state,
-    zip,
     country,
     region,
+    timezone,
     stallCount,
-    powerKilowatt,
-    stallsV2,
-    stallsV3,
-    stallsV4,
     dateOpened,
     hasCheckins,
     visited,
@@ -324,12 +268,6 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
         longitude.isAcceptableOrUnknown(data['longitude']!, _longitudeMeta),
       );
     }
-    if (data.containsKey('street')) {
-      context.handle(
-        _streetMeta,
-        street.isAcceptableOrUnknown(data['street']!, _streetMeta),
-      );
-    }
     if (data.containsKey('city')) {
       context.handle(
         _cityMeta,
@@ -340,12 +278,6 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
       context.handle(
         _stateMeta,
         state.isAcceptableOrUnknown(data['state']!, _stateMeta),
-      );
-    }
-    if (data.containsKey('zip')) {
-      context.handle(
-        _zipMeta,
-        zip.isAcceptableOrUnknown(data['zip']!, _zipMeta),
       );
     }
     if (data.containsKey('country')) {
@@ -360,37 +292,16 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
         region.isAcceptableOrUnknown(data['region']!, _regionMeta),
       );
     }
+    if (data.containsKey('timezone')) {
+      context.handle(
+        _timezoneMeta,
+        timezone.isAcceptableOrUnknown(data['timezone']!, _timezoneMeta),
+      );
+    }
     if (data.containsKey('stall_count')) {
       context.handle(
         _stallCountMeta,
         stallCount.isAcceptableOrUnknown(data['stall_count']!, _stallCountMeta),
-      );
-    }
-    if (data.containsKey('power_kilowatt')) {
-      context.handle(
-        _powerKilowattMeta,
-        powerKilowatt.isAcceptableOrUnknown(
-          data['power_kilowatt']!,
-          _powerKilowattMeta,
-        ),
-      );
-    }
-    if (data.containsKey('stalls_v2')) {
-      context.handle(
-        _stallsV2Meta,
-        stallsV2.isAcceptableOrUnknown(data['stalls_v2']!, _stallsV2Meta),
-      );
-    }
-    if (data.containsKey('stalls_v3')) {
-      context.handle(
-        _stallsV3Meta,
-        stallsV3.isAcceptableOrUnknown(data['stalls_v3']!, _stallsV3Meta),
-      );
-    }
-    if (data.containsKey('stalls_v4')) {
-      context.handle(
-        _stallsV4Meta,
-        stallsV4.isAcceptableOrUnknown(data['stalls_v4']!, _stallsV4Meta),
       );
     }
     if (data.containsKey('date_opened')) {
@@ -459,10 +370,6 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
         DriftSqlType.double,
         data['${effectivePrefix}longitude'],
       )!,
-      street: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}street'],
-      ),
       city: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}city'],
@@ -470,10 +377,6 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
       state: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}state'],
-      ),
-      zip: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}zip'],
       ),
       country: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -483,25 +386,13 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
         DriftSqlType.string,
         data['${effectivePrefix}region'],
       )!,
+      timezone: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}timezone'],
+      ),
       stallCount: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}stall_count'],
-      ),
-      powerKilowatt: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}power_kilowatt'],
-      ),
-      stallsV2: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}stalls_v2'],
-      ),
-      stallsV3: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}stalls_v3'],
-      ),
-      stallsV4: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}stalls_v4'],
       ),
       dateOpened: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
@@ -539,17 +430,15 @@ class Site extends DataClass implements Insertable<Site> {
   final SiteStatus status;
   final double latitude;
   final double longitude;
-  final String? street;
   final String? city;
   final String? state;
-  final String? zip;
   final String country;
   final String region;
+
+  /// IANA timezone derived from coordinates at ingestion (SPEC Section 3).
+  /// Drives the site-local "First" day boundary.
+  final String? timezone;
   final int? stallCount;
-  final int? powerKilowatt;
-  final int? stallsV2;
-  final int? stallsV3;
-  final int? stallsV4;
   final DateTime? dateOpened;
 
   /// Whether this site has any check-ins from any user (false = first eligible)
@@ -566,17 +455,12 @@ class Site extends DataClass implements Insertable<Site> {
     required this.status,
     required this.latitude,
     required this.longitude,
-    this.street,
     this.city,
     this.state,
-    this.zip,
     required this.country,
     required this.region,
+    this.timezone,
     this.stallCount,
-    this.powerKilowatt,
-    this.stallsV2,
-    this.stallsV3,
-    this.stallsV4,
     this.dateOpened,
     required this.hasCheckins,
     required this.visited,
@@ -598,34 +482,19 @@ class Site extends DataClass implements Insertable<Site> {
     }
     map['latitude'] = Variable<double>(latitude);
     map['longitude'] = Variable<double>(longitude);
-    if (!nullToAbsent || street != null) {
-      map['street'] = Variable<String>(street);
-    }
     if (!nullToAbsent || city != null) {
       map['city'] = Variable<String>(city);
     }
     if (!nullToAbsent || state != null) {
       map['state'] = Variable<String>(state);
     }
-    if (!nullToAbsent || zip != null) {
-      map['zip'] = Variable<String>(zip);
-    }
     map['country'] = Variable<String>(country);
     map['region'] = Variable<String>(region);
+    if (!nullToAbsent || timezone != null) {
+      map['timezone'] = Variable<String>(timezone);
+    }
     if (!nullToAbsent || stallCount != null) {
       map['stall_count'] = Variable<int>(stallCount);
-    }
-    if (!nullToAbsent || powerKilowatt != null) {
-      map['power_kilowatt'] = Variable<int>(powerKilowatt);
-    }
-    if (!nullToAbsent || stallsV2 != null) {
-      map['stalls_v2'] = Variable<int>(stallsV2);
-    }
-    if (!nullToAbsent || stallsV3 != null) {
-      map['stalls_v3'] = Variable<int>(stallsV3);
-    }
-    if (!nullToAbsent || stallsV4 != null) {
-      map['stalls_v4'] = Variable<int>(stallsV4);
     }
     if (!nullToAbsent || dateOpened != null) {
       map['date_opened'] = Variable<DateTime>(dateOpened);
@@ -649,31 +518,18 @@ class Site extends DataClass implements Insertable<Site> {
       status: Value(status),
       latitude: Value(latitude),
       longitude: Value(longitude),
-      street: street == null && nullToAbsent
-          ? const Value.absent()
-          : Value(street),
       city: city == null && nullToAbsent ? const Value.absent() : Value(city),
       state: state == null && nullToAbsent
           ? const Value.absent()
           : Value(state),
-      zip: zip == null && nullToAbsent ? const Value.absent() : Value(zip),
       country: Value(country),
       region: Value(region),
+      timezone: timezone == null && nullToAbsent
+          ? const Value.absent()
+          : Value(timezone),
       stallCount: stallCount == null && nullToAbsent
           ? const Value.absent()
           : Value(stallCount),
-      powerKilowatt: powerKilowatt == null && nullToAbsent
-          ? const Value.absent()
-          : Value(powerKilowatt),
-      stallsV2: stallsV2 == null && nullToAbsent
-          ? const Value.absent()
-          : Value(stallsV2),
-      stallsV3: stallsV3 == null && nullToAbsent
-          ? const Value.absent()
-          : Value(stallsV3),
-      stallsV4: stallsV4 == null && nullToAbsent
-          ? const Value.absent()
-          : Value(stallsV4),
       dateOpened: dateOpened == null && nullToAbsent
           ? const Value.absent()
           : Value(dateOpened),
@@ -700,17 +556,12 @@ class Site extends DataClass implements Insertable<Site> {
       ),
       latitude: serializer.fromJson<double>(json['latitude']),
       longitude: serializer.fromJson<double>(json['longitude']),
-      street: serializer.fromJson<String?>(json['street']),
       city: serializer.fromJson<String?>(json['city']),
       state: serializer.fromJson<String?>(json['state']),
-      zip: serializer.fromJson<String?>(json['zip']),
       country: serializer.fromJson<String>(json['country']),
       region: serializer.fromJson<String>(json['region']),
+      timezone: serializer.fromJson<String?>(json['timezone']),
       stallCount: serializer.fromJson<int?>(json['stallCount']),
-      powerKilowatt: serializer.fromJson<int?>(json['powerKilowatt']),
-      stallsV2: serializer.fromJson<int?>(json['stallsV2']),
-      stallsV3: serializer.fromJson<int?>(json['stallsV3']),
-      stallsV4: serializer.fromJson<int?>(json['stallsV4']),
       dateOpened: serializer.fromJson<DateTime?>(json['dateOpened']),
       hasCheckins: serializer.fromJson<bool>(json['hasCheckins']),
       visited: serializer.fromJson<bool>(json['visited']),
@@ -730,17 +581,12 @@ class Site extends DataClass implements Insertable<Site> {
       ),
       'latitude': serializer.toJson<double>(latitude),
       'longitude': serializer.toJson<double>(longitude),
-      'street': serializer.toJson<String?>(street),
       'city': serializer.toJson<String?>(city),
       'state': serializer.toJson<String?>(state),
-      'zip': serializer.toJson<String?>(zip),
       'country': serializer.toJson<String>(country),
       'region': serializer.toJson<String>(region),
+      'timezone': serializer.toJson<String?>(timezone),
       'stallCount': serializer.toJson<int?>(stallCount),
-      'powerKilowatt': serializer.toJson<int?>(powerKilowatt),
-      'stallsV2': serializer.toJson<int?>(stallsV2),
-      'stallsV3': serializer.toJson<int?>(stallsV3),
-      'stallsV4': serializer.toJson<int?>(stallsV4),
       'dateOpened': serializer.toJson<DateTime?>(dateOpened),
       'hasCheckins': serializer.toJson<bool>(hasCheckins),
       'visited': serializer.toJson<bool>(visited),
@@ -756,17 +602,12 @@ class Site extends DataClass implements Insertable<Site> {
     SiteStatus? status,
     double? latitude,
     double? longitude,
-    Value<String?> street = const Value.absent(),
     Value<String?> city = const Value.absent(),
     Value<String?> state = const Value.absent(),
-    Value<String?> zip = const Value.absent(),
     String? country,
     String? region,
+    Value<String?> timezone = const Value.absent(),
     Value<int?> stallCount = const Value.absent(),
-    Value<int?> powerKilowatt = const Value.absent(),
-    Value<int?> stallsV2 = const Value.absent(),
-    Value<int?> stallsV3 = const Value.absent(),
-    Value<int?> stallsV4 = const Value.absent(),
     Value<DateTime?> dateOpened = const Value.absent(),
     bool? hasCheckins,
     bool? visited,
@@ -779,19 +620,12 @@ class Site extends DataClass implements Insertable<Site> {
     status: status ?? this.status,
     latitude: latitude ?? this.latitude,
     longitude: longitude ?? this.longitude,
-    street: street.present ? street.value : this.street,
     city: city.present ? city.value : this.city,
     state: state.present ? state.value : this.state,
-    zip: zip.present ? zip.value : this.zip,
     country: country ?? this.country,
     region: region ?? this.region,
+    timezone: timezone.present ? timezone.value : this.timezone,
     stallCount: stallCount.present ? stallCount.value : this.stallCount,
-    powerKilowatt: powerKilowatt.present
-        ? powerKilowatt.value
-        : this.powerKilowatt,
-    stallsV2: stallsV2.present ? stallsV2.value : this.stallsV2,
-    stallsV3: stallsV3.present ? stallsV3.value : this.stallsV3,
-    stallsV4: stallsV4.present ? stallsV4.value : this.stallsV4,
     dateOpened: dateOpened.present ? dateOpened.value : this.dateOpened,
     hasCheckins: hasCheckins ?? this.hasCheckins,
     visited: visited ?? this.visited,
@@ -808,21 +642,14 @@ class Site extends DataClass implements Insertable<Site> {
       status: data.status.present ? data.status.value : this.status,
       latitude: data.latitude.present ? data.latitude.value : this.latitude,
       longitude: data.longitude.present ? data.longitude.value : this.longitude,
-      street: data.street.present ? data.street.value : this.street,
       city: data.city.present ? data.city.value : this.city,
       state: data.state.present ? data.state.value : this.state,
-      zip: data.zip.present ? data.zip.value : this.zip,
       country: data.country.present ? data.country.value : this.country,
       region: data.region.present ? data.region.value : this.region,
+      timezone: data.timezone.present ? data.timezone.value : this.timezone,
       stallCount: data.stallCount.present
           ? data.stallCount.value
           : this.stallCount,
-      powerKilowatt: data.powerKilowatt.present
-          ? data.powerKilowatt.value
-          : this.powerKilowatt,
-      stallsV2: data.stallsV2.present ? data.stallsV2.value : this.stallsV2,
-      stallsV3: data.stallsV3.present ? data.stallsV3.value : this.stallsV3,
-      stallsV4: data.stallsV4.present ? data.stallsV4.value : this.stallsV4,
       dateOpened: data.dateOpened.present
           ? data.dateOpened.value
           : this.dateOpened,
@@ -846,17 +673,12 @@ class Site extends DataClass implements Insertable<Site> {
           ..write('status: $status, ')
           ..write('latitude: $latitude, ')
           ..write('longitude: $longitude, ')
-          ..write('street: $street, ')
           ..write('city: $city, ')
           ..write('state: $state, ')
-          ..write('zip: $zip, ')
           ..write('country: $country, ')
           ..write('region: $region, ')
+          ..write('timezone: $timezone, ')
           ..write('stallCount: $stallCount, ')
-          ..write('powerKilowatt: $powerKilowatt, ')
-          ..write('stallsV2: $stallsV2, ')
-          ..write('stallsV3: $stallsV3, ')
-          ..write('stallsV4: $stallsV4, ')
           ..write('dateOpened: $dateOpened, ')
           ..write('hasCheckins: $hasCheckins, ')
           ..write('visited: $visited, ')
@@ -866,7 +688,7 @@ class Site extends DataClass implements Insertable<Site> {
   }
 
   @override
-  int get hashCode => Object.hashAll([
+  int get hashCode => Object.hash(
     id,
     siteId,
     locationId,
@@ -874,22 +696,17 @@ class Site extends DataClass implements Insertable<Site> {
     status,
     latitude,
     longitude,
-    street,
     city,
     state,
-    zip,
     country,
     region,
+    timezone,
     stallCount,
-    powerKilowatt,
-    stallsV2,
-    stallsV3,
-    stallsV4,
     dateOpened,
     hasCheckins,
     visited,
     lastSynced,
-  ]);
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -901,17 +718,12 @@ class Site extends DataClass implements Insertable<Site> {
           other.status == this.status &&
           other.latitude == this.latitude &&
           other.longitude == this.longitude &&
-          other.street == this.street &&
           other.city == this.city &&
           other.state == this.state &&
-          other.zip == this.zip &&
           other.country == this.country &&
           other.region == this.region &&
+          other.timezone == this.timezone &&
           other.stallCount == this.stallCount &&
-          other.powerKilowatt == this.powerKilowatt &&
-          other.stallsV2 == this.stallsV2 &&
-          other.stallsV3 == this.stallsV3 &&
-          other.stallsV4 == this.stallsV4 &&
           other.dateOpened == this.dateOpened &&
           other.hasCheckins == this.hasCheckins &&
           other.visited == this.visited &&
@@ -926,17 +738,12 @@ class SitesCompanion extends UpdateCompanion<Site> {
   final Value<SiteStatus> status;
   final Value<double> latitude;
   final Value<double> longitude;
-  final Value<String?> street;
   final Value<String?> city;
   final Value<String?> state;
-  final Value<String?> zip;
   final Value<String> country;
   final Value<String> region;
+  final Value<String?> timezone;
   final Value<int?> stallCount;
-  final Value<int?> powerKilowatt;
-  final Value<int?> stallsV2;
-  final Value<int?> stallsV3;
-  final Value<int?> stallsV4;
   final Value<DateTime?> dateOpened;
   final Value<bool> hasCheckins;
   final Value<bool> visited;
@@ -949,17 +756,12 @@ class SitesCompanion extends UpdateCompanion<Site> {
     this.status = const Value.absent(),
     this.latitude = const Value.absent(),
     this.longitude = const Value.absent(),
-    this.street = const Value.absent(),
     this.city = const Value.absent(),
     this.state = const Value.absent(),
-    this.zip = const Value.absent(),
     this.country = const Value.absent(),
     this.region = const Value.absent(),
+    this.timezone = const Value.absent(),
     this.stallCount = const Value.absent(),
-    this.powerKilowatt = const Value.absent(),
-    this.stallsV2 = const Value.absent(),
-    this.stallsV3 = const Value.absent(),
-    this.stallsV4 = const Value.absent(),
     this.dateOpened = const Value.absent(),
     this.hasCheckins = const Value.absent(),
     this.visited = const Value.absent(),
@@ -973,17 +775,12 @@ class SitesCompanion extends UpdateCompanion<Site> {
     this.status = const Value.absent(),
     this.latitude = const Value.absent(),
     this.longitude = const Value.absent(),
-    this.street = const Value.absent(),
     this.city = const Value.absent(),
     this.state = const Value.absent(),
-    this.zip = const Value.absent(),
     this.country = const Value.absent(),
     this.region = const Value.absent(),
+    this.timezone = const Value.absent(),
     this.stallCount = const Value.absent(),
-    this.powerKilowatt = const Value.absent(),
-    this.stallsV2 = const Value.absent(),
-    this.stallsV3 = const Value.absent(),
-    this.stallsV4 = const Value.absent(),
     this.dateOpened = const Value.absent(),
     this.hasCheckins = const Value.absent(),
     this.visited = const Value.absent(),
@@ -998,17 +795,12 @@ class SitesCompanion extends UpdateCompanion<Site> {
     Expression<String>? status,
     Expression<double>? latitude,
     Expression<double>? longitude,
-    Expression<String>? street,
     Expression<String>? city,
     Expression<String>? state,
-    Expression<String>? zip,
     Expression<String>? country,
     Expression<String>? region,
+    Expression<String>? timezone,
     Expression<int>? stallCount,
-    Expression<int>? powerKilowatt,
-    Expression<int>? stallsV2,
-    Expression<int>? stallsV3,
-    Expression<int>? stallsV4,
     Expression<DateTime>? dateOpened,
     Expression<bool>? hasCheckins,
     Expression<bool>? visited,
@@ -1022,17 +814,12 @@ class SitesCompanion extends UpdateCompanion<Site> {
       if (status != null) 'status': status,
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
-      if (street != null) 'street': street,
       if (city != null) 'city': city,
       if (state != null) 'state': state,
-      if (zip != null) 'zip': zip,
       if (country != null) 'country': country,
       if (region != null) 'region': region,
+      if (timezone != null) 'timezone': timezone,
       if (stallCount != null) 'stall_count': stallCount,
-      if (powerKilowatt != null) 'power_kilowatt': powerKilowatt,
-      if (stallsV2 != null) 'stalls_v2': stallsV2,
-      if (stallsV3 != null) 'stalls_v3': stallsV3,
-      if (stallsV4 != null) 'stalls_v4': stallsV4,
       if (dateOpened != null) 'date_opened': dateOpened,
       if (hasCheckins != null) 'has_checkins': hasCheckins,
       if (visited != null) 'visited': visited,
@@ -1048,17 +835,12 @@ class SitesCompanion extends UpdateCompanion<Site> {
     Value<SiteStatus>? status,
     Value<double>? latitude,
     Value<double>? longitude,
-    Value<String?>? street,
     Value<String?>? city,
     Value<String?>? state,
-    Value<String?>? zip,
     Value<String>? country,
     Value<String>? region,
+    Value<String?>? timezone,
     Value<int?>? stallCount,
-    Value<int?>? powerKilowatt,
-    Value<int?>? stallsV2,
-    Value<int?>? stallsV3,
-    Value<int?>? stallsV4,
     Value<DateTime?>? dateOpened,
     Value<bool>? hasCheckins,
     Value<bool>? visited,
@@ -1072,17 +854,12 @@ class SitesCompanion extends UpdateCompanion<Site> {
       status: status ?? this.status,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
-      street: street ?? this.street,
       city: city ?? this.city,
       state: state ?? this.state,
-      zip: zip ?? this.zip,
       country: country ?? this.country,
       region: region ?? this.region,
+      timezone: timezone ?? this.timezone,
       stallCount: stallCount ?? this.stallCount,
-      powerKilowatt: powerKilowatt ?? this.powerKilowatt,
-      stallsV2: stallsV2 ?? this.stallsV2,
-      stallsV3: stallsV3 ?? this.stallsV3,
-      stallsV4: stallsV4 ?? this.stallsV4,
       dateOpened: dateOpened ?? this.dateOpened,
       hasCheckins: hasCheckins ?? this.hasCheckins,
       visited: visited ?? this.visited,
@@ -1116,17 +893,11 @@ class SitesCompanion extends UpdateCompanion<Site> {
     if (longitude.present) {
       map['longitude'] = Variable<double>(longitude.value);
     }
-    if (street.present) {
-      map['street'] = Variable<String>(street.value);
-    }
     if (city.present) {
       map['city'] = Variable<String>(city.value);
     }
     if (state.present) {
       map['state'] = Variable<String>(state.value);
-    }
-    if (zip.present) {
-      map['zip'] = Variable<String>(zip.value);
     }
     if (country.present) {
       map['country'] = Variable<String>(country.value);
@@ -1134,20 +905,11 @@ class SitesCompanion extends UpdateCompanion<Site> {
     if (region.present) {
       map['region'] = Variable<String>(region.value);
     }
+    if (timezone.present) {
+      map['timezone'] = Variable<String>(timezone.value);
+    }
     if (stallCount.present) {
       map['stall_count'] = Variable<int>(stallCount.value);
-    }
-    if (powerKilowatt.present) {
-      map['power_kilowatt'] = Variable<int>(powerKilowatt.value);
-    }
-    if (stallsV2.present) {
-      map['stalls_v2'] = Variable<int>(stallsV2.value);
-    }
-    if (stallsV3.present) {
-      map['stalls_v3'] = Variable<int>(stallsV3.value);
-    }
-    if (stallsV4.present) {
-      map['stalls_v4'] = Variable<int>(stallsV4.value);
     }
     if (dateOpened.present) {
       map['date_opened'] = Variable<DateTime>(dateOpened.value);
@@ -1174,17 +936,12 @@ class SitesCompanion extends UpdateCompanion<Site> {
           ..write('status: $status, ')
           ..write('latitude: $latitude, ')
           ..write('longitude: $longitude, ')
-          ..write('street: $street, ')
           ..write('city: $city, ')
           ..write('state: $state, ')
-          ..write('zip: $zip, ')
           ..write('country: $country, ')
           ..write('region: $region, ')
+          ..write('timezone: $timezone, ')
           ..write('stallCount: $stallCount, ')
-          ..write('powerKilowatt: $powerKilowatt, ')
-          ..write('stallsV2: $stallsV2, ')
-          ..write('stallsV3: $stallsV3, ')
-          ..write('stallsV4: $stallsV4, ')
           ..write('dateOpened: $dateOpened, ')
           ..write('hasCheckins: $hasCheckins, ')
           ..write('visited: $visited, ')
@@ -4477,17 +4234,12 @@ typedef $$SitesTableCreateCompanionBuilder =
       Value<SiteStatus> status,
       Value<double> latitude,
       Value<double> longitude,
-      Value<String?> street,
       Value<String?> city,
       Value<String?> state,
-      Value<String?> zip,
       Value<String> country,
       Value<String> region,
+      Value<String?> timezone,
       Value<int?> stallCount,
-      Value<int?> powerKilowatt,
-      Value<int?> stallsV2,
-      Value<int?> stallsV3,
-      Value<int?> stallsV4,
       Value<DateTime?> dateOpened,
       Value<bool> hasCheckins,
       Value<bool> visited,
@@ -4502,17 +4254,12 @@ typedef $$SitesTableUpdateCompanionBuilder =
       Value<SiteStatus> status,
       Value<double> latitude,
       Value<double> longitude,
-      Value<String?> street,
       Value<String?> city,
       Value<String?> state,
-      Value<String?> zip,
       Value<String> country,
       Value<String> region,
+      Value<String?> timezone,
       Value<int?> stallCount,
-      Value<int?> powerKilowatt,
-      Value<int?> stallsV2,
-      Value<int?> stallsV3,
-      Value<int?> stallsV4,
       Value<DateTime?> dateOpened,
       Value<bool> hasCheckins,
       Value<bool> visited,
@@ -4563,11 +4310,6 @@ class $$SitesTableFilterComposer extends Composer<_$AppDatabase, $SitesTable> {
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get street => $composableBuilder(
-    column: $table.street,
-    builder: (column) => ColumnFilters(column),
-  );
-
   ColumnFilters<String> get city => $composableBuilder(
     column: $table.city,
     builder: (column) => ColumnFilters(column),
@@ -4575,11 +4317,6 @@ class $$SitesTableFilterComposer extends Composer<_$AppDatabase, $SitesTable> {
 
   ColumnFilters<String> get state => $composableBuilder(
     column: $table.state,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get zip => $composableBuilder(
-    column: $table.zip,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4593,28 +4330,13 @@ class $$SitesTableFilterComposer extends Composer<_$AppDatabase, $SitesTable> {
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get timezone => $composableBuilder(
+    column: $table.timezone,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<int> get stallCount => $composableBuilder(
     column: $table.stallCount,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get powerKilowatt => $composableBuilder(
-    column: $table.powerKilowatt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get stallsV2 => $composableBuilder(
-    column: $table.stallsV2,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get stallsV3 => $composableBuilder(
-    column: $table.stallsV3,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get stallsV4 => $composableBuilder(
-    column: $table.stallsV4,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4683,11 +4405,6 @@ class $$SitesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get street => $composableBuilder(
-    column: $table.street,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<String> get city => $composableBuilder(
     column: $table.city,
     builder: (column) => ColumnOrderings(column),
@@ -4695,11 +4412,6 @@ class $$SitesTableOrderingComposer
 
   ColumnOrderings<String> get state => $composableBuilder(
     column: $table.state,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get zip => $composableBuilder(
-    column: $table.zip,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -4713,28 +4425,13 @@ class $$SitesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get timezone => $composableBuilder(
+    column: $table.timezone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get stallCount => $composableBuilder(
     column: $table.stallCount,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get powerKilowatt => $composableBuilder(
-    column: $table.powerKilowatt,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get stallsV2 => $composableBuilder(
-    column: $table.stallsV2,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get stallsV3 => $composableBuilder(
-    column: $table.stallsV3,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get stallsV4 => $composableBuilder(
-    column: $table.stallsV4,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -4791,17 +4488,11 @@ class $$SitesTableAnnotationComposer
   GeneratedColumn<double> get longitude =>
       $composableBuilder(column: $table.longitude, builder: (column) => column);
 
-  GeneratedColumn<String> get street =>
-      $composableBuilder(column: $table.street, builder: (column) => column);
-
   GeneratedColumn<String> get city =>
       $composableBuilder(column: $table.city, builder: (column) => column);
 
   GeneratedColumn<String> get state =>
       $composableBuilder(column: $table.state, builder: (column) => column);
-
-  GeneratedColumn<String> get zip =>
-      $composableBuilder(column: $table.zip, builder: (column) => column);
 
   GeneratedColumn<String> get country =>
       $composableBuilder(column: $table.country, builder: (column) => column);
@@ -4809,24 +4500,13 @@ class $$SitesTableAnnotationComposer
   GeneratedColumn<String> get region =>
       $composableBuilder(column: $table.region, builder: (column) => column);
 
+  GeneratedColumn<String> get timezone =>
+      $composableBuilder(column: $table.timezone, builder: (column) => column);
+
   GeneratedColumn<int> get stallCount => $composableBuilder(
     column: $table.stallCount,
     builder: (column) => column,
   );
-
-  GeneratedColumn<int> get powerKilowatt => $composableBuilder(
-    column: $table.powerKilowatt,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get stallsV2 =>
-      $composableBuilder(column: $table.stallsV2, builder: (column) => column);
-
-  GeneratedColumn<int> get stallsV3 =>
-      $composableBuilder(column: $table.stallsV3, builder: (column) => column);
-
-  GeneratedColumn<int> get stallsV4 =>
-      $composableBuilder(column: $table.stallsV4, builder: (column) => column);
 
   GeneratedColumn<DateTime> get dateOpened => $composableBuilder(
     column: $table.dateOpened,
@@ -4882,17 +4562,12 @@ class $$SitesTableTableManager
                 Value<SiteStatus> status = const Value.absent(),
                 Value<double> latitude = const Value.absent(),
                 Value<double> longitude = const Value.absent(),
-                Value<String?> street = const Value.absent(),
                 Value<String?> city = const Value.absent(),
                 Value<String?> state = const Value.absent(),
-                Value<String?> zip = const Value.absent(),
                 Value<String> country = const Value.absent(),
                 Value<String> region = const Value.absent(),
+                Value<String?> timezone = const Value.absent(),
                 Value<int?> stallCount = const Value.absent(),
-                Value<int?> powerKilowatt = const Value.absent(),
-                Value<int?> stallsV2 = const Value.absent(),
-                Value<int?> stallsV3 = const Value.absent(),
-                Value<int?> stallsV4 = const Value.absent(),
                 Value<DateTime?> dateOpened = const Value.absent(),
                 Value<bool> hasCheckins = const Value.absent(),
                 Value<bool> visited = const Value.absent(),
@@ -4905,17 +4580,12 @@ class $$SitesTableTableManager
                 status: status,
                 latitude: latitude,
                 longitude: longitude,
-                street: street,
                 city: city,
                 state: state,
-                zip: zip,
                 country: country,
                 region: region,
+                timezone: timezone,
                 stallCount: stallCount,
-                powerKilowatt: powerKilowatt,
-                stallsV2: stallsV2,
-                stallsV3: stallsV3,
-                stallsV4: stallsV4,
                 dateOpened: dateOpened,
                 hasCheckins: hasCheckins,
                 visited: visited,
@@ -4930,17 +4600,12 @@ class $$SitesTableTableManager
                 Value<SiteStatus> status = const Value.absent(),
                 Value<double> latitude = const Value.absent(),
                 Value<double> longitude = const Value.absent(),
-                Value<String?> street = const Value.absent(),
                 Value<String?> city = const Value.absent(),
                 Value<String?> state = const Value.absent(),
-                Value<String?> zip = const Value.absent(),
                 Value<String> country = const Value.absent(),
                 Value<String> region = const Value.absent(),
+                Value<String?> timezone = const Value.absent(),
                 Value<int?> stallCount = const Value.absent(),
-                Value<int?> powerKilowatt = const Value.absent(),
-                Value<int?> stallsV2 = const Value.absent(),
-                Value<int?> stallsV3 = const Value.absent(),
-                Value<int?> stallsV4 = const Value.absent(),
                 Value<DateTime?> dateOpened = const Value.absent(),
                 Value<bool> hasCheckins = const Value.absent(),
                 Value<bool> visited = const Value.absent(),
@@ -4953,17 +4618,12 @@ class $$SitesTableTableManager
                 status: status,
                 latitude: latitude,
                 longitude: longitude,
-                street: street,
                 city: city,
                 state: state,
-                zip: zip,
                 country: country,
                 region: region,
+                timezone: timezone,
                 stallCount: stallCount,
-                powerKilowatt: powerKilowatt,
-                stallsV2: stallsV2,
-                stallsV3: stallsV3,
-                stallsV4: stallsV4,
                 dateOpened: dateOpened,
                 hasCheckins: hasCheckins,
                 visited: visited,
