@@ -32,7 +32,8 @@ dependencies:
 
   # Authentication
   webview_flutter: ^4.10.0
-  flutter_secure_storage: ^9.2.2
+  # v10 (linux 3.x) drops the vendored json.hpp that fails -Werror on clang 18+.
+  flutter_secure_storage: ^10.3.1
 
   # Location
   geolocator: ^14.0.2
