@@ -405,7 +405,13 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<void> addVisit(VisitsCompanion visit) async {
-    await into(visits).insert(visit);
+    // Upsert on the supercharging.life check-in id so re-importing the XLSX
+    // (or rows already present) refreshes instead of violating the unique
+    // constraint on visits.checkin_id.
+    await into(visits).insert(
+      visit,
+      onConflict: DoUpdate((_) => visit, target: [visits.checkinId]),
+    );
   }
 
   // -------------------------------------------------------------------------
