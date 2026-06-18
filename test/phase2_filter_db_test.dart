@@ -63,4 +63,25 @@ void main() {
   test('getEarliestCheckinDates is empty when no ids given', () async {
     expect(await db.getEarliestCheckinDates([]), isEmpty);
   });
+
+  test('upsertSiteCheckins re-syncs the same checkin_id without failing', () async {
+    SiteCheckinsCompanion row(bool first) => SiteCheckinsCompanion.insert(
+      checkinId: 93723,
+      siteId: 9928,
+      odUserId: 50124,
+      username: 'theflyer',
+      checkinDate: DateTime(2026, 6, 17),
+      checkinTime: DateTime(2026, 6, 17, 12),
+      isFirstAtSupercharger: Value(first),
+      syncedAt: DateTime.now(),
+    );
+
+    await db.upsertSiteCheckins([row(false)]);
+    // Same community check-in id arrives again on the next poll.
+    await db.upsertSiteCheckins([row(true)]);
+
+    final all = await db.getSiteCheckins(9928);
+    expect(all, hasLength(1));
+    expect(all.first.isFirstAtSupercharger, isTrue);
+  });
 }

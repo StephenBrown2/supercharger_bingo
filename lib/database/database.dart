@@ -469,7 +469,9 @@ class AppDatabase extends _$AppDatabase {
         batch.insert(
           siteCheckins,
           checkin,
-          onConflict: DoUpdate((old) => checkin),
+          // Conflict is on the checkin_id unique index, not the PK; without an
+          // explicit target drift assumes the PK and the insert fails.
+          onConflict: DoUpdate((old) => checkin, target: [siteCheckins.checkinId]),
         );
       }
     });
