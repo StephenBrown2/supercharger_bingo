@@ -167,7 +167,7 @@ class UserSettingsTable extends Table {
   RealColumn get checkinRadiusKm =>
       real().withDefault(const Constant(5000.0))();
   TextColumn get unitSystem =>
-      textEnum<UnitSystem>().withDefault(Constant(UnitSystem.metric.name))();
+      textEnum<UnitSystem>().withDefault(Constant(UnitSystem.imperial.name))();
   RealColumn get lastLatitude => real().nullable()();
   RealColumn get lastLongitude => real().nullable()();
   DateTimeColumn get lastSitesSyncAt => dateTime().nullable()();

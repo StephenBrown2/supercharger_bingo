@@ -3476,7 +3476,7 @@ class $UserSettingsTableTable extends UserSettingsTable
         false,
         type: DriftSqlType.string,
         requiredDuringInsert: false,
-        defaultValue: Constant(UnitSystem.metric.name),
+        defaultValue: Constant(UnitSystem.imperial.name),
       ).withConverter<UnitSystem>($UserSettingsTableTable.$converterunitSystem);
   static const VerificationMeta _lastLatitudeMeta = const VerificationMeta(
     'lastLatitude',

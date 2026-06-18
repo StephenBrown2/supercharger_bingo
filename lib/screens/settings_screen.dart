@@ -30,7 +30,7 @@ class MutableSettings {
     this.mapFilter = MapFilter.openUnvisited,
     this.showVisitedOnMap = false,
     this.checkinRadiusKm = 5000.0,
-    this.unitSystem = UnitSystem.metric,
+    this.unitSystem = UnitSystem.imperial,
     this.lastSitesSyncAt,
     this.lastCheckinHistorySyncAt,
     this.lastXlsxSyncAt,
