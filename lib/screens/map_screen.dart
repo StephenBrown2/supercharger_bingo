@@ -9,6 +9,7 @@ import 'package:latlong2/latlong.dart';
 import '../database/database.dart';
 import '../services/database_service.dart';
 import '../services/location_service.dart';
+import '../services/sync_service.dart';
 import '../services/timezone_service.dart';
 import 'checkin_dialog.dart';
 import 'map_marker_style.dart';
@@ -104,16 +105,37 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     if (cached != null && _currentFilter == MapFilter.openUnvisited) {
       _sites = cached;
       _isLoading = false;
+      // Still need First-state inputs for the cached sites.
+      _loadFirstDates(cached);
     } else {
       _loadSites();
     }
     _showCheckinDrawer = widget.showCheckinDrawer;
 
+    // Recompute pin colours once community check-in data finishes syncing.
+    SyncService.instance.communityDataVersion.addListener(_onCommunityData);
+
     _fetchLocationForCheckin();
+  }
+
+  void _onCommunityData() {
+    if (mounted) _loadSites();
+  }
+
+  Future<void> _loadFirstDates(List<Site> sites) async {
+    final operationalIds = sites
+        .where((s) => isOperational(s.status))
+        .map((s) => s.siteId)
+        .toList();
+    final firstDates = await DatabaseService.getEarliestCheckinDates(
+      operationalIds,
+    );
+    if (mounted) setState(() => _firstDates = firstDates);
   }
 
   @override
   void dispose() {
+    SyncService.instance.communityDataVersion.removeListener(_onCommunityData);
     _locationAnimController.dispose();
     _drawerAnimController.dispose();
     super.dispose();

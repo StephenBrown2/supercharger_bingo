@@ -14,6 +14,10 @@ class SyncService {
   static SyncService? _instance;
   static SyncService get instance => _instance ??= SyncService._();
 
+  /// Bumped whenever community check-in data finishes syncing, so screens can
+  /// recompute First state (pin colours) once the data lands.
+  final ValueNotifier<int> communityDataVersion = ValueNotifier(0);
+
   final Connectivity _connectivity = Connectivity();
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   bool _isSyncingSites = false;
@@ -106,6 +110,8 @@ class SyncService {
     } catch (e) {
       debugPrint('syncCommunityData: check-in counts failed: $e');
     }
+    // Notify listeners (e.g. the map) to recompute pin colours.
+    communityDataVersion.value++;
   }
 
   /// Sync supercharger check-in counts from supercharging.life
