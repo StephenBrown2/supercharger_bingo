@@ -168,6 +168,9 @@ class DatabaseService {
     return db.getPendingCheckins();
   }
 
+  static Future<PendingCheckin?> getPendingCheckin(int id) =>
+      db.getPendingCheckin(id);
+
   /// Add a pending check-in. Returns the outbox row id.
   static Future<int> addPendingCheckin(PendingCheckinsCompanion checkin) {
     return db.addPendingCheckin(checkin);

@@ -192,6 +192,8 @@ VINs are encrypted at rest and never displayed. Entry is manual and optional. If
 
 ## 9. Local-First Architecture and Sync
 
+Status: Complete for the POC. Pending posts retry with backoff. A rejected post is not retried. A missing or expired session stays pending and asks the user to sign in. Community data is still polled, and the user can still import the XLSX. The official API is not implemented. Client check-in ids are not UUIDs. See Section 3.
+
 - **Local storage:** drift (SQLite), relational, migration-tracked.
 - **Outbox pattern:** local writes marked PENDING, flushed by a sync worker on reconnect (connectivity_plus) with backoff.
 - **Idempotency:** client-generated UUID check-in ids make retries safe upserts.
@@ -262,6 +264,8 @@ Status: Complete
 Status: Complete. Distance units default to imperial.
 
 **Phase 5, abstract the write path.** `ApiService.submitCheckin` currently POSTs directly to `checkin.php`. Rather than disabling it, extract a `CheckinWriter` interface with a single method (something like `submitCheckin(Checkin) -> Future<WriteResult>`) and move the existing `checkin.php` POST behind it as the POC implementation. This keeps the unofficial endpoint as the active write path, per the relaxed Section 2.2 stance, while making clear it's swappable: when the official API ships, a second implementation calling that endpoint drops in behind the same interface with no changes to the check-in screen or sync worker. Worth tracking write failures distinctly from network failures here, since the unofficial endpoint can fail in ways a real API wouldn't (markup changes, session expiry, anti-scraping responses), and `PendingCheckins` needs to handle "write rejected" as a different state than "write pending, retry later."
+
+Status: Complete. CheckinWriter returns a distinct result for accepted, rejected, retry, and needs sign-in.
 
 **Phase 6, harden auth.** Keep the webview cookie-capture login rather than replacing it; it's the only thing making Phase 5's POC writer work. The improvement here is robustness: detect and surface session expiry instead of failing silently, retry or re-prompt login when the captured cookie stops working, and extract the session-management logic behind an auth interface so swapping in shared GitHub/Google OAuth later, once the official API supports it, is a second implementation rather than a rewrite. This pairs naturally with Phase 5, since both are about making the current unofficial-endpoint POC dependable enough to rely on while waiting for the real API.
 

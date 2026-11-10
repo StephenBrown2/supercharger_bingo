@@ -10,6 +10,7 @@ import '../models/supercharge_info.dart';
 import 'checkin_form.dart';
 import 'life_auth.dart';
 import 'life_time.dart';
+import 'write_result.dart';
 import 'timezone_service.dart';
 
 /// API service for supercharge.info and supercharging.life
@@ -311,20 +312,31 @@ class ApiService {
   }
 
   /// Submit a check-in to supercharging.life using the live multipart form.
-  /// Without a session the site redirects to login.php, so this returns false
-  /// and the visit stays pending.
-  Future<bool> submitCheckin(CheckinDraft draft) async {
+  /// A missing or rejected session is [WriteOutcome.needsSignIn]. A transport
+  /// failure is [WriteOutcome.retry]. Anything else that is not a 200 is
+  /// [WriteOutcome.rejected] and should not be retried.
+  Future<WriteResult> submitCheckin(CheckinDraft draft) async {
     final session = await getSessionCookie();
-    if (session == null || session.isEmpty) return false;
+    if (session == null || session.isEmpty) return WriteResult.needsSignIn;
     await restoreSessionCookie();
-    final response = await _dio.post(
-      '$superchargingLifeBaseUrl/supercharging/checkin.php',
-      data: FormData.fromMap(unofficialCheckinFields(draft)),
-    );
-    if (response.statusCode != 200) return false;
-    final body = response.data?.toString() ?? '';
-    if (body.contains('Login to your account')) return false;
-    return true;
+    try {
+      final response = await _dio.post(
+        '$superchargingLifeBaseUrl/supercharging/checkin.php',
+        data: FormData.fromMap(unofficialCheckinFields(draft)),
+      );
+      return writeResultFromHttp(
+        statusCode: response.statusCode,
+        body: response.data?.toString(),
+        finalUri: response.realUri.toString(),
+      );
+    } on DioException catch (e) {
+      return writeResultFromHttp(
+        statusCode: e.response?.statusCode,
+        body: '${e.response?.data ?? ''} ${e.message ?? ''}',
+        finalUri:
+            e.response?.realUri.toString() ?? e.requestOptions.uri.toString(),
+      );
+    }
   }
 
   /// Download user's XLSX export

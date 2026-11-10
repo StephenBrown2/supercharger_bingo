@@ -363,6 +363,116 @@ void main() {
     },
   );
 
+  test('a network failure stays pending and waits out the backoff', () async {
+    final requests = <RequestOptions>[];
+    var calls = 0;
+    final dio = Dio()
+      ..interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (request, handler) {
+            calls += 1;
+            requests.add(request);
+            handler.resolve(
+              Response(
+                requestOptions: request,
+                statusCode: calls == 1 ? 500 : 200,
+              ),
+            );
+          },
+        ),
+      );
+    const channel = MethodChannel('dev.fluttercommunity.plus/connectivity');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (_) async => ['wifi']);
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    await db.addPendingCheckin(
+      PendingCheckinsCompanion(
+        siteId: const Value(1),
+        checkinDate: Value(DateTime(2026, 5, 1)),
+        createdAt: Value(DateTime.now()),
+      ),
+    );
+    final sync = SyncService(
+      apiService: ApiService(dio: dio, sessionId: 'test-session'),
+    );
+
+    await sync.syncPendingCheckins();
+    expect(requests, hasLength(1));
+    var pending = (await db.select(db.pendingCheckins).get()).single;
+    expect(pending.status, PendingStatus.pending);
+    expect(pending.attempts, 1);
+
+    await sync.syncPendingCheckins();
+    expect(requests, hasLength(1));
+
+    await db.updatePendingCheckin(
+      pending.id,
+      PendingCheckinsCompanion(
+        lastAttemptAt: Value(
+          DateTime.now().subtract(const Duration(minutes: 2)),
+        ),
+      ),
+    );
+    await sync.syncPendingCheckins();
+    expect(requests, hasLength(2));
+    pending = (await db.select(db.pendingCheckins).get()).single;
+    expect(pending.status, PendingStatus.completed);
+  });
+
+  test('a signed-out response stays pending and keeps lastLoginAt', () async {
+    final requests = <RequestOptions>[];
+    final dio = Dio()
+      ..interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (request, handler) {
+            requests.add(request);
+            handler.resolve(
+              Response(
+                requestOptions: request,
+                statusCode: 200,
+                data: 'Login to your account',
+              ),
+            );
+          },
+        ),
+      );
+    const channel = MethodChannel('dev.fluttercommunity.plus/connectivity');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (_) async => ['wifi']);
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    final loginAt = DateTime.utc(2026, 1, 1);
+    await db.updateUserSettings(
+      UserSettingsTableCompanion(
+        isAuthenticated: const Value(true),
+        lastLoginAt: Value(loginAt),
+      ),
+    );
+    await db.addPendingCheckin(
+      PendingCheckinsCompanion(
+        siteId: const Value(1),
+        checkinDate: Value(DateTime(2026, 5, 1)),
+        createdAt: Value(DateTime.now()),
+      ),
+    );
+    await SyncService(
+      apiService: ApiService(dio: dio, sessionId: 'test-session'),
+    ).syncPendingCheckins();
+
+    expect(requests, hasLength(1));
+    final pending = (await db.select(db.pendingCheckins).get()).single;
+    expect(pending.status, PendingStatus.pending);
+    expect(pending.lastError, 'Sign in to supercharging.life again');
+    expect(pending.attempts, 0);
+    final settings = await db.getUserSettings();
+    expect(settings.isAuthenticated, isFalse);
+    expect(
+      settings.lastLoginAt?.millisecondsSinceEpoch,
+      loginAt.millisecondsSinceEpoch,
+    );
+  });
+
   test(
     'nearby list includes a visited site and its last visit when asked',
     () async {

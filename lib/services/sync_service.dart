@@ -16,6 +16,7 @@ import 'life_time.dart';
 import 'location_service.dart';
 import 'supercharge_region.dart';
 import 'timezone_service.dart';
+import 'write_result.dart';
 
 typedef LocationFix = ({double latitude, double longitude});
 
@@ -31,6 +32,9 @@ class SyncService {
   /// Bumped when a region site sync finishes, so a map that read the site
   /// table before those rows existed can load them.
   final ValueNotifier<int> sitesVersion = ValueNotifier(0);
+
+  /// Bumped when a pending check-in cannot post because the session is gone.
+  final ValueNotifier<int> sessionExpiredVersion = ValueNotifier(0);
 
   final Connectivity _connectivity = Connectivity();
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
@@ -527,6 +531,10 @@ class SyncService {
     }
 
     final hasNetwork = await hasConnectivity();
+    var queueStatus = PendingStatus.pending;
+    String? queueError;
+    var attempts = 0;
+    DateTime? lastAttemptAt;
 
     if (hasNetwork) {
       // Try to submit directly
@@ -541,9 +549,9 @@ class SyncService {
           notes: notes,
           notesPrivate: notesPrivate,
         );
-        final success = await _writer.submit(draft);
+        final result = await _writer.submit(draft);
 
-        if (success) {
+        if (result.outcome == WriteOutcome.accepted) {
           await DatabaseService.markSiteVisited(siteId, true);
           await DatabaseService.addVisit(
             VisitsCompanion(
@@ -564,8 +572,21 @@ class SyncService {
           );
           return true;
         }
+        if (result.outcome == WriteOutcome.needsSignIn) {
+          await _markSessionExpired();
+          queueError = waitingForSignInMessage;
+        } else if (result.outcome == WriteOutcome.rejected) {
+          queueStatus = PendingStatus.failed;
+          queueError = result.message ?? WriteResult.rejected.message;
+        } else if (result.outcome == WriteOutcome.retry) {
+          queueError = result.message ?? WriteResult.retry.message;
+          attempts = 1;
+          lastAttemptAt = DateTime.now();
+        }
       } catch (e) {
-        // Fall through to queue offline
+        queueError = WriteResult.retry.message;
+        attempts = 1;
+        lastAttemptAt = DateTime.now();
       }
     }
 
@@ -580,7 +601,10 @@ class SyncService {
         accuracy: Value(accuracy),
         notesPublic: Value(notes),
         notesPrivate: Value(notesPrivate),
-        status: const Value(PendingStatus.pending),
+        status: Value(queueStatus),
+        lastError: Value(queueError),
+        attempts: Value(attempts),
+        lastAttemptAt: Value(lastAttemptAt),
       ),
       method: latitude != null ? CheckinMethod.gps : CheckinMethod.manual,
     );
@@ -596,14 +620,10 @@ class SyncService {
     final pending = await DatabaseService.getPendingCheckins();
 
     for (final checkin in pending) {
-      await DatabaseService.updatePendingCheckin(
-        checkin.id,
-        PendingCheckinsCompanion(
-          status: const Value(PendingStatus.submitting),
-          lastAttemptAt: Value(DateTime.now()),
-          attempts: Value(checkin.attempts + 1),
-        ),
-      );
+      final now = DateTime.now();
+      if (!pendingReadyToRetry(checkin.lastAttemptAt, checkin.attempts, now)) {
+        continue;
+      }
 
       try {
         final site = await DatabaseService.getSiteBySiteId(checkin.siteId);
@@ -629,11 +649,21 @@ class SyncService {
             checkin.id,
             const PendingCheckinsCompanion(
               status: Value(PendingStatus.pending),
-              lastError: Value('Waiting for supercharging.life sign-in'),
+              lastError: Value(waitingForSignInMessage),
             ),
           );
+          sessionExpiredVersion.value++;
           continue;
         }
+
+        await DatabaseService.updatePendingCheckin(
+          checkin.id,
+          PendingCheckinsCompanion(
+            status: const Value(PendingStatus.submitting),
+            lastAttemptAt: Value(now),
+            attempts: Value(checkin.attempts + 1),
+          ),
+        );
 
         final draft = await _draftFor(
           siteId: checkin.siteId,
@@ -645,35 +675,69 @@ class SyncService {
           notes: checkin.notesPublic,
           notesPrivate: checkin.notesPrivate,
         );
-        final success = await _writer.submit(draft);
-
-        if (success) {
-          await DatabaseService.updatePendingCheckin(
-            checkin.id,
-            const PendingCheckinsCompanion(
-              status: Value(PendingStatus.completed),
-            ),
-          );
-          await DatabaseService.db.markPendingVisitSynced(checkin.id);
-        } else {
-          await DatabaseService.updatePendingCheckin(
-            checkin.id,
-            PendingCheckinsCompanion(
-              status: const Value(PendingStatus.failed),
-              lastError: const Value('Server returned failure'),
-            ),
-          );
-        }
+        final result = await _writer.submit(draft);
+        await _applyWriteResult(checkin.id, result);
       } catch (e) {
         await DatabaseService.updatePendingCheckin(
           checkin.id,
           PendingCheckinsCompanion(
-            status: const Value(PendingStatus.failed),
-            lastError: Value(e.toString()),
+            status: const Value(PendingStatus.pending),
+            lastError: Value(WriteResult.retry.message),
           ),
         );
       }
     }
+  }
+
+  Future<void> _applyWriteResult(int pendingId, WriteResult result) async {
+    switch (result.outcome) {
+      case WriteOutcome.accepted:
+        await DatabaseService.updatePendingCheckin(
+          pendingId,
+          const PendingCheckinsCompanion(
+            status: Value(PendingStatus.completed),
+            lastError: Value(null),
+          ),
+        );
+        await DatabaseService.db.markPendingVisitSynced(pendingId);
+      case WriteOutcome.rejected:
+        await DatabaseService.updatePendingCheckin(
+          pendingId,
+          PendingCheckinsCompanion(
+            status: const Value(PendingStatus.failed),
+            lastError: Value(result.message ?? WriteResult.rejected.message),
+          ),
+        );
+      case WriteOutcome.retry:
+        await DatabaseService.updatePendingCheckin(
+          pendingId,
+          PendingCheckinsCompanion(
+            status: const Value(PendingStatus.pending),
+            lastError: Value(result.message ?? WriteResult.retry.message),
+          ),
+        );
+      case WriteOutcome.needsSignIn:
+        await DatabaseService.updatePendingCheckin(
+          pendingId,
+          const PendingCheckinsCompanion(
+            status: Value(PendingStatus.pending),
+            lastError: Value(signInAgainMessage),
+            // Do not burn a backoff slot. The next try should run as soon
+            // as the user has a session again.
+            attempts: Value(0),
+            lastAttemptAt: Value(null),
+          ),
+        );
+        await _markSessionExpired();
+    }
+  }
+
+  Future<void> _markSessionExpired() async {
+    await _apiService.clearSessionCookie();
+    await DatabaseService.updateUserSettings(
+      const UserSettingsTableCompanion(isAuthenticated: Value(false)),
+    );
+    sessionExpiredVersion.value++;
   }
 
   /// Recent OPEN additions in the user's region, inside [radiusKm].

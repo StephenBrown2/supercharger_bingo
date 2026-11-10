@@ -556,6 +556,12 @@ class AppDatabase extends _$AppDatabase {
   // Pending Check-ins
   // -------------------------------------------------------------------------
 
+  Future<PendingCheckin?> getPendingCheckin(int id) {
+    return (select(
+      pendingCheckins,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
+  }
+
   Future<List<PendingCheckin>> getPendingCheckins() {
     return (select(
       pendingCheckins,
