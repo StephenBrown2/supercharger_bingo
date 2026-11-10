@@ -2,13 +2,19 @@
 
 ## 1. Overview
 
+Status: Complete
+
 A mobile-first (not mobile-only) Flutter app for tracking "First" check-ins at newly opened Tesla Superchargers. Site data comes from the supercharge.info API. Check-ins are logged locally first and synced when connectivity allows. For the POC, check-ins write to supercharging.life through its unofficial endpoint behind an abstracted interface; the official supercharging.life API becomes the default writer once it exists. Desktop and PWA builds are in scope.
 
 This is v0.5. Section 2.2 and Section 13 were revised to keep the prototype's unofficial-endpoint write path and webview auth in place for the POC, abstracted behind interfaces rather than replaced outright.
 
 ## 2. Data Sources
 
+Status: Complete for the POC sources below.
+
 ### 2.1 supercharge.info API
+
+Status: Complete. Region-scoped sync, the eight statuses, one shared site model, and IANA timezones are in place. Country and state are not sent as request filters.
 
 Schema and behavior are taken from the supercharge-info/supercharge.info-api repository.
 See https://github.com/supercharge-info/supercharge.info-api/tree/e61485e11d8a3f4204ef77720e63aee9d308ada2/service-war/src/main/java/com/redshiftsoft/tesla/web/mvc
@@ -27,6 +33,8 @@ Two endpoints matter:
 
 ### 2.2 supercharging.life
 
+Status: Complete for the POC. Check-ins post through the unofficial checkin.php writer behind CheckinWriter. The official API writer is deferred.
+
 No official API exists yet. The target end state is to submit check-ins, and eventually pull community First data, through that official API. Scraping unofficial PHP datatable endpoints, as the prototype does, is not part of that target design.
 
 For the POC, full local-only is too strict: the only way to get real check-ins onto supercharging.life today is through the unofficial `checkin.php` endpoint, which the prototype already does. That's kept as the POC's write path, with two things acknowledged up front: it's fragile (it can break without notice if supercharging.life changes markup or adds anti-scraping defenses), and it only works at all if the webview cookie-capture session (Section 8) stays valid long enough to post. Because of that fragility, all check-in writes go through a single backend-writer interface (Section 13, Phase 5) so the POC's unofficial-endpoint implementation and the eventual official-API implementation are interchangeable without touching the rest of the app. Community and personal history continue to come from the manual, user-triggered XLSX export import in the interim (Section 9); that stays in place regardless of which writer is active, since the unofficial endpoints don't reliably surface the same data the export does.
@@ -34,6 +42,8 @@ For the POC, full local-only is too strict: the only way to get real check-ins o
 When the official API ships, it becomes the default writer and the source of real-time community First data, retiring the unofficial endpoint and the XLSX import.
 
 ## 3. Domain Model
+
+Status: Complete, with these accepted differences from the table below. Check-in ids are the integer supercharging.life assigns and stay null until then. first_date is computed when a pin is drawn. hasCheckins is only the counts cache. City, state, and stallCount stay for the map sheet.
 
 Store only the minimum needed for app operation, not the full API record. The supercharge.info models in Section 2.1 are for parsing the response; most of those fields are dropped on ingestion. If a feature later needs richer metadata (stall breakdown, elevation, plugs, facility info), query the API to backfill that site on demand rather than storing it speculatively now.
 
@@ -55,6 +65,8 @@ Everything else (address detail, stall counts, power, plugs, elevation, flags) i
 
 ### Checkin (local + synced personal history)
 
+Status: Complete. The id column is the server integer, not a client UUID. A local visit stays pending with a null check-in id until the server accepts it.
+
 | Field | Type | Notes |
 |---|---|---|
 | id | UUID | Client-generated, idempotent sync |
@@ -71,11 +83,15 @@ Everything else (address detail, stall counts, power, plugs, elevation, flags) i
 
 ### Community check-in (others, for First tracking)
 
+Status: Complete. days_after_open and distinct_user_super_seq are omitted.
+
 Mirrors what the history poll provides: site_id, user id, username/display name, checkin_date, checkin_time (when available), and the is_first flag. `days_after_open` and `distinct_user_super_seq` are omitted for this MVP. Nothing on screen reads them, and First detection does not use them.
 
 A check-in made in the app is written to visits immediately, with no server check-in id. Its sync status is pending until supercharging.life accepts the write. The visits list shows that row as Pending.
 
 ### Vehicle
+
+Status: Complete
 
 | Field | Type | Notes |
 |---|---|---|
@@ -87,6 +103,8 @@ A check-in made in the app is written to visits immediately, with no server chec
 Vehicles are a purely local concept and do not participate in supercharging.life sync. A Check-in setting, off by default, appends the derived vehicle info (make/model/year/trim, never the raw VIN) to the check-in's private note. The private note is local and admin-visible, never public.
 
 ## 4. "First" Determination
+
+Status: Complete. A check-in before dateOpened is rejected. The First date is computed, not stored.
 
 Shared Firsts are allowed and are a deliberate social feature. Once one person claims the First at a site, others who check in before the next site-local midnight share it, and coordinating that scramble is part of the appeal. This removes the v0.1 problem entirely: no tie-break logic is needed, and the DATE_ONLY ordering ambiguity no longer matters, because same-day check-ins are not ranked against each other.
 
@@ -118,6 +136,8 @@ Four top-level filters. The original "Show Visited" option is restored, since th
 - **All:** every site regardless of status, including PERMIT, PLAN, VOTING, and both closed states.
 
 ### Pin color and shape
+
+Status: Complete. Okabe-Ito colors, redundant glyphs, and green, yellow, and red First state are computed at render.
 
 The prototype's status-based colors are kept in spirit but remapped to the Okabe-Ito colorblind-safe palette, and the First-state coloring from the original brief is layered on top. Color is always paired with a distinct shape/glyph so the state survives full color blindness (WCAG 1.4.1).
 
@@ -156,11 +176,17 @@ Fields carried over from the live form: Supercharger picker, link to search all 
 
 ## 8. Authentication and VIN Handling
 
+Status: Complete for the POC.
+
 ### Auth
+
+Status: Complete. GitHub and Google open supercharging.life oauth.php and store SCLSESSION. If that cannot finish, the same provider is stored on the device and check-ins stay pending. A hosted backend is deferred.
 
 Target state is shared authentication with supercharging.life, which uses GitHub and Google social login. The app uses those same providers. Until the official API exists, sign-in opens supercharging.life's own GitHub and Google buttons (`oauth.php`) in an in-app webview and stores the `SCLSESSION` cookie that page sets. That cookie is what lets the unofficial check-in writer post. If the provider blocks the in-app browser, or this platform has no webview, the same GitHub or Google choice is stored on the device only. Check-ins then stay local and show as pending. A separate hosted backend is deferred.
 
 ### VIN
+
+Status: Complete
 
 VINs are encrypted at rest and never displayed. Entry is manual and optional. If a VIN is entered, the app offers a one-time online decode (NHTSA vPIC) to derive make, model, year, and trim, which is then saved locally so it is available offline afterward. Those derived fields are shown on the vehicle. They are added to a check-in private note only when that Check-in setting is on (Section 3). Online decode does not conflict with the local-first goal: offline-first matters for the check-in path, not for one-time vehicle setup, and full offline-only operation is not a requirement. vPIC being US-centric is an accepted limitation; manual entry of make/model/year/trim remains available for vehicles it cannot decode.
 
@@ -175,6 +201,8 @@ VINs are encrypted at rest and never displayed. Entry is manual and optional. If
 - **Future:** the official supercharging.life API replaces the XLSX import, supplies real-time community First data, and accepts check-in submissions.
 
 ### Provisional API contract (to request of supercharging.life)
+
+Status: Deferred. This contract is for coordination with supercharging.life. The app does not call these routes.
 
 This is not a contract supercharging.life offers today. It is what the app needs from them, stated up front so it can drive implementation coordination once they build the official API. Auth is assumed to be the shared GitHub/Google social login (Section 8).
 
@@ -201,28 +229,44 @@ Both honor the configurable notification radius. Server-pushed notifications fro
 
 ## 11. Suggested Tech Stack
 
+Status: Complete. The app uses this stack. State stays with the existing services rather than Riverpod.
+
 Flutter with Material 3, drift for local SQLite, flutter_map with OpenStreetMap tiles, geolocator with an IP-based fallback for desktop, connectivity_plus for sync triggering, Workmanager for background tasks. State management per your preference (Provider is in the prototype; Riverpod is a reasonable upgrade for the sync-heavy parts).
 
 ## 12. Out of Scope (v1)
+
+Status: Complete. These items stay out of scope.
 
 Route planning, real-time stall availability, leaderboards beyond the basic First marker, and in-app moderation. Public-comment moderation is explicitly deferred to supercharging.life administrators and is not handled in this app.
 
 ## 13. Migration Plan: Prototype to Spec
 
+Status: Complete through Phase 4 for the POC. The official API coordination in the last paragraph is deferred.
+
 The existing `supercharger_bingo` prototype is a real starting point, not a throwaway: it already has working drift persistence, supercharge.info parsing, GPS-plus-IP location, a timezone dataset and lookup, background sync scaffolding with the two notification channels, and a check-in screen with nearest-site sorting. The work is changing what it stores and how it talks to supercharging.life, not starting over.
 
 **Phase 1, schema and status (foundational, do first).** `SiteStatus` in `database.dart` currently has 6 values (`open, construction, permit, planned, closed, unknown`); it needs to become the real 8-value enum (`open, expanding, construction, permit, plan, voting, closedTemp, closedPerm`), which is a drift migration (bump `schemaVersion` past 3). At the same time, trim the `Sites` table down to the Section 3 field list and drop the rest (street/city/zip, stall breakdowns v2/v3/v4, power, elevation) rather than carrying them forward; they were reasonable to capture but the spec deliberately excludes them now. This phase gates everything else, since the filter and pin-color logic both key off status.
 
+Status: Complete. City, state, and stallCount were kept for the map sheet.
+
 **Phase 2, filters and pins.** `MapFilter` has `openUnvisited, openUnvisitedConstruction, all`; add a fourth `visited` value (Section 5's "Show Visited" was dropped in the prototype and needs restoring). Rewrite the marker logic in `map_screen.dart`, which currently colors by status using plain Material colors (red/orange/blue/purple) plus a separate green star for First-eligible, to use the Okabe-Ito palette with shape redundancy and the three-state green/yellow/red First coloring from Section 5, computed at render time from each site's earliest check-in date and timezone, not from `date_opened`.
+
+Status: Complete. Visited is restored. Pins use the Okabe-Ito First colors.
 
 **Phase 3, check-in flow.** Add a `notesPrivate` column to `Visits` and `PendingCheckins` (currently public-only); add the most-recent-check-in lookup and display in the nearby-sites list, which the prototype sorts by distance but doesn't currently annotate; add a `Vehicles` table and the optional vehicle selector, with VIN encrypted via `flutter_secure_storage` (already a dependency, currently used for the session cookie) and the one-time vPIC enrichment call.
 
+Status: Complete
+
 **Phase 4, settings cleanup.** Flip the `UnitSystem` default from metric to imperial; the radius settings (`notificationRadiusKm`, `checkinRadiusKm`) already exist as separate fields and don't need structural change, just labeling and default review. Low-risk, no dependencies beyond Phase 1, and cheap enough to clear before the more involved network-layer work in Phases 5 and 6.
+
+Status: Complete. Distance units default to imperial.
 
 **Phase 5, abstract the write path.** `ApiService.submitCheckin` currently POSTs directly to `checkin.php`. Rather than disabling it, extract a `CheckinWriter` interface with a single method (something like `submitCheckin(Checkin) -> Future<WriteResult>`) and move the existing `checkin.php` POST behind it as the POC implementation. This keeps the unofficial endpoint as the active write path, per the relaxed Section 2.2 stance, while making clear it's swappable: when the official API ships, a second implementation calling that endpoint drops in behind the same interface with no changes to the check-in screen or sync worker. Worth tracking write failures distinctly from network failures here, since the unofficial endpoint can fail in ways a real API wouldn't (markup changes, session expiry, anti-scraping responses), and `PendingCheckins` needs to handle "write rejected" as a different state than "write pending, retry later."
 
 **Phase 6, harden auth.** Keep the webview cookie-capture login rather than replacing it; it's the only thing making Phase 5's POC writer work. The improvement here is robustness: detect and surface session expiry instead of failing silently, retry or re-prompt login when the captured cookie stops working, and extract the session-management logic behind an auth interface so swapping in shared GitHub/Google OAuth later, once the official API supports it, is a second implementation rather than a rewrite. This pairs naturally with Phase 5, since both are about making the current unofficial-endpoint POC dependable enough to rely on while waiting for the real API.
 
 **Ongoing, in parallel:** the Section 9 provisional API contract is the artifact to take to supercharging.life for coordination; it doesn't block any of the phases above and can start immediately.
+
+Status: Deferred. The provisional contract is not app work.
 
 Recommended order is 1 through 3 as the core rebuild, then 4 as quick cleanup, then 5 and 6 together since they're tightly coupled (the write interface in 5 depends on the session in 6 actually staying alive).
