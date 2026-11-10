@@ -62,7 +62,7 @@ class NotificationService {
     );
 
     await _notifications.initialize(
-      initSettings,
+      settings: initSettings,
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
 
@@ -215,10 +215,10 @@ class NotificationService {
     double distanceKm,
   ) async {
     await _notifications.show(
-      site.siteId,
-      'New Supercharger Nearby!',
-      '${site.name} just opened ${distanceKm.toStringAsFixed(1)} km away',
-      NotificationDetails(
+      id: site.siteId,
+      title: 'New Supercharger Nearby!',
+      body: '${site.name} just opened ${distanceKm.toStringAsFixed(1)} km away',
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           newSuperchargersChannelId,
           'New Superchargers',
@@ -244,10 +244,11 @@ class NotificationService {
     double distanceKm,
   ) async {
     await _notifications.show(
-      site.siteId + 100000, // Offset to avoid ID collision
-      'First Eligible Nearby!',
-      '${site.name} (${distanceKm.toStringAsFixed(1)} km) is ready for a First!',
-      NotificationDetails(
+      id: site.siteId + 100000, // Offset to avoid ID collision
+      title: 'First Eligible Nearby!',
+      body:
+          '${site.name} (${distanceKm.toStringAsFixed(1)} km) is ready for a First!',
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           firstEligibleChannelId,
           'First Eligible',
