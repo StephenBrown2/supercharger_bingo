@@ -7,6 +7,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../database/database.dart';
 import '../models/supercharge_info.dart';
+import 'checkin_form.dart';
+import 'life_time.dart';
 import 'timezone_service.dart';
 
 /// API service for supercharge.info and supercharging.life
@@ -21,6 +23,13 @@ class ApiService {
   // API endpoints
   static const String superchargeInfoBaseUrl = 'https://supercharge.info';
   static const String superchargingLifeBaseUrl = 'https://supercharging.life';
+
+  /// Page size for the first pull of a region. North America is about 5,000
+  /// sites, so a few pages cover a region without pulling the planet.
+  static const int sitePageLength = 2000;
+
+  /// Newest-first change pages. Each row embeds a full site.
+  static const int changePageLength = 200;
 
   ApiService({Dio? dio}) {
     _dio =
@@ -94,6 +103,69 @@ class ApiService {
     );
   }
 
+  /// One page of `/sites` or `/changes`. [recordCount] is the filtered total.
+  Future<SuperchargePage<SitesCompanion>> fetchSitesPage({
+    required int regionId,
+    required int start,
+    int length = sitePageLength,
+  }) async {
+    final response = await _dio.get(
+      '$superchargeInfoBaseUrl/service/supercharge/sites',
+      queryParameters: {'regionId': regionId, 'start': start, 'length': length},
+    );
+    return _readPage(response, parseSiteRecord);
+  }
+
+  /// One page of `/changes`, newest first.
+  Future<SuperchargePage<AllChanges>> fetchChangesPage({
+    required int regionId,
+    required int start,
+    int length = changePageLength,
+  }) async {
+    final response = await _dio.get(
+      '$superchargeInfoBaseUrl/service/supercharge/changes',
+      queryParameters: {'regionId': regionId, 'start': start, 'length': length},
+    );
+    return _readPage(response, parseChangeRecord);
+  }
+
+  /// Newest change id for a region, or null when the region has none.
+  Future<int?> fetchNewestChangeId(int regionId) async {
+    final page = await fetchChangesPage(
+      regionId: regionId,
+      start: 0,
+      length: 1,
+    );
+    if (page.results.isEmpty) return null;
+    return page.results.first.id;
+  }
+
+  SuperchargePage<T> _readPage<T>(
+    Response<dynamic> response,
+    T? Function(Map<String, dynamic> json) parse,
+  ) {
+    if (response.statusCode != 200 || response.data is! Map) {
+      throw DioException(
+        requestOptions: response.requestOptions,
+        response: response,
+        message: 'Failed to read supercharge.info page: ${response.statusCode}',
+      );
+    }
+    final body = response.data as Map;
+    final raw = body['results'];
+    final results = <T>[];
+    if (raw is List) {
+      for (final row in raw) {
+        if (row is! Map) continue;
+        final parsed = parse(Map<String, dynamic>.from(row));
+        if (parsed != null) results.add(parsed);
+      }
+    }
+    final recordCount =
+        (body['recordCount'] as num?)?.toInt() ?? results.length;
+    return SuperchargePage(results: results, recordCount: recordCount);
+  }
+
   /// Fetch recent changes from supercharge.info
   Future<List<AllChanges>> fetchAllChanges() async {
     final response = await _dio.get(
@@ -128,7 +200,10 @@ class ApiService {
       final data = response.data;
       if (data is Map && data['data'] is List) {
         return (data['data'] as List)
-            .map((json) => _parseSiteCheckin(json))
+            .map(
+              (json) =>
+                  parseSiteCheckin(Map<String, dynamic>.from(json as Map)),
+            )
             .toList();
       }
     }
@@ -207,40 +282,13 @@ class ApiService {
     );
   }
 
-  /// Submit a check-in to supercharging.life
-  Future<bool> submitCheckin({
-    required int siteId,
-    required DateTime date,
-    double? latitude,
-    double? longitude,
-    double? accuracy,
-    String? notes,
-    String? notesPrivate,
-  }) async {
-    final formData = {
-      'supercharger_id': siteId.toString(),
-      'checkin_date':
-          '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
-      if (latitude != null && longitude != null) ...{
-        'method': 'gps',
-        'lat': latitude.toString(),
-        'lng': longitude.toString(),
-        if (accuracy != null) 'geo_accuracy': accuracy.toString(),
-      } else ...{
-        'method': 'manual',
-      },
-      if (notes != null && notes.isNotEmpty) 'notes_public': notes,
-      if (notesPrivate != null && notesPrivate.isNotEmpty)
-        'notes_private': notesPrivate,
-    };
-
+  /// Submit a check-in to supercharging.life using the live multipart form.
+  Future<bool> submitCheckin(CheckinDraft draft) async {
     final response = await _dio.post(
       '$superchargingLifeBaseUrl/supercharging/checkin.php',
-      data: formData,
-      options: Options(contentType: 'application/x-www-form-urlencoded'),
+      data: FormData.fromMap(unofficialCheckinFields(draft)),
     );
 
-    // Check if the response indicates success
     return response.statusCode == 200;
   }
 
@@ -288,33 +336,55 @@ class ApiService {
       if (status == null) return null;
       // AllSites.fromJson accepts only the canonical wire spelling.
       record['status'] = _statusWireName(status);
-      final site = AllSites.fromJson(record);
-      return SitesCompanion(
-        siteId: Value(site.id),
-        locationId: Value(site.locationId),
-        name: Value(site.name),
-        status: Value(status),
-        latitude: Value(site.gps.latitude),
-        longitude: Value(site.gps.longitude),
-        city: Value(site.address.city),
-        state: Value(site.address.state),
-        country: Value(
-          countryValues.reverse[site.address.country] ?? 'Unknown',
-        ),
-        region: Value(regionValues.reverse[site.address.region] ?? 'Unknown'),
-        // Derived at ingestion from coordinates (SPEC Section 3).
-        timezone: Value(
-          TimezoneService.instance.getTimezoneForLocation(
-            site.gps.latitude,
-            site.gps.longitude,
-          ),
-        ),
-        stallCount: Value(site.stallCount),
-        dateOpened: Value(site.dateOpened),
-        lastSynced: Value(DateTime.now()),
-      );
+      return companionFor(AllSites.fromJson(record));
     } catch (_) {
       return null;
+    }
+  }
+
+  /// Stored row for a parsed site, including the IANA zone from its coordinates.
+  static SitesCompanion companionFor(AllSites site) {
+    return SitesCompanion(
+      siteId: Value(site.id),
+      locationId: Value(site.locationId),
+      name: Value(site.name),
+      status: Value(_siteStatus(site.status)),
+      latitude: Value(site.gps.latitude),
+      longitude: Value(site.gps.longitude),
+      city: Value(site.address.city),
+      state: Value(site.address.state),
+      country: Value(countryValues.reverse[site.address.country] ?? 'Unknown'),
+      region: Value(regionValues.reverse[site.address.region] ?? 'Unknown'),
+      timezone: Value(
+        TimezoneService.instance.getTimezoneForLocation(
+          site.gps.latitude,
+          site.gps.longitude,
+        ),
+      ),
+      stallCount: Value(site.stallCount),
+      dateOpened: Value(site.dateOpened),
+      lastSynced: Value(DateTime.now()),
+    );
+  }
+
+  static SiteStatus _siteStatus(Status status) {
+    switch (status) {
+      case Status.OPEN:
+        return SiteStatus.open;
+      case Status.EXPANDING:
+        return SiteStatus.expanding;
+      case Status.CONSTRUCTION:
+        return SiteStatus.construction;
+      case Status.PERMIT:
+        return SiteStatus.permit;
+      case Status.PLAN:
+        return SiteStatus.plan;
+      case Status.VOTING:
+        return SiteStatus.voting;
+      case Status.CLOSED_TEMP:
+        return SiteStatus.closedTemp;
+      case Status.CLOSED_PERM:
+        return SiteStatus.closedPerm;
     }
   }
 
@@ -365,8 +435,13 @@ class ApiService {
     }
   }
 
-  /// Parse a site check-in from supercharging.life JSON
-  SiteCheckinsCompanion _parseSiteCheckin(Map<String, dynamic> json) {
+  /// Parse a site check-in from supercharging.life JSON.
+  ///
+  /// `checkin_date` is the calendar date shown on Check-in Detail.
+  /// `checkin_time` is the clock when the history row has one. A short offset
+  /// such as `-05` is normalized before parsing.
+  @visibleForTesting
+  static SiteCheckinsCompanion parseSiteCheckin(Map<String, dynamic> json) {
     DateTime checkinDate;
     try {
       checkinDate = DateTime.parse(json['checkin_date'] as String);
@@ -374,17 +449,8 @@ class ApiService {
       checkinDate = DateTime.now();
     }
 
-    DateTime checkinTime;
-    try {
-      final timeStr = json['checkin_time'] as String?;
-      if (timeStr != null) {
-        checkinTime = DateTime.parse(timeStr.replaceAll(' ', 'T'));
-      } else {
-        checkinTime = checkinDate;
-      }
-    } catch (_) {
-      checkinTime = checkinDate;
-    }
+    final checkinTime =
+        parseLifeTimestamp(json['checkin_time'] as String?) ?? checkinDate;
 
     int? daysAfterOpen;
     if (json['checkin_days_after_open'] != null) {
@@ -406,4 +472,13 @@ class ApiService {
       syncedAt: Value(DateTime.now()),
     );
   }
+}
+
+/// A supercharge.info datatable page. [recordCount] is the filtered total,
+/// not the size of this page.
+class SuperchargePage<T> {
+  final List<T> results;
+  final int recordCount;
+
+  const SuperchargePage({required this.results, required this.recordCount});
 }

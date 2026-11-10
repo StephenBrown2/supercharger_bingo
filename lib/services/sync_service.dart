@@ -8,7 +8,16 @@ import 'package:flutter/foundation.dart';
 import '../database/database.dart';
 import '../models/supercharge_info.dart';
 import 'api_service.dart';
+import 'checkin_form.dart';
+import 'checkin_rules.dart';
+import 'checkin_writer.dart';
 import 'database_service.dart';
+import 'life_time.dart';
+import 'location_service.dart';
+import 'supercharge_region.dart';
+import 'timezone_service.dart';
+
+typedef LocationFix = ({double latitude, double longitude});
 
 /// Service for syncing data between local database and remote APIs
 class SyncService {
@@ -19,6 +28,10 @@ class SyncService {
   /// recompute First state (pin colours) once the data lands.
   final ValueNotifier<int> communityDataVersion = ValueNotifier(0);
 
+  /// Bumped when a region site sync finishes, so a map that read the site
+  /// table before those rows existed can load them.
+  final ValueNotifier<int> sitesVersion = ValueNotifier(0);
+
   final Connectivity _connectivity = Connectivity();
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   bool _isSyncingSites = false;
@@ -27,9 +40,29 @@ class SyncService {
   bool _isSyncingUser = false;
 
   final ApiService _apiService;
+  final CheckinWriter? _checkinWriter;
+  final Future<LocationFix?> Function() _locate;
 
-  SyncService({ApiService? apiService})
-    : _apiService = apiService ?? ApiService.instance;
+  SyncService({
+    ApiService? apiService,
+    CheckinWriter? checkinWriter,
+    Future<LocationFix?> Function()? locate,
+  }) : _apiService = apiService ?? ApiService.instance,
+       _checkinWriter = checkinWriter,
+       _locate = locate ?? SyncService.deviceLocation;
+
+  CheckinWriter get _writer =>
+      _checkinWriter ?? UnofficialCheckinWriter(_apiService);
+
+  static Future<LocationFix?> deviceLocation() async {
+    try {
+      final position = await LocationService.instance.getCurrentPosition();
+      if (position == null) return null;
+      return (latitude: position.latitude, longitude: position.longitude);
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// Initialize sync service and listen for connectivity changes
   void initialize() {
@@ -54,21 +87,131 @@ class SyncService {
     return results.any((r) => r != ConnectivityResult.none);
   }
 
-  /// Sync all sites from supercharge.info
-  Future<void> syncSites() async {
+  /// Sync the user's region from supercharge.info.
+  ///
+  /// The first pull pages `/sites` for that region and records the newest
+  /// change id. Later pulls apply only newer `/changes` rows. With no fix and
+  /// no stored location, this does not download the full site list.
+  Future<void> syncSites({double? latitude, double? longitude}) async {
     if (_isSyncingSites) return;
     _isSyncingSites = true;
+    var started = false;
 
     try {
-      final sites = await _apiService.fetchAllSites();
-      await DatabaseService.upsertSites(sites);
+      final fix = await _resolveFix(latitude, longitude);
+      if (fix == null) return;
+      started = true;
 
-      // Update last sync time
+      await DatabaseService.updateUserSettings(
+        UserSettingsTableCompanion(
+          lastLatitude: Value(fix.latitude),
+          lastLongitude: Value(fix.longitude),
+        ),
+      );
+
+      final regionId = SuperchargeRegion.forCoordinates(
+        fix.latitude,
+        fix.longitude,
+      );
+      await _syncRegion(regionId);
+
       await DatabaseService.updateUserSettings(
         UserSettingsTableCompanion(lastSitesSyncAt: Value(DateTime.now())),
       );
     } finally {
       _isSyncingSites = false;
+      if (started) sitesVersion.value++;
+    }
+  }
+
+  Future<LocationFix?> _resolveFix(double? latitude, double? longitude) async {
+    if (latitude != null && longitude != null) {
+      return (latitude: latitude, longitude: longitude);
+    }
+    final fresh = await _locate();
+    if (fresh != null) return fresh;
+    final settings = await DatabaseService.getUserSettings();
+    final storedLat = settings.lastLatitude;
+    final storedLon = settings.lastLongitude;
+    if (storedLat != null && storedLon != null) {
+      return (latitude: storedLat, longitude: storedLon);
+    }
+    return null;
+  }
+
+  Future<void> _syncRegion(int regionId) async {
+    final existing = await DatabaseService.getRegionSync(regionId);
+    if (existing == null) {
+      final newest = await _apiService.fetchNewestChangeId(regionId);
+      await _loadRegionSites(regionId);
+      // Include the snapshot change itself. A site page taken a moment later
+      // can still miss it, and re-applying the embedded site is idempotent.
+      final floor = newest == null ? 0 : newest - 1;
+      final maxApplied = await _applyNewerChanges(regionId, floor);
+      final cursor = newest == null
+          ? maxApplied
+          : (maxApplied > newest ? maxApplied : newest);
+      await DatabaseService.upsertRegionSync(regionId, cursor);
+      return;
+    }
+
+    final maxApplied = await _applyNewerChanges(
+      regionId,
+      existing.lastChangeId,
+    );
+    await DatabaseService.upsertRegionSync(regionId, maxApplied);
+  }
+
+  Future<void> _loadRegionSites(int regionId) async {
+    var start = 0;
+    while (true) {
+      final page = await _apiService.fetchSitesPage(
+        regionId: regionId,
+        start: start,
+        length: ApiService.sitePageLength,
+      );
+      if (page.results.isEmpty) return;
+      await DatabaseService.upsertSites(page.results);
+      start += page.results.length;
+      if (page.results.length < ApiService.sitePageLength) return;
+      if (start >= page.recordCount) return;
+    }
+  }
+
+  /// Apply change rows newer than [cursor], newest page first, but only the
+  /// newest embedded site for each site id so an older page cannot overwrite it.
+  Future<int> _applyNewerChanges(int regionId, int cursor) async {
+    var start = 0;
+    var maxId = cursor;
+    final seenSites = <int>{};
+    while (true) {
+      final page = await _apiService.fetchChangesPage(
+        regionId: regionId,
+        start: start,
+        length: ApiService.changePageLength,
+      );
+      if (page.results.isEmpty) return maxId;
+
+      final batch = <SitesCompanion>[];
+      var reachedCursor = false;
+      for (final change in page.results) {
+        if (change.id <= cursor) {
+          reachedCursor = true;
+          continue;
+        }
+        if (change.id > maxId) maxId = change.id;
+        if (seenSites.add(change.siteId)) {
+          batch.add(ApiService.companionFor(change.site));
+        }
+      }
+      if (batch.isNotEmpty) {
+        await DatabaseService.upsertSites(batch);
+      }
+      if (reachedCursor || page.results.length < ApiService.changePageLength) {
+        return maxId;
+      }
+      start += page.results.length;
+      if (start >= page.recordCount) return maxId;
     }
   }
 
@@ -270,6 +413,7 @@ class SyncService {
           int siteId = 0;
           DateTime checkinDate = DateTime.now();
           DateTime checkinTime = DateTime.now();
+          var precision = CheckinPrecision.dateOnly;
           bool isFirst = false;
           CheckinMethod method = CheckinMethod.manual;
 
@@ -306,9 +450,11 @@ class SyncService {
               CellIndex.indexByColumnRow(columnIndex: timeCol, rowIndex: row),
             );
             final timeValue = cell.value;
-            if (timeValue != null) {
-              final timeStr = timeValue.toString();
-              checkinTime = DateTime.tryParse(timeStr) ?? checkinDate;
+            final timeStr = timeValue?.toString().trim() ?? '';
+            final parsed = timeStr.isEmpty ? null : parseLifeTimestamp(timeStr);
+            if (parsed != null) {
+              checkinTime = parsed;
+              precision = CheckinPrecision.timestamp;
             } else {
               checkinTime = checkinDate;
             }
@@ -339,6 +485,7 @@ class SyncService {
                 siteId: Value(siteId),
                 checkinDate: Value(checkinDate),
                 checkinTime: Value(checkinTime),
+                checkinPrecision: Value(precision),
                 isFirst: Value(isFirst),
                 method: Value(method),
                 importedAt: Value(DateTime.now()),
@@ -356,7 +503,11 @@ class SyncService {
     }
   }
 
-  /// Submit a check-in, queueing offline if needed
+  /// Submit a check-in, queueing offline if needed.
+  ///
+  /// A date before the site opened is rejected: nothing is posted, queued, or
+  /// marked visited. Returns false both for that rejection and for a queued
+  /// check-in.
   Future<bool> submitCheckin({
     required int siteId,
     required DateTime date,
@@ -365,21 +516,30 @@ class SyncService {
     double? accuracy,
     String? notes,
     String? notesPrivate,
+    CheckinPrecision precision = CheckinPrecision.timestamp,
   }) async {
+    final site = await DatabaseService.getSiteBySiteId(siteId);
+    if (site != null &&
+        checkinPrecedesOpening(site, date, precision: precision)) {
+      return false;
+    }
+
     final hasNetwork = await hasConnectivity();
 
     if (hasNetwork) {
       // Try to submit directly
       try {
-        final success = await _apiService.submitCheckin(
+        final draft = await _draftFor(
           siteId: siteId,
           date: date,
+          precision: precision,
           latitude: latitude,
           longitude: longitude,
           accuracy: accuracy,
           notes: notes,
           notesPrivate: notesPrivate,
         );
+        final success = await _writer.submit(draft);
 
         if (success) {
           // Mark site as visited locally
@@ -391,6 +551,7 @@ class SyncService {
             siteId: Value(siteId),
             checkinDate: Value(date),
             checkinTime: Value(DateTime.now()),
+            checkinPrecision: Value(precision),
             isFirst: const Value(false), // Will be updated on next sync
             method: Value(
               latitude != null ? CheckinMethod.gps : CheckinMethod.manual,
@@ -413,6 +574,7 @@ class SyncService {
     final pending = PendingCheckinsCompanion(
       siteId: Value(siteId),
       checkinDate: Value(date),
+      checkinPrecision: Value(precision),
       createdAt: Value(DateTime.now()),
       latitude: Value(latitude),
       longitude: Value(longitude),
@@ -448,15 +610,34 @@ class SyncService {
       );
 
       try {
-        final success = await _apiService.submitCheckin(
+        final site = await DatabaseService.getSiteBySiteId(checkin.siteId);
+        if (site != null &&
+            checkinPrecedesOpening(
+              site,
+              checkin.checkinDate,
+              precision: checkin.checkinPrecision,
+            )) {
+          await DatabaseService.updatePendingCheckin(
+            checkin.id,
+            const PendingCheckinsCompanion(
+              status: Value(PendingStatus.failed),
+              lastError: Value('Check-in date is before the site opened'),
+            ),
+          );
+          continue;
+        }
+
+        final draft = await _draftFor(
           siteId: checkin.siteId,
           date: checkin.checkinDate,
+          precision: checkin.checkinPrecision,
           latitude: checkin.latitude,
           longitude: checkin.longitude,
           accuracy: checkin.accuracy,
           notes: checkin.notesPublic,
           notesPrivate: checkin.notesPrivate,
         );
+        final success = await _writer.submit(draft);
 
         if (success) {
           await DatabaseService.updatePendingCheckin(
@@ -487,25 +668,58 @@ class SyncService {
     }
   }
 
-  /// Check for new superchargers within radius
+  /// Recent OPEN additions in the user's region, inside [radiusKm].
   Future<List<AllChanges>> checkForNewSuperchargers(
     double userLat,
     double userLng,
     double radiusKm,
   ) async {
-    final changes = await _apiService.fetchAllChanges();
+    final regionId = SuperchargeRegion.forCoordinates(userLat, userLng);
+    final page = await _apiService.fetchChangesPage(
+      regionId: regionId,
+      start: 0,
+      length: 100,
+    );
     final newSuperchargers = <AllChanges>[];
 
-    for (final change in changes) {
-      if (change.changeType == ChangeType.ADD &&
-          change.siteStatus == Status.OPEN) {
-        // Check if within radius (simplified great-circle distance)
-        // TODO: Get actual coordinates from the change or fetch site details
-        // For now, include all new opens
-        newSuperchargers.add(change);
+    for (final change in page.results) {
+      if (change.changeType != ChangeType.ADD ||
+          change.siteStatus != Status.OPEN) {
+        continue;
       }
+      final distance = TimezoneService.instance.calculateDistanceKm(
+        userLat,
+        userLng,
+        change.site.gps.latitude,
+        change.site.gps.longitude,
+      );
+      if (distance <= radiusKm) newSuperchargers.add(change);
     }
 
     return newSuperchargers;
+  }
+
+  Future<CheckinDraft> _draftFor({
+    required int siteId,
+    required DateTime date,
+    required CheckinPrecision precision,
+    double? latitude,
+    double? longitude,
+    double? accuracy,
+    String? notes,
+    String? notesPrivate,
+  }) async {
+    final settings = await DatabaseService.getUserSettings();
+    return CheckinDraft(
+      siteId: siteId,
+      checkinAt: date,
+      precision: precision,
+      latitude: latitude,
+      longitude: longitude,
+      accuracy: accuracy,
+      notesPublic: notes,
+      notesPrivate: notesPrivate,
+      userId: settings.odUserId,
+    );
   }
 }

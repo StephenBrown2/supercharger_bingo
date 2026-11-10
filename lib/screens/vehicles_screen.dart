@@ -103,23 +103,42 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     required String label,
     required String vin,
     required bool displayOptIn,
+    required String make,
+    required String model,
+    required String year,
+    required String trim,
   }) async {
     final id = _newId();
-    VehicleDecode? decoded;
+    String? clean(String value) => value.isEmpty ? null : value;
+    var fields = VehicleDecode(
+      make: clean(make),
+      model: clean(model),
+      year: clean(year),
+      trim: clean(trim),
+    );
     if (vin.isNotEmpty) {
       await VehicleService.instance.storeVin(id, vin);
-      // One-time online decode; null on failure (manual entry still works).
-      decoded = await VehicleService.instance.decodeVin(vin);
+      // Decode again only when the form still has none of the four fields.
+      if (!fields.hasAnyValue) {
+        final decoded = await VehicleService.instance.decodeVin(vin);
+        if (decoded != null) {
+          fields = mergeVehicleFields(
+            current: fields,
+            decoded: decoded,
+            edited: const {},
+          );
+        }
+      }
     }
 
     await DatabaseService.upsertVehicle(
       VehiclesCompanion(
         id: Value(id),
         label: Value(label),
-        make: Value(decoded?.make),
-        model: Value(decoded?.model),
-        year: Value(decoded?.year),
-        trim: Value(decoded?.trim),
+        make: Value(fields.make),
+        model: Value(fields.model),
+        year: Value(fields.year),
+        trim: Value(fields.trim),
         displayOptIn: Value(displayOptIn),
         hasVin: Value(vin.isNotEmpty),
       ),
@@ -135,6 +154,10 @@ class _AddVehicleDialog extends StatefulWidget {
     required String label,
     required String vin,
     required bool displayOptIn,
+    required String make,
+    required String model,
+    required String year,
+    required String trim,
   })
   onSave;
 
@@ -147,14 +170,69 @@ class _AddVehicleDialog extends StatefulWidget {
 class _AddVehicleDialogState extends State<_AddVehicleDialog> {
   final _labelController = TextEditingController();
   final _vinController = TextEditingController();
+  final _makeController = TextEditingController();
+  final _modelController = TextEditingController();
+  final _yearController = TextEditingController();
+  final _trimController = TextEditingController();
+  final _edited = <String>{};
   bool _displayOptIn = false;
   bool _working = false;
+  bool _decoding = false;
+  bool _suppressEdit = false;
+  String? _decodedVin;
 
   @override
   void dispose() {
     _labelController.dispose();
     _vinController.dispose();
+    _makeController.dispose();
+    _modelController.dispose();
+    _yearController.dispose();
+    _trimController.dispose();
     super.dispose();
+  }
+
+  Future<void> _onVinChanged(String raw) async {
+    final vin = raw.trim();
+    if (vin.length != 17 || vin == _decodedVin || _decoding) return;
+    _decoding = true;
+    _decodedVin = vin;
+    setState(() {});
+    final decoded = await VehicleService.instance.decodeVin(vin);
+    if (!mounted || _decodedVin != vin) return;
+    _decoding = false;
+    if (decoded != null) _applyDecode(decoded);
+    setState(() {});
+  }
+
+  void _applyDecode(VehicleDecode decoded) {
+    final merged = mergeVehicleFields(
+      current: VehicleDecode(
+        make: _makeController.text,
+        model: _modelController.text,
+        year: _yearController.text,
+        trim: _trimController.text,
+      ),
+      decoded: decoded,
+      edited: _edited,
+    );
+    _setField(_makeController, merged.make);
+    _setField(_modelController, merged.model);
+    _setField(_yearController, merged.year);
+    _setField(_trimController, merged.trim);
+  }
+
+  void _setField(TextEditingController controller, String? value) {
+    final next = value ?? '';
+    if (controller.text == next) return;
+    _suppressEdit = true;
+    controller.text = next;
+    _suppressEdit = false;
+  }
+
+  void _markEdited(String key) {
+    if (_suppressEdit) return;
+    _edited.add(key);
   }
 
   @override
@@ -177,9 +255,49 @@ class _AddVehicleDialogState extends State<_AddVehicleDialog> {
             const SizedBox(height: 12),
             TextField(
               controller: _vinController,
-              decoration: const InputDecoration(
+              onChanged: _onVinChanged,
+              decoration: InputDecoration(
                 labelText: 'VIN (optional)',
-                helperText: 'Stored securely, never shown',
+                helperText: _decoding
+                    ? 'Looking up the VIN'
+                    : 'Stored securely, never shown',
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _makeController,
+              onChanged: (_) => _markEdited('make'),
+              decoration: const InputDecoration(
+                labelText: 'Make',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _modelController,
+              onChanged: (_) => _markEdited('model'),
+              decoration: const InputDecoration(
+                labelText: 'Model',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _yearController,
+              onChanged: (_) => _markEdited('year'),
+              decoration: const InputDecoration(
+                labelText: 'Year',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _trimController,
+              onChanged: (_) => _markEdited('trim'),
+              decoration: const InputDecoration(
+                labelText: 'Trim',
+                helperText: 'Filled from the VIN when it can be decoded',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -208,6 +326,10 @@ class _AddVehicleDialogState extends State<_AddVehicleDialog> {
                     label: _labelController.text.trim(),
                     vin: _vinController.text.trim(),
                     displayOptIn: _displayOptIn,
+                    make: _makeController.text.trim(),
+                    model: _modelController.text.trim(),
+                    year: _yearController.text.trim(),
+                    trim: _trimController.text.trim(),
                   );
                   if (context.mounted) Navigator.pop(context, true);
                 }

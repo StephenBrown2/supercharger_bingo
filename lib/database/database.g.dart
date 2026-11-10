@@ -441,7 +441,9 @@ class Site extends DataClass implements Insertable<Site> {
   final int? stallCount;
   final DateTime? dateOpened;
 
-  /// Whether this site has any check-ins from any user (false = first eligible)
+  /// Cache of "community check-in count > 0" from the counts endpoint.
+  /// First eligibility comes from getEarliestCheckinDates (the earliest
+  /// qualifying community check-in). This flag is only the counts cache.
   final bool hasCheckins;
 
   /// Whether the current user has visited this site
@@ -1012,6 +1014,16 @@ class $VisitsTable extends Visits with TableInfo<$VisitsTable, Visit> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  @override
+  late final GeneratedColumnWithTypeConverter<CheckinPrecision, String>
+  checkinPrecision = GeneratedColumn<String>(
+    'checkin_precision',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: Constant(CheckinPrecision.timestamp.name),
+  ).withConverter<CheckinPrecision>($VisitsTable.$convertercheckinPrecision);
   static const VerificationMeta _isFirstMeta = const VerificationMeta(
     'isFirst',
   );
@@ -1119,6 +1131,7 @@ class $VisitsTable extends Visits with TableInfo<$VisitsTable, Visit> {
     siteId,
     checkinDate,
     checkinTime,
+    checkinPrecision,
     isFirst,
     method,
     notesPublic,
@@ -1276,6 +1289,12 @@ class $VisitsTable extends Visits with TableInfo<$VisitsTable, Visit> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}checkin_time'],
       )!,
+      checkinPrecision: $VisitsTable.$convertercheckinPrecision.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}checkin_precision'],
+        )!,
+      ),
       isFirst: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_first'],
@@ -1322,16 +1341,26 @@ class $VisitsTable extends Visits with TableInfo<$VisitsTable, Visit> {
     return $VisitsTable(attachedDatabase, alias);
   }
 
+  static JsonTypeConverter2<CheckinPrecision, String, String>
+  $convertercheckinPrecision = const EnumNameConverter<CheckinPrecision>(
+    CheckinPrecision.values,
+  );
   static JsonTypeConverter2<CheckinMethod, String, String> $convertermethod =
       const EnumNameConverter<CheckinMethod>(CheckinMethod.values);
 }
 
 class Visit extends DataClass implements Insertable<Visit> {
   final int id;
+
+  /// Server-assigned supercharging.life check-in id, kept as that integer.
   final int checkinId;
   final int siteId;
   final DateTime checkinDate;
   final DateTime checkinTime;
+
+  /// dateOnly when the source had a calendar date and no clock time.
+  /// timestamp when check-in detail includes a time, as the live form sends.
+  final CheckinPrecision checkinPrecision;
   final bool isFirst;
   final CheckinMethod method;
   final String? notesPublic;
@@ -1349,6 +1378,7 @@ class Visit extends DataClass implements Insertable<Visit> {
     required this.siteId,
     required this.checkinDate,
     required this.checkinTime,
+    required this.checkinPrecision,
     required this.isFirst,
     required this.method,
     this.notesPublic,
@@ -1367,6 +1397,11 @@ class Visit extends DataClass implements Insertable<Visit> {
     map['site_id'] = Variable<int>(siteId);
     map['checkin_date'] = Variable<DateTime>(checkinDate);
     map['checkin_time'] = Variable<DateTime>(checkinTime);
+    {
+      map['checkin_precision'] = Variable<String>(
+        $VisitsTable.$convertercheckinPrecision.toSql(checkinPrecision),
+      );
+    }
     map['is_first'] = Variable<bool>(isFirst);
     {
       map['method'] = Variable<String>(
@@ -1402,6 +1437,7 @@ class Visit extends DataClass implements Insertable<Visit> {
       siteId: Value(siteId),
       checkinDate: Value(checkinDate),
       checkinTime: Value(checkinTime),
+      checkinPrecision: Value(checkinPrecision),
       isFirst: Value(isFirst),
       method: Value(method),
       notesPublic: notesPublic == null && nullToAbsent
@@ -1437,6 +1473,9 @@ class Visit extends DataClass implements Insertable<Visit> {
       siteId: serializer.fromJson<int>(json['siteId']),
       checkinDate: serializer.fromJson<DateTime>(json['checkinDate']),
       checkinTime: serializer.fromJson<DateTime>(json['checkinTime']),
+      checkinPrecision: $VisitsTable.$convertercheckinPrecision.fromJson(
+        serializer.fromJson<String>(json['checkinPrecision']),
+      ),
       isFirst: serializer.fromJson<bool>(json['isFirst']),
       method: $VisitsTable.$convertermethod.fromJson(
         serializer.fromJson<String>(json['method']),
@@ -1463,6 +1502,9 @@ class Visit extends DataClass implements Insertable<Visit> {
       'siteId': serializer.toJson<int>(siteId),
       'checkinDate': serializer.toJson<DateTime>(checkinDate),
       'checkinTime': serializer.toJson<DateTime>(checkinTime),
+      'checkinPrecision': serializer.toJson<String>(
+        $VisitsTable.$convertercheckinPrecision.toJson(checkinPrecision),
+      ),
       'isFirst': serializer.toJson<bool>(isFirst),
       'method': serializer.toJson<String>(
         $VisitsTable.$convertermethod.toJson(method),
@@ -1483,6 +1525,7 @@ class Visit extends DataClass implements Insertable<Visit> {
     int? siteId,
     DateTime? checkinDate,
     DateTime? checkinTime,
+    CheckinPrecision? checkinPrecision,
     bool? isFirst,
     CheckinMethod? method,
     Value<String?> notesPublic = const Value.absent(),
@@ -1498,6 +1541,7 @@ class Visit extends DataClass implements Insertable<Visit> {
     siteId: siteId ?? this.siteId,
     checkinDate: checkinDate ?? this.checkinDate,
     checkinTime: checkinTime ?? this.checkinTime,
+    checkinPrecision: checkinPrecision ?? this.checkinPrecision,
     isFirst: isFirst ?? this.isFirst,
     method: method ?? this.method,
     notesPublic: notesPublic.present ? notesPublic.value : this.notesPublic,
@@ -1523,6 +1567,9 @@ class Visit extends DataClass implements Insertable<Visit> {
       checkinTime: data.checkinTime.present
           ? data.checkinTime.value
           : this.checkinTime,
+      checkinPrecision: data.checkinPrecision.present
+          ? data.checkinPrecision.value
+          : this.checkinPrecision,
       isFirst: data.isFirst.present ? data.isFirst.value : this.isFirst,
       method: data.method.present ? data.method.value : this.method,
       notesPublic: data.notesPublic.present
@@ -1555,6 +1602,7 @@ class Visit extends DataClass implements Insertable<Visit> {
           ..write('siteId: $siteId, ')
           ..write('checkinDate: $checkinDate, ')
           ..write('checkinTime: $checkinTime, ')
+          ..write('checkinPrecision: $checkinPrecision, ')
           ..write('isFirst: $isFirst, ')
           ..write('method: $method, ')
           ..write('notesPublic: $notesPublic, ')
@@ -1575,6 +1623,7 @@ class Visit extends DataClass implements Insertable<Visit> {
     siteId,
     checkinDate,
     checkinTime,
+    checkinPrecision,
     isFirst,
     method,
     notesPublic,
@@ -1594,6 +1643,7 @@ class Visit extends DataClass implements Insertable<Visit> {
           other.siteId == this.siteId &&
           other.checkinDate == this.checkinDate &&
           other.checkinTime == this.checkinTime &&
+          other.checkinPrecision == this.checkinPrecision &&
           other.isFirst == this.isFirst &&
           other.method == this.method &&
           other.notesPublic == this.notesPublic &&
@@ -1611,6 +1661,7 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
   final Value<int> siteId;
   final Value<DateTime> checkinDate;
   final Value<DateTime> checkinTime;
+  final Value<CheckinPrecision> checkinPrecision;
   final Value<bool> isFirst;
   final Value<CheckinMethod> method;
   final Value<String?> notesPublic;
@@ -1626,6 +1677,7 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
     this.siteId = const Value.absent(),
     this.checkinDate = const Value.absent(),
     this.checkinTime = const Value.absent(),
+    this.checkinPrecision = const Value.absent(),
     this.isFirst = const Value.absent(),
     this.method = const Value.absent(),
     this.notesPublic = const Value.absent(),
@@ -1642,6 +1694,7 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
     required int siteId,
     required DateTime checkinDate,
     required DateTime checkinTime,
+    this.checkinPrecision = const Value.absent(),
     this.isFirst = const Value.absent(),
     this.method = const Value.absent(),
     this.notesPublic = const Value.absent(),
@@ -1662,6 +1715,7 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
     Expression<int>? siteId,
     Expression<DateTime>? checkinDate,
     Expression<DateTime>? checkinTime,
+    Expression<String>? checkinPrecision,
     Expression<bool>? isFirst,
     Expression<String>? method,
     Expression<String>? notesPublic,
@@ -1678,6 +1732,7 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
       if (siteId != null) 'site_id': siteId,
       if (checkinDate != null) 'checkin_date': checkinDate,
       if (checkinTime != null) 'checkin_time': checkinTime,
+      if (checkinPrecision != null) 'checkin_precision': checkinPrecision,
       if (isFirst != null) 'is_first': isFirst,
       if (method != null) 'method': method,
       if (notesPublic != null) 'notes_public': notesPublic,
@@ -1698,6 +1753,7 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
     Value<int>? siteId,
     Value<DateTime>? checkinDate,
     Value<DateTime>? checkinTime,
+    Value<CheckinPrecision>? checkinPrecision,
     Value<bool>? isFirst,
     Value<CheckinMethod>? method,
     Value<String?>? notesPublic,
@@ -1714,6 +1770,7 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
       siteId: siteId ?? this.siteId,
       checkinDate: checkinDate ?? this.checkinDate,
       checkinTime: checkinTime ?? this.checkinTime,
+      checkinPrecision: checkinPrecision ?? this.checkinPrecision,
       isFirst: isFirst ?? this.isFirst,
       method: method ?? this.method,
       notesPublic: notesPublic ?? this.notesPublic,
@@ -1743,6 +1800,11 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
     }
     if (checkinTime.present) {
       map['checkin_time'] = Variable<DateTime>(checkinTime.value);
+    }
+    if (checkinPrecision.present) {
+      map['checkin_precision'] = Variable<String>(
+        $VisitsTable.$convertercheckinPrecision.toSql(checkinPrecision.value),
+      );
     }
     if (isFirst.present) {
       map['is_first'] = Variable<bool>(isFirst.value);
@@ -1786,6 +1848,7 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
           ..write('siteId: $siteId, ')
           ..write('checkinDate: $checkinDate, ')
           ..write('checkinTime: $checkinTime, ')
+          ..write('checkinPrecision: $checkinPrecision, ')
           ..write('isFirst: $isFirst, ')
           ..write('method: $method, ')
           ..write('notesPublic: $notesPublic, ')
@@ -1839,6 +1902,19 @@ class $PendingCheckinsTable extends PendingCheckins
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  @override
+  late final GeneratedColumnWithTypeConverter<CheckinPrecision, String>
+  checkinPrecision =
+      GeneratedColumn<String>(
+        'checkin_precision',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: Constant(CheckinPrecision.timestamp.name),
+      ).withConverter<CheckinPrecision>(
+        $PendingCheckinsTable.$convertercheckinPrecision,
+      );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -1966,6 +2042,7 @@ class $PendingCheckinsTable extends PendingCheckins
     id,
     siteId,
     checkinDate,
+    checkinPrecision,
     createdAt,
     latitude,
     longitude,
@@ -2104,6 +2181,13 @@ class $PendingCheckinsTable extends PendingCheckins
         DriftSqlType.dateTime,
         data['${effectivePrefix}checkin_date'],
       )!,
+      checkinPrecision: $PendingCheckinsTable.$convertercheckinPrecision
+          .fromSql(
+            attachedDatabase.typeMapping.read(
+              DriftSqlType.string,
+              data['${effectivePrefix}checkin_precision'],
+            )!,
+          ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -2158,6 +2242,10 @@ class $PendingCheckinsTable extends PendingCheckins
     return $PendingCheckinsTable(attachedDatabase, alias);
   }
 
+  static JsonTypeConverter2<CheckinPrecision, String, String>
+  $convertercheckinPrecision = const EnumNameConverter<CheckinPrecision>(
+    CheckinPrecision.values,
+  );
   static JsonTypeConverter2<PendingStatus, String, String> $converterstatus =
       const EnumNameConverter<PendingStatus>(PendingStatus.values);
 }
@@ -2166,6 +2254,10 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
   final int id;
   final int siteId;
   final DateTime checkinDate;
+
+  /// dateOnly when the queued value is a calendar date. App check-ins are
+  /// timestamp, matching the live form's `date` field.
+  final CheckinPrecision checkinPrecision;
   final DateTime createdAt;
   final double? latitude;
   final double? longitude;
@@ -2183,6 +2275,7 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
     required this.id,
     required this.siteId,
     required this.checkinDate,
+    required this.checkinPrecision,
     required this.createdAt,
     this.latitude,
     this.longitude,
@@ -2201,6 +2294,13 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
     map['id'] = Variable<int>(id);
     map['site_id'] = Variable<int>(siteId);
     map['checkin_date'] = Variable<DateTime>(checkinDate);
+    {
+      map['checkin_precision'] = Variable<String>(
+        $PendingCheckinsTable.$convertercheckinPrecision.toSql(
+          checkinPrecision,
+        ),
+      );
+    }
     map['created_at'] = Variable<DateTime>(createdAt);
     if (!nullToAbsent || latitude != null) {
       map['latitude'] = Variable<double>(latitude);
@@ -2240,6 +2340,7 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
       id: Value(id),
       siteId: Value(siteId),
       checkinDate: Value(checkinDate),
+      checkinPrecision: Value(checkinPrecision),
       createdAt: Value(createdAt),
       latitude: latitude == null && nullToAbsent
           ? const Value.absent()
@@ -2279,6 +2380,8 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
       id: serializer.fromJson<int>(json['id']),
       siteId: serializer.fromJson<int>(json['siteId']),
       checkinDate: serializer.fromJson<DateTime>(json['checkinDate']),
+      checkinPrecision: $PendingCheckinsTable.$convertercheckinPrecision
+          .fromJson(serializer.fromJson<String>(json['checkinPrecision'])),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       latitude: serializer.fromJson<double?>(json['latitude']),
       longitude: serializer.fromJson<double?>(json['longitude']),
@@ -2301,6 +2404,11 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
       'id': serializer.toJson<int>(id),
       'siteId': serializer.toJson<int>(siteId),
       'checkinDate': serializer.toJson<DateTime>(checkinDate),
+      'checkinPrecision': serializer.toJson<String>(
+        $PendingCheckinsTable.$convertercheckinPrecision.toJson(
+          checkinPrecision,
+        ),
+      ),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'latitude': serializer.toJson<double?>(latitude),
       'longitude': serializer.toJson<double?>(longitude),
@@ -2321,6 +2429,7 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
     int? id,
     int? siteId,
     DateTime? checkinDate,
+    CheckinPrecision? checkinPrecision,
     DateTime? createdAt,
     Value<double?> latitude = const Value.absent(),
     Value<double?> longitude = const Value.absent(),
@@ -2336,6 +2445,7 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
     id: id ?? this.id,
     siteId: siteId ?? this.siteId,
     checkinDate: checkinDate ?? this.checkinDate,
+    checkinPrecision: checkinPrecision ?? this.checkinPrecision,
     createdAt: createdAt ?? this.createdAt,
     latitude: latitude.present ? latitude.value : this.latitude,
     longitude: longitude.present ? longitude.value : this.longitude,
@@ -2357,6 +2467,9 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
       checkinDate: data.checkinDate.present
           ? data.checkinDate.value
           : this.checkinDate,
+      checkinPrecision: data.checkinPrecision.present
+          ? data.checkinPrecision.value
+          : this.checkinPrecision,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       latitude: data.latitude.present ? data.latitude.value : this.latitude,
       longitude: data.longitude.present ? data.longitude.value : this.longitude,
@@ -2383,6 +2496,7 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
           ..write('id: $id, ')
           ..write('siteId: $siteId, ')
           ..write('checkinDate: $checkinDate, ')
+          ..write('checkinPrecision: $checkinPrecision, ')
           ..write('createdAt: $createdAt, ')
           ..write('latitude: $latitude, ')
           ..write('longitude: $longitude, ')
@@ -2403,6 +2517,7 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
     id,
     siteId,
     checkinDate,
+    checkinPrecision,
     createdAt,
     latitude,
     longitude,
@@ -2422,6 +2537,7 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
           other.id == this.id &&
           other.siteId == this.siteId &&
           other.checkinDate == this.checkinDate &&
+          other.checkinPrecision == this.checkinPrecision &&
           other.createdAt == this.createdAt &&
           other.latitude == this.latitude &&
           other.longitude == this.longitude &&
@@ -2439,6 +2555,7 @@ class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
   final Value<int> id;
   final Value<int> siteId;
   final Value<DateTime> checkinDate;
+  final Value<CheckinPrecision> checkinPrecision;
   final Value<DateTime> createdAt;
   final Value<double?> latitude;
   final Value<double?> longitude;
@@ -2454,6 +2571,7 @@ class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
     this.id = const Value.absent(),
     this.siteId = const Value.absent(),
     this.checkinDate = const Value.absent(),
+    this.checkinPrecision = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.latitude = const Value.absent(),
     this.longitude = const Value.absent(),
@@ -2470,6 +2588,7 @@ class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
     this.id = const Value.absent(),
     required int siteId,
     required DateTime checkinDate,
+    this.checkinPrecision = const Value.absent(),
     required DateTime createdAt,
     this.latitude = const Value.absent(),
     this.longitude = const Value.absent(),
@@ -2488,6 +2607,7 @@ class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
     Expression<int>? id,
     Expression<int>? siteId,
     Expression<DateTime>? checkinDate,
+    Expression<String>? checkinPrecision,
     Expression<DateTime>? createdAt,
     Expression<double>? latitude,
     Expression<double>? longitude,
@@ -2504,6 +2624,7 @@ class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
       if (id != null) 'id': id,
       if (siteId != null) 'site_id': siteId,
       if (checkinDate != null) 'checkin_date': checkinDate,
+      if (checkinPrecision != null) 'checkin_precision': checkinPrecision,
       if (createdAt != null) 'created_at': createdAt,
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
@@ -2522,6 +2643,7 @@ class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
     Value<int>? id,
     Value<int>? siteId,
     Value<DateTime>? checkinDate,
+    Value<CheckinPrecision>? checkinPrecision,
     Value<DateTime>? createdAt,
     Value<double?>? latitude,
     Value<double?>? longitude,
@@ -2538,6 +2660,7 @@ class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
       id: id ?? this.id,
       siteId: siteId ?? this.siteId,
       checkinDate: checkinDate ?? this.checkinDate,
+      checkinPrecision: checkinPrecision ?? this.checkinPrecision,
       createdAt: createdAt ?? this.createdAt,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
@@ -2563,6 +2686,13 @@ class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
     }
     if (checkinDate.present) {
       map['checkin_date'] = Variable<DateTime>(checkinDate.value);
+    }
+    if (checkinPrecision.present) {
+      map['checkin_precision'] = Variable<String>(
+        $PendingCheckinsTable.$convertercheckinPrecision.toSql(
+          checkinPrecision.value,
+        ),
+      );
     }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
@@ -2608,6 +2738,7 @@ class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
           ..write('id: $id, ')
           ..write('siteId: $siteId, ')
           ..write('checkinDate: $checkinDate, ')
+          ..write('checkinPrecision: $checkinPrecision, ')
           ..write('createdAt: $createdAt, ')
           ..write('latitude: $latitude, ')
           ..write('longitude: $longitude, ')
@@ -2938,6 +3069,8 @@ class $SiteCheckinsTable extends SiteCheckins
 
 class SiteCheckin extends DataClass implements Insertable<SiteCheckin> {
   final int id;
+
+  /// Same server-assigned supercharging.life check-in id as [Visits.checkinId].
   final int checkinId;
   final int siteId;
   final int odUserId;
@@ -5022,6 +5155,266 @@ class VehiclesCompanion extends UpdateCompanion<Vehicle> {
   }
 }
 
+class $RegionSyncsTable extends RegionSyncs
+    with TableInfo<$RegionSyncsTable, RegionSync> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RegionSyncsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _regionIdMeta = const VerificationMeta(
+    'regionId',
+  );
+  @override
+  late final GeneratedColumn<int> regionId = GeneratedColumn<int>(
+    'region_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastChangeIdMeta = const VerificationMeta(
+    'lastChangeId',
+  );
+  @override
+  late final GeneratedColumn<int> lastChangeId = GeneratedColumn<int>(
+    'last_change_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _syncedAtMeta = const VerificationMeta(
+    'syncedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> syncedAt = GeneratedColumn<DateTime>(
+    'synced_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [regionId, lastChangeId, syncedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'region_syncs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<RegionSync> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('region_id')) {
+      context.handle(
+        _regionIdMeta,
+        regionId.isAcceptableOrUnknown(data['region_id']!, _regionIdMeta),
+      );
+    }
+    if (data.containsKey('last_change_id')) {
+      context.handle(
+        _lastChangeIdMeta,
+        lastChangeId.isAcceptableOrUnknown(
+          data['last_change_id']!,
+          _lastChangeIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('synced_at')) {
+      context.handle(
+        _syncedAtMeta,
+        syncedAt.isAcceptableOrUnknown(data['synced_at']!, _syncedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {regionId};
+  @override
+  RegionSync map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RegionSync(
+      regionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}region_id'],
+      )!,
+      lastChangeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_change_id'],
+      )!,
+      syncedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}synced_at'],
+      ),
+    );
+  }
+
+  @override
+  $RegionSyncsTable createAlias(String alias) {
+    return $RegionSyncsTable(attachedDatabase, alias);
+  }
+}
+
+class RegionSync extends DataClass implements Insertable<RegionSync> {
+  final int regionId;
+  final int lastChangeId;
+  final DateTime? syncedAt;
+  const RegionSync({
+    required this.regionId,
+    required this.lastChangeId,
+    this.syncedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['region_id'] = Variable<int>(regionId);
+    map['last_change_id'] = Variable<int>(lastChangeId);
+    if (!nullToAbsent || syncedAt != null) {
+      map['synced_at'] = Variable<DateTime>(syncedAt);
+    }
+    return map;
+  }
+
+  RegionSyncsCompanion toCompanion(bool nullToAbsent) {
+    return RegionSyncsCompanion(
+      regionId: Value(regionId),
+      lastChangeId: Value(lastChangeId),
+      syncedAt: syncedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(syncedAt),
+    );
+  }
+
+  factory RegionSync.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RegionSync(
+      regionId: serializer.fromJson<int>(json['regionId']),
+      lastChangeId: serializer.fromJson<int>(json['lastChangeId']),
+      syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'regionId': serializer.toJson<int>(regionId),
+      'lastChangeId': serializer.toJson<int>(lastChangeId),
+      'syncedAt': serializer.toJson<DateTime?>(syncedAt),
+    };
+  }
+
+  RegionSync copyWith({
+    int? regionId,
+    int? lastChangeId,
+    Value<DateTime?> syncedAt = const Value.absent(),
+  }) => RegionSync(
+    regionId: regionId ?? this.regionId,
+    lastChangeId: lastChangeId ?? this.lastChangeId,
+    syncedAt: syncedAt.present ? syncedAt.value : this.syncedAt,
+  );
+  RegionSync copyWithCompanion(RegionSyncsCompanion data) {
+    return RegionSync(
+      regionId: data.regionId.present ? data.regionId.value : this.regionId,
+      lastChangeId: data.lastChangeId.present
+          ? data.lastChangeId.value
+          : this.lastChangeId,
+      syncedAt: data.syncedAt.present ? data.syncedAt.value : this.syncedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RegionSync(')
+          ..write('regionId: $regionId, ')
+          ..write('lastChangeId: $lastChangeId, ')
+          ..write('syncedAt: $syncedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(regionId, lastChangeId, syncedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RegionSync &&
+          other.regionId == this.regionId &&
+          other.lastChangeId == this.lastChangeId &&
+          other.syncedAt == this.syncedAt);
+}
+
+class RegionSyncsCompanion extends UpdateCompanion<RegionSync> {
+  final Value<int> regionId;
+  final Value<int> lastChangeId;
+  final Value<DateTime?> syncedAt;
+  const RegionSyncsCompanion({
+    this.regionId = const Value.absent(),
+    this.lastChangeId = const Value.absent(),
+    this.syncedAt = const Value.absent(),
+  });
+  RegionSyncsCompanion.insert({
+    this.regionId = const Value.absent(),
+    this.lastChangeId = const Value.absent(),
+    this.syncedAt = const Value.absent(),
+  });
+  static Insertable<RegionSync> custom({
+    Expression<int>? regionId,
+    Expression<int>? lastChangeId,
+    Expression<DateTime>? syncedAt,
+  }) {
+    return RawValuesInsertable({
+      if (regionId != null) 'region_id': regionId,
+      if (lastChangeId != null) 'last_change_id': lastChangeId,
+      if (syncedAt != null) 'synced_at': syncedAt,
+    });
+  }
+
+  RegionSyncsCompanion copyWith({
+    Value<int>? regionId,
+    Value<int>? lastChangeId,
+    Value<DateTime?>? syncedAt,
+  }) {
+    return RegionSyncsCompanion(
+      regionId: regionId ?? this.regionId,
+      lastChangeId: lastChangeId ?? this.lastChangeId,
+      syncedAt: syncedAt ?? this.syncedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (regionId.present) {
+      map['region_id'] = Variable<int>(regionId.value);
+    }
+    if (lastChangeId.present) {
+      map['last_change_id'] = Variable<int>(lastChangeId.value);
+    }
+    if (syncedAt.present) {
+      map['synced_at'] = Variable<DateTime>(syncedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RegionSyncsCompanion(')
+          ..write('regionId: $regionId, ')
+          ..write('lastChangeId: $lastChangeId, ')
+          ..write('syncedAt: $syncedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -5034,6 +5427,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $UserSettingsTableTable userSettingsTable =
       $UserSettingsTableTable(this);
   late final $VehiclesTable vehicles = $VehiclesTable(this);
+  late final $RegionSyncsTable regionSyncs = $RegionSyncsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -5045,6 +5439,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     siteCheckins,
     userSettingsTable,
     vehicles,
+    regionSyncs,
   ];
 }
 
@@ -5481,6 +5876,7 @@ typedef $$VisitsTableCreateCompanionBuilder =
       required int siteId,
       required DateTime checkinDate,
       required DateTime checkinTime,
+      Value<CheckinPrecision> checkinPrecision,
       Value<bool> isFirst,
       Value<CheckinMethod> method,
       Value<String?> notesPublic,
@@ -5498,6 +5894,7 @@ typedef $$VisitsTableUpdateCompanionBuilder =
       Value<int> siteId,
       Value<DateTime> checkinDate,
       Value<DateTime> checkinTime,
+      Value<CheckinPrecision> checkinPrecision,
       Value<bool> isFirst,
       Value<CheckinMethod> method,
       Value<String?> notesPublic,
@@ -5541,6 +5938,12 @@ class $$VisitsTableFilterComposer
   ColumnFilters<DateTime> get checkinTime => $composableBuilder(
     column: $table.checkinTime,
     builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<CheckinPrecision, CheckinPrecision, String>
+  get checkinPrecision => $composableBuilder(
+    column: $table.checkinPrecision,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
   );
 
   ColumnFilters<bool> get isFirst => $composableBuilder(
@@ -5624,6 +6027,11 @@ class $$VisitsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get checkinPrecision => $composableBuilder(
+    column: $table.checkinPrecision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isFirst => $composableBuilder(
     column: $table.isFirst,
     builder: (column) => ColumnOrderings(column),
@@ -5695,6 +6103,12 @@ class $$VisitsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get checkinTime => $composableBuilder(
     column: $table.checkinTime,
+    builder: (column) => column,
+  );
+
+  GeneratedColumnWithTypeConverter<CheckinPrecision, String>
+  get checkinPrecision => $composableBuilder(
+    column: $table.checkinPrecision,
     builder: (column) => column,
   );
 
@@ -5771,6 +6185,7 @@ class $$VisitsTableTableManager
                 Value<int> siteId = const Value.absent(),
                 Value<DateTime> checkinDate = const Value.absent(),
                 Value<DateTime> checkinTime = const Value.absent(),
+                Value<CheckinPrecision> checkinPrecision = const Value.absent(),
                 Value<bool> isFirst = const Value.absent(),
                 Value<CheckinMethod> method = const Value.absent(),
                 Value<String?> notesPublic = const Value.absent(),
@@ -5786,6 +6201,7 @@ class $$VisitsTableTableManager
                 siteId: siteId,
                 checkinDate: checkinDate,
                 checkinTime: checkinTime,
+                checkinPrecision: checkinPrecision,
                 isFirst: isFirst,
                 method: method,
                 notesPublic: notesPublic,
@@ -5803,6 +6219,7 @@ class $$VisitsTableTableManager
                 required int siteId,
                 required DateTime checkinDate,
                 required DateTime checkinTime,
+                Value<CheckinPrecision> checkinPrecision = const Value.absent(),
                 Value<bool> isFirst = const Value.absent(),
                 Value<CheckinMethod> method = const Value.absent(),
                 Value<String?> notesPublic = const Value.absent(),
@@ -5818,6 +6235,7 @@ class $$VisitsTableTableManager
                 siteId: siteId,
                 checkinDate: checkinDate,
                 checkinTime: checkinTime,
+                checkinPrecision: checkinPrecision,
                 isFirst: isFirst,
                 method: method,
                 notesPublic: notesPublic,
@@ -5855,6 +6273,7 @@ typedef $$PendingCheckinsTableCreateCompanionBuilder =
       Value<int> id,
       required int siteId,
       required DateTime checkinDate,
+      Value<CheckinPrecision> checkinPrecision,
       required DateTime createdAt,
       Value<double?> latitude,
       Value<double?> longitude,
@@ -5872,6 +6291,7 @@ typedef $$PendingCheckinsTableUpdateCompanionBuilder =
       Value<int> id,
       Value<int> siteId,
       Value<DateTime> checkinDate,
+      Value<CheckinPrecision> checkinPrecision,
       Value<DateTime> createdAt,
       Value<double?> latitude,
       Value<double?> longitude,
@@ -5907,6 +6327,12 @@ class $$PendingCheckinsTableFilterComposer
   ColumnFilters<DateTime> get checkinDate => $composableBuilder(
     column: $table.checkinDate,
     builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<CheckinPrecision, CheckinPrecision, String>
+  get checkinPrecision => $composableBuilder(
+    column: $table.checkinPrecision,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
   );
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
@@ -5990,6 +6416,11 @@ class $$PendingCheckinsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get checkinPrecision => $composableBuilder(
+    column: $table.checkinPrecision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -6063,6 +6494,12 @@ class $$PendingCheckinsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get checkinDate => $composableBuilder(
     column: $table.checkinDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumnWithTypeConverter<CheckinPrecision, String>
+  get checkinPrecision => $composableBuilder(
+    column: $table.checkinPrecision,
     builder: (column) => column,
   );
 
@@ -6146,6 +6583,7 @@ class $$PendingCheckinsTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<int> siteId = const Value.absent(),
                 Value<DateTime> checkinDate = const Value.absent(),
+                Value<CheckinPrecision> checkinPrecision = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<double?> latitude = const Value.absent(),
                 Value<double?> longitude = const Value.absent(),
@@ -6161,6 +6599,7 @@ class $$PendingCheckinsTableTableManager
                 id: id,
                 siteId: siteId,
                 checkinDate: checkinDate,
+                checkinPrecision: checkinPrecision,
                 createdAt: createdAt,
                 latitude: latitude,
                 longitude: longitude,
@@ -6178,6 +6617,7 @@ class $$PendingCheckinsTableTableManager
                 Value<int> id = const Value.absent(),
                 required int siteId,
                 required DateTime checkinDate,
+                Value<CheckinPrecision> checkinPrecision = const Value.absent(),
                 required DateTime createdAt,
                 Value<double?> latitude = const Value.absent(),
                 Value<double?> longitude = const Value.absent(),
@@ -6193,6 +6633,7 @@ class $$PendingCheckinsTableTableManager
                 id: id,
                 siteId: siteId,
                 checkinDate: checkinDate,
+                checkinPrecision: checkinPrecision,
                 createdAt: createdAt,
                 latitude: latitude,
                 longitude: longitude,
@@ -7330,6 +7771,164 @@ typedef $$VehiclesTableProcessedTableManager =
       Vehicle,
       PrefetchHooks Function()
     >;
+typedef $$RegionSyncsTableCreateCompanionBuilder =
+    RegionSyncsCompanion Function({
+      Value<int> regionId,
+      Value<int> lastChangeId,
+      Value<DateTime?> syncedAt,
+    });
+typedef $$RegionSyncsTableUpdateCompanionBuilder =
+    RegionSyncsCompanion Function({
+      Value<int> regionId,
+      Value<int> lastChangeId,
+      Value<DateTime?> syncedAt,
+    });
+
+class $$RegionSyncsTableFilterComposer
+    extends Composer<_$AppDatabase, $RegionSyncsTable> {
+  $$RegionSyncsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get regionId => $composableBuilder(
+    column: $table.regionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastChangeId => $composableBuilder(
+    column: $table.lastChangeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get syncedAt => $composableBuilder(
+    column: $table.syncedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$RegionSyncsTableOrderingComposer
+    extends Composer<_$AppDatabase, $RegionSyncsTable> {
+  $$RegionSyncsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get regionId => $composableBuilder(
+    column: $table.regionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastChangeId => $composableBuilder(
+    column: $table.lastChangeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get syncedAt => $composableBuilder(
+    column: $table.syncedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$RegionSyncsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $RegionSyncsTable> {
+  $$RegionSyncsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get regionId =>
+      $composableBuilder(column: $table.regionId, builder: (column) => column);
+
+  GeneratedColumn<int> get lastChangeId => $composableBuilder(
+    column: $table.lastChangeId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get syncedAt =>
+      $composableBuilder(column: $table.syncedAt, builder: (column) => column);
+}
+
+class $$RegionSyncsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $RegionSyncsTable,
+          RegionSync,
+          $$RegionSyncsTableFilterComposer,
+          $$RegionSyncsTableOrderingComposer,
+          $$RegionSyncsTableAnnotationComposer,
+          $$RegionSyncsTableCreateCompanionBuilder,
+          $$RegionSyncsTableUpdateCompanionBuilder,
+          (
+            RegionSync,
+            BaseReferences<_$AppDatabase, $RegionSyncsTable, RegionSync>,
+          ),
+          RegionSync,
+          PrefetchHooks Function()
+        > {
+  $$RegionSyncsTableTableManager(_$AppDatabase db, $RegionSyncsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$RegionSyncsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$RegionSyncsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$RegionSyncsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> regionId = const Value.absent(),
+                Value<int> lastChangeId = const Value.absent(),
+                Value<DateTime?> syncedAt = const Value.absent(),
+              }) => RegionSyncsCompanion(
+                regionId: regionId,
+                lastChangeId: lastChangeId,
+                syncedAt: syncedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> regionId = const Value.absent(),
+                Value<int> lastChangeId = const Value.absent(),
+                Value<DateTime?> syncedAt = const Value.absent(),
+              }) => RegionSyncsCompanion.insert(
+                regionId: regionId,
+                lastChangeId: lastChangeId,
+                syncedAt: syncedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$RegionSyncsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $RegionSyncsTable,
+      RegionSync,
+      $$RegionSyncsTableFilterComposer,
+      $$RegionSyncsTableOrderingComposer,
+      $$RegionSyncsTableAnnotationComposer,
+      $$RegionSyncsTableCreateCompanionBuilder,
+      $$RegionSyncsTableUpdateCompanionBuilder,
+      (
+        RegionSync,
+        BaseReferences<_$AppDatabase, $RegionSyncsTable, RegionSync>,
+      ),
+      RegionSync,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -7346,4 +7945,6 @@ class $AppDatabaseManager {
       $$UserSettingsTableTableTableManager(_db, _db.userSettingsTable);
   $$VehiclesTableTableManager get vehicles =>
       $$VehiclesTableTableManager(_db, _db.vehicles);
+  $$RegionSyncsTableTableManager get regionSyncs =>
+      $$RegionSyncsTableTableManager(_db, _db.regionSyncs);
 }

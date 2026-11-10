@@ -112,11 +112,21 @@ class DatabaseService {
   /// Upsert sites from API
   static Future<void> upsertSites(List<SitesCompanion> sites) async {
     await db.upsertSites(sites);
+    // Splash can cache the default map filter before the first region sync
+    // writes any rows. Drop that snapshot so the map does not stay empty.
+    bootstrapSites = null;
   }
+
+  static Future<RegionSync?> getRegionSync(int regionId) =>
+      db.getRegionSync(regionId);
+
+  static Future<void> upsertRegionSync(int regionId, int lastChangeId) =>
+      db.upsertRegionSync(regionId, lastChangeId);
 
   /// Mark a site as visited
   static Future<void> markSiteVisited(int siteId, bool visited) async {
     await db.markSiteVisited(siteId, visited);
+    bootstrapSites = null;
   }
 
   /// Mark sites as having check-ins (not first eligible)
@@ -148,6 +158,7 @@ class DatabaseService {
     // Mark site as visited
     final siteId = visit.siteId.value;
     await db.markSiteVisited(siteId, true);
+    bootstrapSites = null;
   }
 
   /// Get pending check-ins
@@ -203,6 +214,8 @@ class DatabaseService {
   /// Clear all data (for logout)
   static Future<void> clearAll() async {
     await db.clearAll();
+    bootstrapSites = null;
+    bootstrapUserSettings = null;
   }
 
   // -------------------------------------------------------------------------

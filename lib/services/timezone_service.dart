@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:lat_lng_to_timezone/lat_lng_to_timezone.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
 
@@ -21,13 +22,58 @@ class TimezoneService {
     _initialized = true;
   }
 
-  /// Get the timezone for a given GPS coordinate
-  /// Uses a simplified lookup based on longitude for now
-  /// In production, you'd want a proper tz shapefile lookup
+  /// IANA zone for a coordinate, from the bundled tz lookup.
+  ///
+  /// Ocean and unknown results fall back to the longitude heuristic.
   String getTimezoneForLocation(double latitude, double longitude) {
-    // Simplified timezone lookup based on longitude
-    // This is a rough approximation; proper implementation would use a tz shapefile
+    try {
+      final name = latLngToTimezoneString(latitude, longitude);
+      if (name.isNotEmpty && name != 'unknown') return name;
+    } catch (_) {
+      // Fall through to the longitude heuristic.
+    }
+    return _heuristicTimezone(latitude, longitude);
+  }
 
+  /// Zone stored at ingestion, or a coordinate lookup for older rows.
+  String zoneNameFor(Site site) {
+    final stored = site.timezone;
+    if (stored != null && stored.isNotEmpty) return stored;
+    return getTimezoneForLocation(site.latitude, site.longitude);
+  }
+
+  /// [instant] expressed as a wall time in the site's zone.
+  ///
+  /// The returned value is a plain local [DateTime] whose year, month, and
+  /// day are the site calendar. It is not the UTC instant.
+  DateTime localTime(Site site, DateTime instant) {
+    final tzName = zoneNameFor(site);
+    try {
+      final location = tz.getLocation(tzName);
+      final zoned = tz.TZDateTime.from(instant.toUtc(), location);
+      return DateTime(
+        zoned.year,
+        zoned.month,
+        zoned.day,
+        zoned.hour,
+        zoned.minute,
+        zoned.second,
+      );
+    } catch (_) {
+      final offsetHours = (site.longitude / 15).round();
+      final shifted = instant.toUtc().add(Duration(hours: offsetHours));
+      return DateTime(
+        shifted.year,
+        shifted.month,
+        shifted.day,
+        shifted.hour,
+        shifted.minute,
+        shifted.second,
+      );
+    }
+  }
+
+  String _heuristicTimezone(double latitude, double longitude) {
     // Handle some common regions explicitly
     if (latitude >= 24 &&
         latitude <= 50 &&
@@ -79,8 +125,7 @@ class TimezoneService {
   /// Get the local time at a site. Prefers the timezone stored at ingestion,
   /// falling back to a coordinate-based lookup for older rows.
   DateTime getLocalTimeAtSite(Site site) {
-    final tzName =
-        site.timezone ?? getTimezoneForLocation(site.latitude, site.longitude);
+    final tzName = zoneNameFor(site);
     try {
       final location = tz.getLocation(tzName);
       return tz.TZDateTime.now(location);
@@ -93,7 +138,7 @@ class TimezoneService {
 
   /// Get midnight (start of day) in the site's local timezone
   DateTime getMidnightAtSite(Site site, {DateTime? forDate}) {
-    final tzName = getTimezoneForLocation(site.latitude, site.longitude);
+    final tzName = zoneNameFor(site);
     try {
       final location = tz.getLocation(tzName);
       final localNow = forDate != null
@@ -120,7 +165,7 @@ class TimezoneService {
 
   /// Get the next midnight at a site (for countdown to First eligibility)
   DateTime getNextMidnightAtSite(Site site) {
-    final tzName = getTimezoneForLocation(site.latitude, site.longitude);
+    final tzName = zoneNameFor(site);
     try {
       final location = tz.getLocation(tzName);
       final localNow = tz.TZDateTime.now(location);

@@ -14,6 +14,38 @@ class VehicleDecode {
 
   bool get isEmpty =>
       make == null && model == null && year == null && trim == null;
+
+  bool get hasAnyValue => [
+    make,
+    model,
+    year,
+    trim,
+  ].any((value) => value != null && value.trim().isNotEmpty);
+}
+
+/// Keep fields the user already edited. Fill the rest from a vPIC decode.
+VehicleDecode mergeVehicleFields({
+  required VehicleDecode current,
+  required VehicleDecode decoded,
+  required Set<String> edited,
+}) {
+  String? pick(String key, String? currentValue, String? decodedValue) {
+    final currentText = currentValue?.trim();
+    if (edited.contains(key)) {
+      return (currentText == null || currentText.isEmpty) ? null : currentText;
+    }
+    if (currentText != null && currentText.isNotEmpty) return currentText;
+    final decodedText = decodedValue?.trim();
+    if (decodedText == null || decodedText.isEmpty) return null;
+    return decodedText;
+  }
+
+  return VehicleDecode(
+    make: pick('make', current.make, decoded.make),
+    model: pick('model', current.model, decoded.model),
+    year: pick('year', current.year, decoded.year),
+    trim: pick('trim', current.trim, decoded.trim),
+  );
 }
 
 /// Handles the sensitive parts of vehicles: VIN storage (encrypted at rest via

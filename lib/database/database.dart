@@ -29,6 +29,10 @@ enum MapFilter { openUnvisited, openUnvisitedConstruction, visited, all }
 
 enum UnitSystem { metric, imperial }
 
+/// How much of a check-in the supercharging.life detail actually carries.
+/// DATE_ONLY is a calendar date. TIMESTAMP also has a clock time.
+enum CheckinPrecision { dateOnly, timestamp }
+
 // ============================================================================
 // Tables
 // ============================================================================
@@ -73,6 +77,12 @@ class Visits extends Table {
   IntColumn get siteId => integer()();
   DateTimeColumn get checkinDate => dateTime()();
   DateTimeColumn get checkinTime => dateTime()();
+
+  /// dateOnly when the source had a calendar date and no clock time.
+  /// timestamp when check-in detail includes a time, as the live form sends.
+  TextColumn get checkinPrecision => textEnum<CheckinPrecision>().withDefault(
+    Constant(CheckinPrecision.timestamp.name),
+  )();
   BoolColumn get isFirst => boolean().withDefault(const Constant(false))();
   TextColumn get method => textEnum<CheckinMethod>().withDefault(
     Constant(CheckinMethod.manual.name),
@@ -93,6 +103,12 @@ class PendingCheckins extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get siteId => integer()();
   DateTimeColumn get checkinDate => dateTime()();
+
+  /// dateOnly when the queued value is a calendar date. App check-ins are
+  /// timestamp, matching the live form's `date` field.
+  TextColumn get checkinPrecision => textEnum<CheckinPrecision>().withDefault(
+    Constant(CheckinPrecision.timestamp.name),
+  )();
   DateTimeColumn get createdAt => dateTime()();
   RealColumn get latitude => real().nullable()();
   RealColumn get longitude => real().nullable()();
@@ -186,6 +202,18 @@ class UserSettingsTable extends Table {
   String get tableName => 'user_settings';
 }
 
+/// Per-region supercharge.info sync cursor. [lastChangeId] is the newest
+/// change id already reflected in [Sites], so later polls only apply newer
+/// allChanges rows for that region.
+class RegionSyncs extends Table {
+  IntColumn get regionId => integer()();
+  IntColumn get lastChangeId => integer().withDefault(const Constant(0))();
+  DateTimeColumn get syncedAt => dateTime().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {regionId};
+}
+
 // ============================================================================
 // Database
 // ============================================================================
@@ -198,6 +226,7 @@ class UserSettingsTable extends Table {
     SiteCheckins,
     UserSettingsTable,
     Vehicles,
+    RegionSyncs,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -207,7 +236,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration {
@@ -276,6 +305,11 @@ class AppDatabase extends _$AppDatabase {
             userSettingsTable,
             userSettingsTable.includeVisitedNearby,
           );
+        }
+        if (from < 7) {
+          await m.addColumn(visits, visits.checkinPrecision);
+          await m.addColumn(pendingCheckins, pendingCheckins.checkinPrecision);
+          await m.createTable(regionSyncs);
         }
       },
     );
@@ -576,12 +610,35 @@ class AppDatabase extends _$AppDatabase {
   // Clear All
   // -------------------------------------------------------------------------
 
+  Future<RegionSync?> getRegionSync(int regionId) {
+    return (select(
+      regionSyncs,
+    )..where((t) => t.regionId.equals(regionId))).getSingleOrNull();
+  }
+
+  Future<void> upsertRegionSync(int regionId, int lastChangeId) async {
+    await into(regionSyncs).insert(
+      RegionSyncsCompanion.insert(
+        regionId: Value(regionId),
+        lastChangeId: Value(lastChangeId),
+        syncedAt: Value(DateTime.now()),
+      ),
+      onConflict: DoUpdate(
+        (_) => RegionSyncsCompanion(
+          lastChangeId: Value(lastChangeId),
+          syncedAt: Value(DateTime.now()),
+        ),
+      ),
+    );
+  }
+
   Future<void> clearAll() async {
     await delete(sites).go();
     await delete(visits).go();
     await delete(pendingCheckins).go();
     await delete(siteCheckins).go();
     await delete(vehicles).go();
+    await delete(regionSyncs).go();
     await delete(userSettingsTable).go();
     // Re-create default settings
     await into(userSettingsTable).insert(UserSettingsTableCompanion.insert());

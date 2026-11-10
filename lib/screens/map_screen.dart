@@ -103,9 +103,12 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       parent: _drawerAnimController,
       curve: Curves.easeInOut,
     );
-    // If bootstrap cached sites exist for initial filter, use them immediately
+    // Use a non-empty splash snapshot for the first paint. An empty snapshot
+    // is the pre-sync cache and must not stick.
     final cached = DatabaseService.bootstrapSites;
-    if (cached != null && _currentFilter == MapFilter.openUnvisited) {
+    if (cached != null &&
+        cached.isNotEmpty &&
+        _currentFilter == MapFilter.openUnvisited) {
       _sites = cached;
       _isLoading = false;
       // Still need First-state inputs for the cached sites.
@@ -117,11 +120,16 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
 
     // Recompute pin colours once community check-in data finishes syncing.
     SyncService.instance.communityDataVersion.addListener(_onCommunityData);
+    SyncService.instance.sitesVersion.addListener(_onSitesSynced);
 
     _fetchLocationForCheckin();
   }
 
   void _onCommunityData() {
+    if (mounted) _loadSites();
+  }
+
+  void _onSitesSynced() {
     if (mounted) _loadSites();
   }
 
@@ -139,6 +147,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   @override
   void dispose() {
     SyncService.instance.communityDataVersion.removeListener(_onCommunityData);
+    SyncService.instance.sitesVersion.removeListener(_onSitesSynced);
     _locationAnimController.dispose();
     _drawerAnimController.dispose();
     super.dispose();

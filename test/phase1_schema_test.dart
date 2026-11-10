@@ -37,15 +37,20 @@ void main() {
           'ALTER TABLE pending_checkins DROP COLUMN vehicle_id',
           'DROP TABLE vehicles',
           'ALTER TABLE user_settings DROP COLUMN include_visited_nearby',
+          'ALTER TABLE visits DROP COLUMN checkin_precision',
+          'ALTER TABLE pending_checkins DROP COLUMN checkin_precision',
+          'DROP TABLE region_syncs',
         ]) {
           await db.customStatement(statement);
         }
-        await db.migration.onUpgrade!(Migrator(db), 3, 6);
+        await db.migration.onUpgrade(Migrator(db), 3, 7);
         final site = await db.getSiteBySiteId(42);
         expect(site!.timezone, isNull);
         expect(site.visited, isTrue);
         expect(await db.getAllVehicles(), isEmpty);
         expect((await db.getUserSettings()).includeVisitedNearby, isFalse);
+        await db.upsertRegionSync(100, 5);
+        expect((await db.getRegionSync(100))!.lastChangeId, 5);
       },
     );
 

@@ -278,7 +278,7 @@ void backgroundSyncCallback() {
         await DatabaseService.initialize();
         await TimezoneService.instance.initialize();
 
-        final settings = await DatabaseService.getUserSettings();
+        var settings = await DatabaseService.getUserSettings();
 
         if (!settings.isAuthenticated) return true;
 
@@ -287,6 +287,10 @@ void backgroundSyncCallback() {
 
         // Sync community First data from supercharging.life
         await SyncService.instance.syncCommunityData();
+
+        // The site sync stores the fix it just used. Re-read so this pass
+        // can apply the notification radius.
+        settings = await DatabaseService.getUserSettings();
 
         // Check for new superchargers within radius
         if (settings.lastLatitude != null && settings.lastLongitude != null) {

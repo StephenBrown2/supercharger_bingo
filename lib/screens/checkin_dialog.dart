@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../database/database.dart';
+import '../services/checkin_rules.dart';
 import '../services/database_service.dart';
+import '../services/life_time.dart';
 
 /// Check-in dialog modeled on the live supercharging.life form (SPEC Section 6):
 /// public note, private note, optional vehicle selector, and the user's most
@@ -36,8 +38,7 @@ Future<bool> showCheckinDialog(
   return result ?? false;
 }
 
-String _formatDate(DateTime d) =>
-    '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+String _formatDate(DateTime d) => formatCalendarDate(d);
 
 class _CheckinDialog extends StatefulWidget {
   final Site site;
@@ -67,10 +68,12 @@ class _CheckinDialogState extends State<_CheckinDialog> {
   final _privateController = TextEditingController();
   String? _selectedVehicleId;
   bool _submitting = false;
+  late final DateTime _checkinAt;
 
   @override
   void initState() {
     super.initState();
+    _checkinAt = DateTime.now();
     if (widget.vehicles.any((v) => v.id == widget.lastVehicleId)) {
       _selectedVehicleId = widget.lastVehicleId;
     }
@@ -107,6 +110,14 @@ class _CheckinDialogState extends State<_CheckinDialog> {
             ),
             const SizedBox(height: 8),
             // Most recent check-in indicator (SPEC Section 6, item 3).
+            Text(
+              formatLifeDateField(
+                _checkinAt,
+                precision: CheckinPrecision.timestamp,
+              ),
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 8),
             Text(
               widget.lastVisit != null
                   ? 'Last check-in: ${_formatDate(widget.lastVisit!)}'
@@ -182,7 +193,17 @@ class _CheckinDialogState extends State<_CheckinDialog> {
 
   Future<void> _submit() async {
     setState(() => _submitting = true);
-    final now = DateTime.now();
+    final rejection = checkinOpeningRejection(widget.site, _checkinAt);
+    if (rejection != null) {
+      if (mounted) {
+        setState(() => _submitting = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(rejection)));
+      }
+      return;
+    }
+    final now = _checkinAt;
     final pos = widget.position;
     final vehicle = widget.vehicles
         .where((v) => v.id == _selectedVehicleId)
@@ -206,6 +227,7 @@ class _CheckinDialogState extends State<_CheckinDialog> {
           PendingCheckinsCompanion(
             siteId: Value(widget.site.siteId),
             checkinDate: Value(now),
+            checkinPrecision: const Value(CheckinPrecision.timestamp),
             createdAt: Value(now),
             latitude: Value(pos?.latitude),
             longitude: Value(pos?.longitude),

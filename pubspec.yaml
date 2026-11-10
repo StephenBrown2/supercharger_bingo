@@ -51,6 +51,7 @@ dependencies:
   # Timezone handling
   timezone: ^0.10.1
   webview_win_floating: ^3.0.2
+  lat_lng_to_timezone: ^0.2.0
 
 dev_dependencies:
   flutter_test:
