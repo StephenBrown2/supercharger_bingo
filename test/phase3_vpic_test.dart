@@ -15,7 +15,7 @@ void main() {
         ],
       };
       final decode = VehicleService.parseVpicResults(json);
-      expect(decode.make, 'TESLA');
+      expect(decode.make, 'Tesla');
       expect(decode.model, 'Model 3');
       expect(decode.year, '2021');
       expect(decode.trim, 'Long Range');
@@ -31,9 +31,24 @@ void main() {
         ],
       };
       final decode = VehicleService.parseVpicResults(json);
-      expect(decode.make, 'RIVIAN');
+      expect(decode.make, 'Rivian');
       expect(decode.model, isNull);
       expect(decode.trim, isNull);
+    });
+
+    test('title-cases an all-caps make and keeps initialisms', () {
+      VehicleDecode decode(String make) => VehicleService.parseVpicResults({
+        'Results': [
+          {'Variable': 'Make', 'Value': make},
+        ],
+      });
+
+      expect(decode('MERCEDES-BENZ').make, 'Mercedes-Benz');
+      expect(decode('LAND ROVER').make, 'Land Rover');
+      expect(decode('BMW').make, 'BMW');
+      expect(decode('GMC').make, 'GMC');
+      expect(decode('MCLAREN').make, 'McLaren');
+      expect(decode('Tesla').make, 'Tesla');
     });
 
     test('returns empty decode when Results is absent or malformed', () {

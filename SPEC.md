@@ -71,7 +71,9 @@ Everything else (address detail, stall counts, power, plugs, elevation, flags) i
 
 ### Community check-in (others, for First tracking)
 
-Mirrors what the XLSX import and (future) API provide: site_id, user id, username/display name, checkin_date, checkin_time (when available), is_first flag, days_after_open. The `distinct_user_super_seq` and `days_after_open` fields are not core to local First detection but are retained because the XLSX carries them and they are useful for display.
+Mirrors what the history poll provides: site_id, user id, username/display name, checkin_date, checkin_time (when available), and the is_first flag. `days_after_open` and `distinct_user_super_seq` are omitted for this MVP. Nothing on screen reads them, and First detection does not use them.
+
+A check-in made in the app is written to visits immediately, with no server check-in id. Its sync status is pending until supercharging.life accepts the write. The visits list shows that row as Pending.
 
 ### Vehicle
 
@@ -80,9 +82,9 @@ Mirrors what the XLSX import and (future) API provide: site_id, user id, usernam
 | id | UUID | |
 | label | string | Required nickname |
 | vin | string, nullable | Encrypted at rest, never displayed (Section 8) |
-| make, model, year, trim | string, nullable | Derived from VIN if available, displayed only if the user opts in |
+| make, model, year, trim | string, nullable | Derived from a VIN when it can be decoded, or entered by hand. Shown on the vehicle. Added to a check-in private note only when the Check-in setting is on. |
 
-Vehicles are a purely local concept and do not participate in supercharging.life sync. "Display opt-in" is the control that, when enabled, appends the derived vehicle info (make/model/year/trim, never the raw VIN) to the check-in's private note. That is the only place vehicle data surfaces, and the private note is local/admin-visible only, never public.
+Vehicles are a purely local concept and do not participate in supercharging.life sync. A Check-in setting, off by default, appends the derived vehicle info (make/model/year/trim, never the raw VIN) to the check-in's private note. The private note is local and admin-visible, never public.
 
 ## 4. "First" Determination
 
@@ -145,6 +147,8 @@ Fields carried over from the live form: Supercharger picker, link to search all 
 
 - **Distance units:** metric or imperial. Default imperial.
 - **Check-in search radius:** how far out the nearest-site list reaches. Separate from notification radius.
+- **Include visited sites:** nearby check-in list hides already visited sites unless this is on.
+- **Include vehicle details in the private note:** off by default. When on, a check-in that names a vehicle appends year, make, model, and trim to the private note. The VIN is never included.
 - **Notification radius:** distance within which new-site and First-eligible alerts fire.
 - **Polling interval:** background sync cadence.
 - **Notifications:** toggles for the two channels in Section 10.
@@ -154,11 +158,11 @@ Fields carried over from the live form: Supercharger picker, link to search all 
 
 ### Auth
 
-Target state is shared authentication with supercharging.life, which uses GitHub and Google social login. The app should adopt the same providers so a single identity spans both. Until the official API and its auth flow exist, the prototype's webview session-cookie capture stays in place as the POC mechanism rather than being replaced outright (it's what makes the Section 2.2 unofficial write path work at all), hardened for reliability, and built behind an auth interface so swapping in shared OAuth later is mechanical rather than a rewrite (Section 13, Phase 6).
+Target state is shared authentication with supercharging.life, which uses GitHub and Google social login. The app uses those same providers. Until the official API exists, sign-in opens supercharging.life's own GitHub and Google buttons (`oauth.php`) in an in-app webview and stores the `SCLSESSION` cookie that page sets. That cookie is what lets the unofficial check-in writer post. If the provider blocks the in-app browser, or this platform has no webview, the same GitHub or Google choice is stored on the device only. Check-ins then stay local and show as pending. A separate hosted backend is deferred.
 
 ### VIN
 
-VINs are encrypted at rest and never displayed. Entry is manual and optional. If a VIN is entered, the app offers a one-time online decode (NHTSA vPIC) to derive make, model, year, and trim, which is then saved locally so it is available offline afterward. Only the derived fields are ever shown, and only when the user has enabled display (Section 3). Online decode does not conflict with the local-first goal: offline-first matters for the check-in path, not for one-time vehicle setup, and full offline-only operation is not a requirement. vPIC being US-centric is an accepted limitation; manual entry of make/model/year/trim remains available for vehicles it cannot decode.
+VINs are encrypted at rest and never displayed. Entry is manual and optional. If a VIN is entered, the app offers a one-time online decode (NHTSA vPIC) to derive make, model, year, and trim, which is then saved locally so it is available offline afterward. Those derived fields are shown on the vehicle. They are added to a check-in private note only when that Check-in setting is on (Section 3). Online decode does not conflict with the local-first goal: offline-first matters for the check-in path, not for one-time vehicle setup, and full offline-only operation is not a requirement. vPIC being US-centric is an accepted limitation; manual entry of make/model/year/trim remains available for vehicles it cannot decode.
 
 ## 9. Local-First Architecture and Sync
 

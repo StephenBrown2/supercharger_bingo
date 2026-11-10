@@ -1054,7 +1054,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     if (!queued) return;
 
     messenger.showSnackBar(
-      SnackBar(content: Text('Checked in to ${site.name}')),
+      SnackBar(
+        content: Text('Checked in to ${site.name}. Pending until it syncs.'),
+      ),
     );
     _closeDrawer();
     _loadSites();

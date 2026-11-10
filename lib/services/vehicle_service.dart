@@ -113,10 +113,28 @@ class VehicleService {
     }
 
     return VehicleDecode(
-      make: byVariable['Make'],
+      make: _titleCaseMake(byVariable['Make']),
       model: byVariable['Model'],
       year: byVariable['Model Year'],
       trim: byVariable['Trim'],
     );
   }
+}
+
+/// vPIC sends makes in all capitals. Title-case those, and keep short
+/// initialisms such as BMW and GMC in capitals. Mixed-case values are
+/// left as the decoder sent them.
+String? _titleCaseMake(String? value) {
+  if (value == null) return null;
+  final letters = value.replaceAll(RegExp(r'[^A-Za-z]'), '');
+  if (letters.isEmpty || letters != letters.toUpperCase()) return value;
+  const keepUpper = {'BMW', 'GMC', 'MG', 'BYD', 'DS'};
+  return value.replaceAllMapped(RegExp(r'[A-Za-z]+'), (match) {
+    final token = match.group(0)!;
+    if (keepUpper.contains(token)) return token;
+    if (token.startsWith('MC') && token.length > 3) {
+      return 'Mc${token[2]}${token.substring(3).toLowerCase()}';
+    }
+    return '${token[0]}${token.substring(1).toLowerCase()}';
+  });
 }

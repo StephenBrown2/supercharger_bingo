@@ -6,12 +6,15 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+
+import '../../services/life_auth.dart';
 // Import Linux/Windows implementation - registers itself as platform implementation
 // ignore: unused_import
 import 'package:webview_win_floating/webview_win_floating.dart';
 
 /// Whether this platform supports inline webview
 bool get supportsInlineWebView {
+  if (Platform.environment['FLUTTER_TEST'] == 'true') return false;
   return Platform.isAndroid || Platform.isIOS || Platform.isLinux;
 }
 
@@ -89,7 +92,7 @@ class _NativeWebViewState extends State<_NativeWebView> {
   Future<void> _extractCookies() async {
     try {
       final cookieResult = await _controller.runJavaScriptReturningResult(
-        'document.cookie',
+        lifePageProbeScript,
       );
       widget.onCookiesAvailable(cookieResult.toString());
     } catch (_) {}

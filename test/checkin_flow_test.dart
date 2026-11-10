@@ -108,8 +108,10 @@ void main() {
           make: const Value('Tesla'),
           model: const Value('Model Y'),
           year: const Value('2024'),
-          displayOptIn: Value(optedIn),
         ),
+      );
+      await db.updateUserSettings(
+        UserSettingsTableCompanion(includeVehicleInPrivateNote: Value(optedIn)),
       );
       await db.upsertVehicle(
         const VehiclesCompanion(id: Value('unused'), label: Value('Zulu')),
@@ -147,6 +149,11 @@ void main() {
         optedIn ? 'Private\nVehicle: 2024 Tesla Model Y' : 'Private',
       );
       expect((await db.getSiteBySiteId(1))!.visited, isTrue);
+      final visit = (await db.getAllVisits()).single;
+      expect(visit.syncStatus, VisitSyncStatus.pending);
+      expect(visit.checkinId, isNull);
+      expect(visit.pendingId, pending.id);
+      expect(visit.siteId, 1);
     });
   }
 
@@ -170,7 +177,7 @@ void main() {
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
       messenger.setMockMethodCallHandler(channel, (_) async => ['wifi']);
       addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-      await db.addPendingCheckin(
+      final pendingId = await db.addPendingCheckin(
         PendingCheckinsCompanion(
           siteId: const Value(1),
           checkinDate: Value(DateTime(2026, 5, 1)),
@@ -180,7 +187,19 @@ void main() {
           vehicleId: const Value('local-id'),
         ),
       );
-      await SyncService(apiService: ApiService(dio: dio)).syncPendingCheckins();
+      await db.addVisit(
+        VisitsCompanion(
+          siteId: const Value(1),
+          checkinDate: Value(DateTime(2026, 5, 1)),
+          checkinTime: Value(DateTime(2026, 5, 1)),
+          pendingId: Value(pendingId),
+          syncStatus: const Value(VisitSyncStatus.pending),
+          importedAt: Value(DateTime.now()),
+        ),
+      );
+      await SyncService(
+        apiService: ApiService(dio: dio, sessionId: 'test-session'),
+      ).syncPendingCheckins();
       expect(requests, hasLength(1));
       final data = requests.single.data;
       final form = data is FormData
@@ -198,6 +217,10 @@ void main() {
       expect(form.containsKey('lng'), isFalse);
       expect(form.containsKey('destination'), isFalse);
       expect(await db.getPendingCheckins(), isEmpty);
+      expect(
+        (await db.getAllVisits()).single.syncStatus,
+        VisitSyncStatus.synced,
+      );
     },
   );
 
@@ -235,7 +258,9 @@ void main() {
           accuracy: const Value(12),
         ),
       );
-      await SyncService(apiService: ApiService(dio: dio)).syncPendingCheckins();
+      await SyncService(
+        apiService: ApiService(dio: dio, sessionId: 'test-session'),
+      ).syncPendingCheckins();
       final data = requests.single.data;
       final form = data is FormData
           ? Map<String, String>.fromEntries(data.fields)
@@ -287,6 +312,58 @@ void main() {
   });
 
   test(
+    'a check-in without a session stays pending and is not posted',
+    () async {
+      final requests = <RequestOptions>[];
+      final dio = Dio()
+        ..interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (request, handler) {
+              requests.add(request);
+              handler.resolve(
+                Response(requestOptions: request, statusCode: 200),
+              );
+            },
+          ),
+        );
+      const channel = MethodChannel('dev.fluttercommunity.plus/connectivity');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(channel, (_) async => ['wifi']);
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      final pendingId = await db.addPendingCheckin(
+        PendingCheckinsCompanion(
+          siteId: const Value(1),
+          checkinDate: Value(DateTime(2026, 5, 1)),
+          createdAt: Value(DateTime.now()),
+        ),
+      );
+      await db.addVisit(
+        VisitsCompanion(
+          siteId: const Value(1),
+          checkinDate: Value(DateTime(2026, 5, 1)),
+          checkinTime: Value(DateTime(2026, 5, 1)),
+          pendingId: Value(pendingId),
+          syncStatus: const Value(VisitSyncStatus.pending),
+          importedAt: Value(DateTime.now()),
+        ),
+      );
+      await SyncService(apiService: ApiService(dio: dio)).syncPendingCheckins();
+      expect(requests, isEmpty);
+      final pending = await db.select(db.pendingCheckins).get();
+      expect(pending.single.status, PendingStatus.pending);
+      expect(
+        pending.single.lastError,
+        'Waiting for supercharging.life sign-in',
+      );
+      expect(
+        (await db.getAllVisits()).single.syncStatus,
+        VisitSyncStatus.pending,
+      );
+    },
+  );
+
+  test(
     'nearby list includes a visited site and its last visit when asked',
     () async {
       await db.upsertSite(
@@ -310,7 +387,7 @@ void main() {
       );
       await db.addVisit(
         VisitsCompanion.insert(
-          checkinId: 9,
+          checkinId: const Value(9),
           siteId: 1,
           checkinDate: DateTime(2026, 4, 1),
           checkinTime: DateTime(2026, 4, 1, 8),
@@ -366,6 +443,8 @@ void main() {
     expect(vehicle.year, '2025');
     expect(vehicle.trim, 'Dual');
     expect(vehicle.hasVin, isFalse);
+    expect(find.text('2025 Rivian R1S Dual'), findsOneWidget);
+    expect(find.text('Show decoded make/model'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -415,6 +494,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect((await db.getUserSettings()).includeVisitedNearby, isTrue);
+
+    final note = find.text('Include vehicle details in the private note');
+    await tester.scrollUntilVisible(note, 200);
+    await tester.tap(note);
+    await tester.pumpAndSettle();
+    expect((await db.getUserSettings()).includeVehicleInPrivateNote, isTrue);
     await tester.pumpWidget(const SizedBox());
   });
 }

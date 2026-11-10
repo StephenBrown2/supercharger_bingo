@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:drift/drift.dart';
+
 import '../database/database.dart';
 
 // Conditional import for platform-specific database connection
@@ -166,11 +168,41 @@ class DatabaseService {
     return db.getPendingCheckins();
   }
 
-  /// Add a pending check-in
-  static Future<void> addPendingCheckin(
-    PendingCheckinsCompanion checkin,
-  ) async {
-    await db.addPendingCheckin(checkin);
+  /// Add a pending check-in. Returns the outbox row id.
+  static Future<int> addPendingCheckin(PendingCheckinsCompanion checkin) {
+    return db.addPendingCheckin(checkin);
+  }
+
+  /// Queue a check-in and a visits row that shows as pending until sync.
+  static Future<void> saveQueuedCheckin({
+    required PendingCheckinsCompanion pending,
+    CheckinMethod method = CheckinMethod.manual,
+  }) async {
+    await db.transaction(() async {
+      final pendingId = await db.addPendingCheckin(pending);
+      await db.addVisit(
+        VisitsCompanion(
+          siteId: pending.siteId,
+          checkinDate: pending.checkinDate,
+          checkinTime: pending.checkinDate,
+          checkinPrecision: pending.checkinPrecision.present
+              ? pending.checkinPrecision
+              : const Value(CheckinPrecision.timestamp),
+          notesPublic: pending.notesPublic,
+          notesPrivate: pending.notesPrivate,
+          vehicleId: pending.vehicleId,
+          method: Value(method),
+          syncStatus: const Value(VisitSyncStatus.pending),
+          pendingId: Value(pendingId),
+          geoDistanceAccuracy: Value(
+            pending.accuracy.present ? pending.accuracy.value?.round() : null,
+          ),
+          importedAt: Value(DateTime.now()),
+        ),
+      );
+      await db.markSiteVisited(pending.siteId.value, true);
+    });
+    bootstrapSites = null;
   }
 
   /// Update a pending check-in

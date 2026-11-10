@@ -2,9 +2,13 @@ import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
 
 import '../database/database.dart';
+import '../services/api_service.dart';
 import '../services/database_service.dart';
+import '../services/life_auth.dart';
 import '../services/sync_service.dart';
+import 'login_screen.dart';
 import 'vehicles_screen.dart';
+import 'visits_screen.dart';
 
 /// Mutable settings wrapper for the UI
 class MutableSettings {
@@ -18,6 +22,8 @@ class MutableSettings {
   double checkinRadiusKm;
   UnitSystem unitSystem;
   bool includeVisitedNearby;
+  bool includeVehicleInPrivateNote;
+  AuthProvider? authProvider;
   DateTime? lastSitesSyncAt;
   DateTime? lastCheckinHistorySyncAt;
   DateTime? lastXlsxSyncAt;
@@ -33,6 +39,8 @@ class MutableSettings {
     this.checkinRadiusKm = 5000.0,
     this.unitSystem = UnitSystem.imperial,
     this.includeVisitedNearby = false,
+    this.includeVehicleInPrivateNote = false,
+    this.authProvider,
     this.lastSitesSyncAt,
     this.lastCheckinHistorySyncAt,
     this.lastXlsxSyncAt,
@@ -50,6 +58,8 @@ class MutableSettings {
       checkinRadiusKm: data.checkinRadiusKm,
       unitSystem: data.unitSystem,
       includeVisitedNearby: data.includeVisitedNearby,
+      includeVehicleInPrivateNote: data.includeVehicleInPrivateNote,
+      authProvider: data.authProvider,
       lastSitesSyncAt: data.lastSitesSyncAt,
       lastCheckinHistorySyncAt: data.lastCheckinHistorySyncAt,
       lastXlsxSyncAt: data.lastXlsxSyncAt,
@@ -68,6 +78,8 @@ class MutableSettings {
       checkinRadiusKm: Value(checkinRadiusKm),
       unitSystem: Value(unitSystem),
       includeVisitedNearby: Value(includeVisitedNearby),
+      includeVehicleInPrivateNote: Value(includeVehicleInPrivateNote),
+      authProvider: Value(authProvider),
     );
   }
 }
@@ -128,11 +140,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildSectionHeader(theme, 'Account'),
                 ListTile(
                   leading: const Icon(Icons.person),
-                  title: Text(_settings?.username ?? 'Not logged in'),
-                  subtitle: _settings?.isAuthenticated == true
-                      ? Text('User ID: ${_settings?.userId}')
-                      : const Text('Tap to log in'),
-                  trailing: _settings?.isAuthenticated == true
+                  title: Text(_accountTitle),
+                  subtitle: Text(_accountSubtitle),
+                  trailing: _showLogout
                       ? TextButton(
                           onPressed: _handleLogout,
                           child: const Text('Log out'),
@@ -183,29 +193,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onTap: _showRadiusPicker,
                 ),
                 ListTile(
-                  leading: const Icon(Icons.near_me),
-                  title: const Text('Check-in Search Radius'),
-                  subtitle: Text(
-                    _settings?.unitSystem == UnitSystem.imperial
-                        ? '${(_settings!.checkinRadiusKm * 0.621371).toStringAsFixed(0)} mi'
-                        : '${_settings?.checkinRadiusKm.toStringAsFixed(0)} km',
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _showCheckinRadiusPicker,
-                ),
-                SwitchListTile(
-                  secondary: const Icon(Icons.history),
-                  title: const Text('Include visited sites'),
-                  subtitle: const Text(
-                    'Show them in the nearby check-in list, with the last visit date',
-                  ),
-                  value: _settings?.includeVisitedNearby ?? false,
-                  onChanged: (value) {
-                    setState(() => _settings?.includeVisitedNearby = value);
-                    _saveSettings();
-                  },
-                ),
-                ListTile(
                   leading: const Icon(Icons.straighten),
                   title: const Text('Distance Units'),
                   subtitle: Text(
@@ -230,6 +217,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const Divider(),
 
+                _buildSectionHeader(theme, 'Check-in'),
+                ListTile(
+                  leading: const Icon(Icons.near_me),
+                  title: const Text('Check-in Search Radius'),
+                  subtitle: Text(
+                    _settings?.unitSystem == UnitSystem.imperial
+                        ? '${(_settings!.checkinRadiusKm * 0.621371).toStringAsFixed(0)} mi'
+                        : '${_settings?.checkinRadiusKm.toStringAsFixed(0)} km',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: _showCheckinRadiusPicker,
+                ),
+                SwitchListTile(
+                  secondary: const Icon(Icons.history),
+                  title: const Text('Include visited sites'),
+                  subtitle: const Text(
+                    'Show them in the nearby check-in list, with the last visit date',
+                  ),
+                  value: _settings?.includeVisitedNearby ?? false,
+                  onChanged: (value) {
+                    setState(() => _settings?.includeVisitedNearby = value);
+                    _saveSettings();
+                  },
+                ),
+                SwitchListTile(
+                  secondary: const Icon(Icons.directions_car),
+                  title: const Text(
+                    'Include vehicle details in the private note',
+                  ),
+                  subtitle: const Text(
+                    'Adds year, make, model, and trim when you check in with a vehicle. The VIN is never included.',
+                  ),
+                  value: _settings?.includeVehicleInPrivateNote ?? false,
+                  onChanged: (value) {
+                    setState(
+                      () => _settings?.includeVehicleInPrivateNote = value,
+                    );
+                    _saveSettings();
+                  },
+                ),
+                const Divider(),
+
                 // Garage section
                 _buildSectionHeader(theme, 'Garage'),
                 ListTile(
@@ -245,6 +274,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                 // Advanced section
                 _buildSectionHeader(theme, 'Advanced'),
+                ListTile(
+                  leading: const Icon(Icons.place),
+                  title: const Text('Visits'),
+                  subtitle: const Text(
+                    'Local check-ins, including ones still pending',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const VisitsScreen()),
+                  ),
+                ),
                 ListTile(
                   leading: const Icon(Icons.history),
                   title: const Text('Sync Visit History'),
@@ -373,11 +413,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
+  String get _accountTitle {
+    final username = _settings?.username;
+    if (username != null && username.isNotEmpty) return username;
+    if (_settings?.authProvider != null) return 'On this device';
+    return 'Not logged in';
+  }
+
+  String get _accountSubtitle {
+    final provider = _settings?.authProvider;
+    final label = provider == null ? null : authProviderLabel(provider);
+    if (_settings?.isAuthenticated == true) {
+      return label == null ? 'Signed in' : 'Signed in with $label';
+    }
+    if (label != null) {
+      return '$label on this device. Check-ins stay here until they sync.';
+    }
+    return 'Tap to log in';
+  }
+
+  bool get _showLogout =>
+      _settings?.isAuthenticated == true || _settings?.authProvider != null;
+
   void _handleLogin() {
-    // TODO: Navigate to WebView login screen
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Login not yet implemented')));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => LoginScreen(onLoginSuccess: _loadSettings),
+      ),
+    );
   }
 
   void _handleLogout() {
@@ -394,12 +457,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              // TODO: Implement logout
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('Logged out')));
+              _settings?.isAuthenticated = false;
+              _settings?.authProvider = null;
+              await _saveSettings();
+              await ApiService.instance.clearSessionCookie();
+              if (mounted) {
+                setState(() {});
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('Logged out')));
+              }
             },
             child: const Text('Log out'),
           ),

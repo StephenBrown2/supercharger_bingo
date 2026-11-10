@@ -481,7 +481,9 @@ class SyncService {
           if (siteId > 0) {
             visits.add(
               VisitsCompanion(
-                checkinId: Value(checkinId),
+                checkinId: checkinId > 0
+                    ? Value(checkinId)
+                    : const Value.absent(),
                 siteId: Value(siteId),
                 checkinDate: Value(checkinDate),
                 checkinTime: Value(checkinTime),
@@ -542,27 +544,24 @@ class SyncService {
         final success = await _writer.submit(draft);
 
         if (success) {
-          // Mark site as visited locally
           await DatabaseService.markSiteVisited(siteId, true);
-
-          // Add to local visits
-          final visit = VisitsCompanion(
-            checkinId: const Value(0), // Will be updated on next sync
-            siteId: Value(siteId),
-            checkinDate: Value(date),
-            checkinTime: Value(DateTime.now()),
-            checkinPrecision: Value(precision),
-            isFirst: const Value(false), // Will be updated on next sync
-            method: Value(
-              latitude != null ? CheckinMethod.gps : CheckinMethod.manual,
+          await DatabaseService.addVisit(
+            VisitsCompanion(
+              siteId: Value(siteId),
+              checkinDate: Value(date),
+              checkinTime: Value(DateTime.now()),
+              checkinPrecision: Value(precision),
+              isFirst: const Value(false),
+              method: Value(
+                latitude != null ? CheckinMethod.gps : CheckinMethod.manual,
+              ),
+              notesPublic: Value(notes),
+              notesPrivate: Value(notesPrivate),
+              geoDistanceAccuracy: Value(accuracy?.toInt()),
+              syncStatus: const Value(VisitSyncStatus.synced),
+              importedAt: Value(DateTime.now()),
             ),
-            notesPublic: Value(notes),
-            notesPrivate: Value(notesPrivate),
-            geoDistanceAccuracy: Value(accuracy?.toInt()),
-            importedAt: Value(DateTime.now()),
           );
-          await DatabaseService.addVisit(visit);
-
           return true;
         }
       } catch (e) {
@@ -570,24 +569,21 @@ class SyncService {
       }
     }
 
-    // Queue for later submission
-    final pending = PendingCheckinsCompanion(
-      siteId: Value(siteId),
-      checkinDate: Value(date),
-      checkinPrecision: Value(precision),
-      createdAt: Value(DateTime.now()),
-      latitude: Value(latitude),
-      longitude: Value(longitude),
-      accuracy: Value(accuracy),
-      notesPublic: Value(notes),
-      notesPrivate: Value(notesPrivate),
-      status: const Value(PendingStatus.pending),
+    await DatabaseService.saveQueuedCheckin(
+      pending: PendingCheckinsCompanion(
+        siteId: Value(siteId),
+        checkinDate: Value(date),
+        checkinPrecision: Value(precision),
+        createdAt: Value(DateTime.now()),
+        latitude: Value(latitude),
+        longitude: Value(longitude),
+        accuracy: Value(accuracy),
+        notesPublic: Value(notes),
+        notesPrivate: Value(notesPrivate),
+        status: const Value(PendingStatus.pending),
+      ),
+      method: latitude != null ? CheckinMethod.gps : CheckinMethod.manual,
     );
-
-    await DatabaseService.addPendingCheckin(pending);
-
-    // Mark site as visited locally (optimistic)
-    await DatabaseService.markSiteVisited(siteId, true);
 
     return false; // Indicates it was queued, not submitted
   }
@@ -627,6 +623,18 @@ class SyncService {
           continue;
         }
 
+        final session = await _apiService.getSessionCookie();
+        if (session == null || session.isEmpty) {
+          await DatabaseService.updatePendingCheckin(
+            checkin.id,
+            const PendingCheckinsCompanion(
+              status: Value(PendingStatus.pending),
+              lastError: Value('Waiting for supercharging.life sign-in'),
+            ),
+          );
+          continue;
+        }
+
         final draft = await _draftFor(
           siteId: checkin.siteId,
           date: checkin.checkinDate,
@@ -646,7 +654,7 @@ class SyncService {
               status: Value(PendingStatus.completed),
             ),
           );
-          // Could delete instead: await DatabaseService.deletePendingCheckin(checkin.id);
+          await DatabaseService.db.markPendingVisitSynced(checkin.id);
         } else {
           await DatabaseService.updatePendingCheckin(
             checkin.id,

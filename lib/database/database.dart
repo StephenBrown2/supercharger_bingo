@@ -23,6 +23,12 @@ enum PendingStatus { pending, submitting, failed, completed }
 
 enum CheckinMethod { gps, manual }
 
+/// A personal visit that has not been accepted by supercharging.life yet.
+enum VisitSyncStatus { pending, synced }
+
+/// GitHub and Google, the same providers supercharging.life offers.
+enum AuthProvider { github, google }
+
 enum PollingInterval { minutes15, hour1, hours4, hours6, hours12, hours24 }
 
 enum MapFilter { openUnvisited, openUnvisitedConstruction, visited, all }
@@ -73,7 +79,8 @@ class Visits extends Table {
   IntColumn get id => integer().autoIncrement()();
 
   /// Server-assigned supercharging.life check-in id, kept as that integer.
-  IntColumn get checkinId => integer().unique()();
+  /// Null until the site assigns one. Several local rows can be null together.
+  IntColumn get checkinId => integer().unique().nullable()();
   IntColumn get siteId => integer()();
   DateTimeColumn get checkinDate => dateTime()();
   DateTimeColumn get checkinTime => dateTime()();
@@ -94,7 +101,14 @@ class Visits extends Table {
   TextColumn get vehicleId => text().nullable()();
   IntColumn get geoDistanceAccuracy => integer().nullable()();
   IntColumn get geoDistance => integer().nullable()();
-  IntColumn get distinctUserSuperSeq => integer().nullable()();
+
+  /// Pending until the unofficial writer accepts the check-in.
+  TextColumn get syncStatus => textEnum<VisitSyncStatus>().withDefault(
+    Constant(VisitSyncStatus.synced.name),
+  )();
+
+  /// Matches [PendingCheckins.id] while this row is still in the outbox.
+  IntColumn get pendingId => integer().nullable()();
   DateTimeColumn get importedAt => dateTime()();
 }
 
@@ -140,14 +154,13 @@ class SiteCheckins extends Table {
   DateTimeColumn get checkinTime => dateTime()();
   BoolColumn get isFirstAtSupercharger =>
       boolean().withDefault(const Constant(false))();
-  IntColumn get daysAfterOpen => integer().nullable()();
   DateTimeColumn get syncedAt => dateTime()();
 }
 
 /// Local vehicles (SPEC Section 3). Purely local; never synced. The raw VIN is
-/// never stored here: it lives in flutter_secure_storage keyed by [id], and
-/// only the derived fields (decoded from vPIC) are kept, shown only when the
-/// user opts in.
+/// never stored here: it lives in flutter_secure_storage keyed by [id]. The
+/// derived fields are shown on the vehicle. A check-in includes them in the
+/// private note only when [UserSettingsTable.includeVehicleInPrivateNote] is on.
 class Vehicles extends Table {
   TextColumn get id => text()(); // client-generated UUID
   TextColumn get label => text()(); // required nickname
@@ -155,7 +168,6 @@ class Vehicles extends Table {
   TextColumn get model => text().nullable()();
   TextColumn get year => text().nullable()();
   TextColumn get trim => text().nullable()();
-  BoolColumn get displayOptIn => boolean().withDefault(const Constant(false))();
   BoolColumn get hasVin => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 
@@ -171,6 +183,9 @@ class UserSettingsTable extends Table {
   TextColumn get displayName => text().nullable()();
   BoolColumn get isAuthenticated =>
       boolean().withDefault(const Constant(false))();
+
+  /// GitHub or Google. Set for a live session and for a device-only sign-in.
+  TextColumn get authProvider => textEnum<AuthProvider>().nullable()();
   DateTimeColumn get firstLoginAt => dateTime().nullable()();
   DateTimeColumn get lastLoginAt => dateTime().nullable()();
   DateTimeColumn get lastXlsxSyncAt => dateTime().nullable()();
@@ -192,6 +207,11 @@ class UserSettingsTable extends Table {
   /// When false, the nearby check-in list hides sites the user has already
   /// visited. Turn on to show those sites with their last visit date.
   BoolColumn get includeVisitedNearby =>
+      boolean().withDefault(const Constant(false))();
+
+  /// When true, a check-in that names a vehicle appends year, make, model,
+  /// and trim to the private note. The VIN is never included.
+  BoolColumn get includeVehicleInPrivateNote =>
       boolean().withDefault(const Constant(false))();
   RealColumn get lastLatitude => real().nullable()();
   RealColumn get lastLongitude => real().nullable()();
@@ -236,7 +256,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration {
@@ -310,6 +330,50 @@ class AppDatabase extends _$AppDatabase {
           await m.addColumn(visits, visits.checkinPrecision);
           await m.addColumn(pendingCheckins, pendingCheckins.checkinPrecision);
           await m.createTable(regionSyncs);
+        }
+        if (from < 8) {
+          await m.addColumn(
+            userSettingsTable,
+            userSettingsTable.includeVehicleInPrivateNote,
+          );
+          // Older builds stored this choice on each vehicle. Keep it if any
+          // vehicle had it on. A fresh vehicles table from an earlier step
+          // never had the column.
+          final legacy = await customSelect(
+            "SELECT 1 AS present FROM pragma_table_info('vehicles') "
+            "WHERE name = 'display_opt_in'",
+          ).get();
+          if (legacy.isNotEmpty) {
+            await customStatement(
+              'UPDATE user_settings SET include_vehicle_in_private_note = 1 '
+              'WHERE EXISTS ('
+              'SELECT 1 FROM vehicles WHERE display_opt_in = 1)',
+            );
+            await customStatement(
+              'ALTER TABLE vehicles DROP COLUMN display_opt_in',
+            );
+          }
+        }
+        if (from < 9) {
+          // Drop unused community columns by rebuilding those tables, and
+          // allow a visit to exist before supercharging.life assigns an id.
+          await m.alterTable(
+            TableMigration(
+              visits,
+              newColumns: [visits.syncStatus, visits.pendingId],
+            ),
+          );
+          await m.alterTable(TableMigration(siteCheckins));
+          final auth = await customSelect(
+            "SELECT 1 AS present FROM pragma_table_info('user_settings') "
+            "WHERE name = 'auth_provider'",
+          ).get();
+          if (auth.isEmpty) {
+            await m.addColumn(
+              userSettingsTable,
+              userSettingsTable.authProvider,
+            );
+          }
         }
       },
     );
@@ -498,8 +562,14 @@ class AppDatabase extends _$AppDatabase {
     )..where((t) => t.status.equals(PendingStatus.pending.name))).get();
   }
 
-  Future<void> addPendingCheckin(PendingCheckinsCompanion checkin) async {
-    await into(pendingCheckins).insert(checkin);
+  Future<int> addPendingCheckin(PendingCheckinsCompanion checkin) {
+    return into(pendingCheckins).insert(checkin);
+  }
+
+  Future<void> markPendingVisitSynced(int pendingId) async {
+    await (update(visits)..where((t) => t.pendingId.equals(pendingId))).write(
+      const VisitsCompanion(syncStatus: Value(VisitSyncStatus.synced)),
+    );
   }
 
   Future<void> updatePendingCheckin(

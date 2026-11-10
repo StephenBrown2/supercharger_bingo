@@ -8,6 +8,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../database/database.dart';
 import '../models/supercharge_info.dart';
 import 'checkin_form.dart';
+import 'life_auth.dart';
 import 'life_time.dart';
 import 'timezone_service.dart';
 
@@ -20,6 +21,13 @@ class ApiService {
   CookieJar? _cookieJar;
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
+  /// When set, skips secure storage. Tests pass a fake session so a post is
+  /// allowed without the plugin.
+  final String? sessionId;
+
+  static const String sessionCookieName = lifeSessionCookieName;
+  static const String _sessionStorageKey = 'sclsession';
+
   // API endpoints
   static const String superchargeInfoBaseUrl = 'https://supercharge.info';
   static const String superchargingLifeBaseUrl = 'https://supercharging.life';
@@ -31,7 +39,7 @@ class ApiService {
   /// Newest-first change pages. Each row embeds a full site.
   static const int changePageLength = 200;
 
-  ApiService({Dio? dio}) {
+  ApiService({Dio? dio, this.sessionId}) {
     _dio =
         dio ??
         Dio(
@@ -51,29 +59,49 @@ class ApiService {
     }
   }
 
-  /// Set session cookie for supercharging.life
+  /// Store the supercharging.life session. The live site sets SCLSESSION
+  /// (not HttpOnly), which is what checkin.php expects.
   Future<void> setSessionCookie(String sessionId) async {
-    await _secureStorage.write(key: 'sclphpsessid', value: sessionId);
-    // CookieJar not available on web
-    if (_cookieJar != null) {
-      final uri = Uri.parse(superchargingLifeBaseUrl);
-      await _cookieJar!.saveFromResponse(uri, [
-        Cookie('SCLPHPSESSID', sessionId)
-          ..domain = 'supercharging.life'
-          ..path = '/'
-          ..httpOnly = true,
-      ]);
+    try {
+      await _secureStorage.write(key: _sessionStorageKey, value: sessionId);
+    } catch (_) {}
+    await _saveSessionCookie(sessionId);
+  }
+
+  Future<void> _saveSessionCookie(String sessionId) async {
+    if (_cookieJar == null) return;
+    final uri = Uri.parse(superchargingLifeBaseUrl);
+    await _cookieJar!.saveFromResponse(uri, [
+      Cookie(sessionCookieName, sessionId)
+        ..domain = '.supercharging.life'
+        ..path = '/'
+        ..secure = true,
+    ]);
+  }
+
+  /// Get stored session cookie. Null when the plugin is unavailable.
+  Future<String?> getSessionCookie() async {
+    if (sessionId != null && sessionId!.isNotEmpty) return sessionId;
+    try {
+      return await _secureStorage.read(key: _sessionStorageKey);
+    } catch (_) {
+      return null;
     }
   }
 
-  /// Get stored session cookie
-  Future<String?> getSessionCookie() async {
-    return _secureStorage.read(key: 'sclphpsessid');
+  /// Put a stored session back into the cookie jar after a process restart.
+  Future<void> restoreSessionCookie() async {
+    final stored = await getSessionCookie();
+    if (stored == null || stored.isEmpty) return;
+    await _saveSessionCookie(stored);
   }
 
   /// Clear session cookie (logout)
   Future<void> clearSessionCookie() async {
-    await _secureStorage.delete(key: 'sclphpsessid');
+    try {
+      await _secureStorage.delete(key: _sessionStorageKey);
+      await _secureStorage.delete(key: 'sclphpsessid');
+    } catch (_) {}
     await _cookieJar?.deleteAll();
   }
 
@@ -283,13 +311,20 @@ class ApiService {
   }
 
   /// Submit a check-in to supercharging.life using the live multipart form.
+  /// Without a session the site redirects to login.php, so this returns false
+  /// and the visit stays pending.
   Future<bool> submitCheckin(CheckinDraft draft) async {
+    final session = await getSessionCookie();
+    if (session == null || session.isEmpty) return false;
+    await restoreSessionCookie();
     final response = await _dio.post(
       '$superchargingLifeBaseUrl/supercharging/checkin.php',
       data: FormData.fromMap(unofficialCheckinFields(draft)),
     );
-
-    return response.statusCode == 200;
+    if (response.statusCode != 200) return false;
+    final body = response.data?.toString() ?? '';
+    if (body.contains('Login to your account')) return false;
+    return true;
   }
 
   /// Download user's XLSX export
@@ -452,11 +487,6 @@ class ApiService {
     final checkinTime =
         parseLifeTimestamp(json['checkin_time'] as String?) ?? checkinDate;
 
-    int? daysAfterOpen;
-    if (json['checkin_days_after_open'] != null) {
-      daysAfterOpen = int.tryParse(json['checkin_days_after_open'] as String);
-    }
-
     return SiteCheckinsCompanion(
       checkinId: Value(int.parse(json['checkin_id'] as String)),
       siteId: Value(int.parse(json['supercharger_id'] as String)),
@@ -468,7 +498,6 @@ class ApiService {
       isFirstAtSupercharger: Value(
         json['is_first_at_supercharger_cache'] == 'Y',
       ),
-      daysAfterOpen: Value(daysAfterOpen),
       syncedAt: Value(DateTime.now()),
     );
   }

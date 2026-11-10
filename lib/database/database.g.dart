@@ -978,9 +978,9 @@ class $VisitsTable extends Visits with TableInfo<$VisitsTable, Visit> {
   late final GeneratedColumn<int> checkinId = GeneratedColumn<int>(
     'checkin_id',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.int,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
   );
   static const VerificationMeta _siteIdMeta = const VerificationMeta('siteId');
@@ -1103,11 +1103,22 @@ class $VisitsTable extends Visits with TableInfo<$VisitsTable, Visit> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _distinctUserSuperSeqMeta =
-      const VerificationMeta('distinctUserSuperSeq');
   @override
-  late final GeneratedColumn<int> distinctUserSuperSeq = GeneratedColumn<int>(
-    'distinct_user_super_seq',
+  late final GeneratedColumnWithTypeConverter<VisitSyncStatus, String>
+  syncStatus = GeneratedColumn<String>(
+    'sync_status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: Constant(VisitSyncStatus.synced.name),
+  ).withConverter<VisitSyncStatus>($VisitsTable.$convertersyncStatus);
+  static const VerificationMeta _pendingIdMeta = const VerificationMeta(
+    'pendingId',
+  );
+  @override
+  late final GeneratedColumn<int> pendingId = GeneratedColumn<int>(
+    'pending_id',
     aliasedName,
     true,
     type: DriftSqlType.int,
@@ -1139,7 +1150,8 @@ class $VisitsTable extends Visits with TableInfo<$VisitsTable, Visit> {
     vehicleId,
     geoDistanceAccuracy,
     geoDistance,
-    distinctUserSuperSeq,
+    syncStatus,
+    pendingId,
     importedAt,
   ];
   @override
@@ -1162,8 +1174,6 @@ class $VisitsTable extends Visits with TableInfo<$VisitsTable, Visit> {
         _checkinIdMeta,
         checkinId.isAcceptableOrUnknown(data['checkin_id']!, _checkinIdMeta),
       );
-    } else if (isInserting) {
-      context.missing(_checkinIdMeta);
     }
     if (data.containsKey('site_id')) {
       context.handle(
@@ -1243,13 +1253,10 @@ class $VisitsTable extends Visits with TableInfo<$VisitsTable, Visit> {
         ),
       );
     }
-    if (data.containsKey('distinct_user_super_seq')) {
+    if (data.containsKey('pending_id')) {
       context.handle(
-        _distinctUserSuperSeqMeta,
-        distinctUserSuperSeq.isAcceptableOrUnknown(
-          data['distinct_user_super_seq']!,
-          _distinctUserSuperSeqMeta,
-        ),
+        _pendingIdMeta,
+        pendingId.isAcceptableOrUnknown(data['pending_id']!, _pendingIdMeta),
       );
     }
     if (data.containsKey('imported_at')) {
@@ -1276,7 +1283,7 @@ class $VisitsTable extends Visits with TableInfo<$VisitsTable, Visit> {
       checkinId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}checkin_id'],
-      )!,
+      ),
       siteId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}site_id'],
@@ -1325,9 +1332,15 @@ class $VisitsTable extends Visits with TableInfo<$VisitsTable, Visit> {
         DriftSqlType.int,
         data['${effectivePrefix}geo_distance'],
       ),
-      distinctUserSuperSeq: attachedDatabase.typeMapping.read(
+      syncStatus: $VisitsTable.$convertersyncStatus.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}sync_status'],
+        )!,
+      ),
+      pendingId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
-        data['${effectivePrefix}distinct_user_super_seq'],
+        data['${effectivePrefix}pending_id'],
       ),
       importedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
@@ -1347,13 +1360,18 @@ class $VisitsTable extends Visits with TableInfo<$VisitsTable, Visit> {
   );
   static JsonTypeConverter2<CheckinMethod, String, String> $convertermethod =
       const EnumNameConverter<CheckinMethod>(CheckinMethod.values);
+  static JsonTypeConverter2<VisitSyncStatus, String, String>
+  $convertersyncStatus = const EnumNameConverter<VisitSyncStatus>(
+    VisitSyncStatus.values,
+  );
 }
 
 class Visit extends DataClass implements Insertable<Visit> {
   final int id;
 
   /// Server-assigned supercharging.life check-in id, kept as that integer.
-  final int checkinId;
+  /// Null until the site assigns one. Several local rows can be null together.
+  final int? checkinId;
   final int siteId;
   final DateTime checkinDate;
   final DateTime checkinTime;
@@ -1370,11 +1388,16 @@ class Visit extends DataClass implements Insertable<Visit> {
   final String? vehicleId;
   final int? geoDistanceAccuracy;
   final int? geoDistance;
-  final int? distinctUserSuperSeq;
+
+  /// Pending until the unofficial writer accepts the check-in.
+  final VisitSyncStatus syncStatus;
+
+  /// Matches [PendingCheckins.id] while this row is still in the outbox.
+  final int? pendingId;
   final DateTime importedAt;
   const Visit({
     required this.id,
-    required this.checkinId,
+    this.checkinId,
     required this.siteId,
     required this.checkinDate,
     required this.checkinTime,
@@ -1386,14 +1409,17 @@ class Visit extends DataClass implements Insertable<Visit> {
     this.vehicleId,
     this.geoDistanceAccuracy,
     this.geoDistance,
-    this.distinctUserSuperSeq,
+    required this.syncStatus,
+    this.pendingId,
     required this.importedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
-    map['checkin_id'] = Variable<int>(checkinId);
+    if (!nullToAbsent || checkinId != null) {
+      map['checkin_id'] = Variable<int>(checkinId);
+    }
     map['site_id'] = Variable<int>(siteId);
     map['checkin_date'] = Variable<DateTime>(checkinDate);
     map['checkin_time'] = Variable<DateTime>(checkinTime);
@@ -1423,8 +1449,13 @@ class Visit extends DataClass implements Insertable<Visit> {
     if (!nullToAbsent || geoDistance != null) {
       map['geo_distance'] = Variable<int>(geoDistance);
     }
-    if (!nullToAbsent || distinctUserSuperSeq != null) {
-      map['distinct_user_super_seq'] = Variable<int>(distinctUserSuperSeq);
+    {
+      map['sync_status'] = Variable<String>(
+        $VisitsTable.$convertersyncStatus.toSql(syncStatus),
+      );
+    }
+    if (!nullToAbsent || pendingId != null) {
+      map['pending_id'] = Variable<int>(pendingId);
     }
     map['imported_at'] = Variable<DateTime>(importedAt);
     return map;
@@ -1433,7 +1464,9 @@ class Visit extends DataClass implements Insertable<Visit> {
   VisitsCompanion toCompanion(bool nullToAbsent) {
     return VisitsCompanion(
       id: Value(id),
-      checkinId: Value(checkinId),
+      checkinId: checkinId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(checkinId),
       siteId: Value(siteId),
       checkinDate: Value(checkinDate),
       checkinTime: Value(checkinTime),
@@ -1455,9 +1488,10 @@ class Visit extends DataClass implements Insertable<Visit> {
       geoDistance: geoDistance == null && nullToAbsent
           ? const Value.absent()
           : Value(geoDistance),
-      distinctUserSuperSeq: distinctUserSuperSeq == null && nullToAbsent
+      syncStatus: Value(syncStatus),
+      pendingId: pendingId == null && nullToAbsent
           ? const Value.absent()
-          : Value(distinctUserSuperSeq),
+          : Value(pendingId),
       importedAt: Value(importedAt),
     );
   }
@@ -1469,7 +1503,7 @@ class Visit extends DataClass implements Insertable<Visit> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return Visit(
       id: serializer.fromJson<int>(json['id']),
-      checkinId: serializer.fromJson<int>(json['checkinId']),
+      checkinId: serializer.fromJson<int?>(json['checkinId']),
       siteId: serializer.fromJson<int>(json['siteId']),
       checkinDate: serializer.fromJson<DateTime>(json['checkinDate']),
       checkinTime: serializer.fromJson<DateTime>(json['checkinTime']),
@@ -1487,9 +1521,10 @@ class Visit extends DataClass implements Insertable<Visit> {
         json['geoDistanceAccuracy'],
       ),
       geoDistance: serializer.fromJson<int?>(json['geoDistance']),
-      distinctUserSuperSeq: serializer.fromJson<int?>(
-        json['distinctUserSuperSeq'],
+      syncStatus: $VisitsTable.$convertersyncStatus.fromJson(
+        serializer.fromJson<String>(json['syncStatus']),
       ),
+      pendingId: serializer.fromJson<int?>(json['pendingId']),
       importedAt: serializer.fromJson<DateTime>(json['importedAt']),
     );
   }
@@ -1498,7 +1533,7 @@ class Visit extends DataClass implements Insertable<Visit> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
-      'checkinId': serializer.toJson<int>(checkinId),
+      'checkinId': serializer.toJson<int?>(checkinId),
       'siteId': serializer.toJson<int>(siteId),
       'checkinDate': serializer.toJson<DateTime>(checkinDate),
       'checkinTime': serializer.toJson<DateTime>(checkinTime),
@@ -1514,14 +1549,17 @@ class Visit extends DataClass implements Insertable<Visit> {
       'vehicleId': serializer.toJson<String?>(vehicleId),
       'geoDistanceAccuracy': serializer.toJson<int?>(geoDistanceAccuracy),
       'geoDistance': serializer.toJson<int?>(geoDistance),
-      'distinctUserSuperSeq': serializer.toJson<int?>(distinctUserSuperSeq),
+      'syncStatus': serializer.toJson<String>(
+        $VisitsTable.$convertersyncStatus.toJson(syncStatus),
+      ),
+      'pendingId': serializer.toJson<int?>(pendingId),
       'importedAt': serializer.toJson<DateTime>(importedAt),
     };
   }
 
   Visit copyWith({
     int? id,
-    int? checkinId,
+    Value<int?> checkinId = const Value.absent(),
     int? siteId,
     DateTime? checkinDate,
     DateTime? checkinTime,
@@ -1533,11 +1571,12 @@ class Visit extends DataClass implements Insertable<Visit> {
     Value<String?> vehicleId = const Value.absent(),
     Value<int?> geoDistanceAccuracy = const Value.absent(),
     Value<int?> geoDistance = const Value.absent(),
-    Value<int?> distinctUserSuperSeq = const Value.absent(),
+    VisitSyncStatus? syncStatus,
+    Value<int?> pendingId = const Value.absent(),
     DateTime? importedAt,
   }) => Visit(
     id: id ?? this.id,
-    checkinId: checkinId ?? this.checkinId,
+    checkinId: checkinId.present ? checkinId.value : this.checkinId,
     siteId: siteId ?? this.siteId,
     checkinDate: checkinDate ?? this.checkinDate,
     checkinTime: checkinTime ?? this.checkinTime,
@@ -1551,9 +1590,8 @@ class Visit extends DataClass implements Insertable<Visit> {
         ? geoDistanceAccuracy.value
         : this.geoDistanceAccuracy,
     geoDistance: geoDistance.present ? geoDistance.value : this.geoDistance,
-    distinctUserSuperSeq: distinctUserSuperSeq.present
-        ? distinctUserSuperSeq.value
-        : this.distinctUserSuperSeq,
+    syncStatus: syncStatus ?? this.syncStatus,
+    pendingId: pendingId.present ? pendingId.value : this.pendingId,
     importedAt: importedAt ?? this.importedAt,
   );
   Visit copyWithCompanion(VisitsCompanion data) {
@@ -1585,9 +1623,10 @@ class Visit extends DataClass implements Insertable<Visit> {
       geoDistance: data.geoDistance.present
           ? data.geoDistance.value
           : this.geoDistance,
-      distinctUserSuperSeq: data.distinctUserSuperSeq.present
-          ? data.distinctUserSuperSeq.value
-          : this.distinctUserSuperSeq,
+      syncStatus: data.syncStatus.present
+          ? data.syncStatus.value
+          : this.syncStatus,
+      pendingId: data.pendingId.present ? data.pendingId.value : this.pendingId,
       importedAt: data.importedAt.present
           ? data.importedAt.value
           : this.importedAt,
@@ -1610,7 +1649,8 @@ class Visit extends DataClass implements Insertable<Visit> {
           ..write('vehicleId: $vehicleId, ')
           ..write('geoDistanceAccuracy: $geoDistanceAccuracy, ')
           ..write('geoDistance: $geoDistance, ')
-          ..write('distinctUserSuperSeq: $distinctUserSuperSeq, ')
+          ..write('syncStatus: $syncStatus, ')
+          ..write('pendingId: $pendingId, ')
           ..write('importedAt: $importedAt')
           ..write(')'))
         .toString();
@@ -1631,7 +1671,8 @@ class Visit extends DataClass implements Insertable<Visit> {
     vehicleId,
     geoDistanceAccuracy,
     geoDistance,
-    distinctUserSuperSeq,
+    syncStatus,
+    pendingId,
     importedAt,
   );
   @override
@@ -1651,13 +1692,14 @@ class Visit extends DataClass implements Insertable<Visit> {
           other.vehicleId == this.vehicleId &&
           other.geoDistanceAccuracy == this.geoDistanceAccuracy &&
           other.geoDistance == this.geoDistance &&
-          other.distinctUserSuperSeq == this.distinctUserSuperSeq &&
+          other.syncStatus == this.syncStatus &&
+          other.pendingId == this.pendingId &&
           other.importedAt == this.importedAt);
 }
 
 class VisitsCompanion extends UpdateCompanion<Visit> {
   final Value<int> id;
-  final Value<int> checkinId;
+  final Value<int?> checkinId;
   final Value<int> siteId;
   final Value<DateTime> checkinDate;
   final Value<DateTime> checkinTime;
@@ -1669,7 +1711,8 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
   final Value<String?> vehicleId;
   final Value<int?> geoDistanceAccuracy;
   final Value<int?> geoDistance;
-  final Value<int?> distinctUserSuperSeq;
+  final Value<VisitSyncStatus> syncStatus;
+  final Value<int?> pendingId;
   final Value<DateTime> importedAt;
   const VisitsCompanion({
     this.id = const Value.absent(),
@@ -1685,12 +1728,13 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
     this.vehicleId = const Value.absent(),
     this.geoDistanceAccuracy = const Value.absent(),
     this.geoDistance = const Value.absent(),
-    this.distinctUserSuperSeq = const Value.absent(),
+    this.syncStatus = const Value.absent(),
+    this.pendingId = const Value.absent(),
     this.importedAt = const Value.absent(),
   });
   VisitsCompanion.insert({
     this.id = const Value.absent(),
-    required int checkinId,
+    this.checkinId = const Value.absent(),
     required int siteId,
     required DateTime checkinDate,
     required DateTime checkinTime,
@@ -1702,10 +1746,10 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
     this.vehicleId = const Value.absent(),
     this.geoDistanceAccuracy = const Value.absent(),
     this.geoDistance = const Value.absent(),
-    this.distinctUserSuperSeq = const Value.absent(),
+    this.syncStatus = const Value.absent(),
+    this.pendingId = const Value.absent(),
     required DateTime importedAt,
-  }) : checkinId = Value(checkinId),
-       siteId = Value(siteId),
+  }) : siteId = Value(siteId),
        checkinDate = Value(checkinDate),
        checkinTime = Value(checkinTime),
        importedAt = Value(importedAt);
@@ -1723,7 +1767,8 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
     Expression<String>? vehicleId,
     Expression<int>? geoDistanceAccuracy,
     Expression<int>? geoDistance,
-    Expression<int>? distinctUserSuperSeq,
+    Expression<String>? syncStatus,
+    Expression<int>? pendingId,
     Expression<DateTime>? importedAt,
   }) {
     return RawValuesInsertable({
@@ -1741,15 +1786,15 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
       if (geoDistanceAccuracy != null)
         'geo_distance_accuracy': geoDistanceAccuracy,
       if (geoDistance != null) 'geo_distance': geoDistance,
-      if (distinctUserSuperSeq != null)
-        'distinct_user_super_seq': distinctUserSuperSeq,
+      if (syncStatus != null) 'sync_status': syncStatus,
+      if (pendingId != null) 'pending_id': pendingId,
       if (importedAt != null) 'imported_at': importedAt,
     });
   }
 
   VisitsCompanion copyWith({
     Value<int>? id,
-    Value<int>? checkinId,
+    Value<int?>? checkinId,
     Value<int>? siteId,
     Value<DateTime>? checkinDate,
     Value<DateTime>? checkinTime,
@@ -1761,7 +1806,8 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
     Value<String?>? vehicleId,
     Value<int?>? geoDistanceAccuracy,
     Value<int?>? geoDistance,
-    Value<int?>? distinctUserSuperSeq,
+    Value<VisitSyncStatus>? syncStatus,
+    Value<int?>? pendingId,
     Value<DateTime>? importedAt,
   }) {
     return VisitsCompanion(
@@ -1778,7 +1824,8 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
       vehicleId: vehicleId ?? this.vehicleId,
       geoDistanceAccuracy: geoDistanceAccuracy ?? this.geoDistanceAccuracy,
       geoDistance: geoDistance ?? this.geoDistance,
-      distinctUserSuperSeq: distinctUserSuperSeq ?? this.distinctUserSuperSeq,
+      syncStatus: syncStatus ?? this.syncStatus,
+      pendingId: pendingId ?? this.pendingId,
       importedAt: importedAt ?? this.importedAt,
     );
   }
@@ -1829,10 +1876,13 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
     if (geoDistance.present) {
       map['geo_distance'] = Variable<int>(geoDistance.value);
     }
-    if (distinctUserSuperSeq.present) {
-      map['distinct_user_super_seq'] = Variable<int>(
-        distinctUserSuperSeq.value,
+    if (syncStatus.present) {
+      map['sync_status'] = Variable<String>(
+        $VisitsTable.$convertersyncStatus.toSql(syncStatus.value),
       );
+    }
+    if (pendingId.present) {
+      map['pending_id'] = Variable<int>(pendingId.value);
     }
     if (importedAt.present) {
       map['imported_at'] = Variable<DateTime>(importedAt.value);
@@ -1856,7 +1906,8 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
           ..write('vehicleId: $vehicleId, ')
           ..write('geoDistanceAccuracy: $geoDistanceAccuracy, ')
           ..write('geoDistance: $geoDistance, ')
-          ..write('distinctUserSuperSeq: $distinctUserSuperSeq, ')
+          ..write('syncStatus: $syncStatus, ')
+          ..write('pendingId: $pendingId, ')
           ..write('importedAt: $importedAt')
           ..write(')'))
         .toString();
@@ -2865,17 +2916,6 @@ class $SiteCheckinsTable extends SiteCheckins
         ),
         defaultValue: const Constant(false),
       );
-  static const VerificationMeta _daysAfterOpenMeta = const VerificationMeta(
-    'daysAfterOpen',
-  );
-  @override
-  late final GeneratedColumn<int> daysAfterOpen = GeneratedColumn<int>(
-    'days_after_open',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
   static const VerificationMeta _syncedAtMeta = const VerificationMeta(
     'syncedAt',
   );
@@ -2898,7 +2938,6 @@ class $SiteCheckinsTable extends SiteCheckins
     checkinDate,
     checkinTime,
     isFirstAtSupercharger,
-    daysAfterOpen,
     syncedAt,
   ];
   @override
@@ -2988,15 +3027,6 @@ class $SiteCheckinsTable extends SiteCheckins
         ),
       );
     }
-    if (data.containsKey('days_after_open')) {
-      context.handle(
-        _daysAfterOpenMeta,
-        daysAfterOpen.isAcceptableOrUnknown(
-          data['days_after_open']!,
-          _daysAfterOpenMeta,
-        ),
-      );
-    }
     if (data.containsKey('synced_at')) {
       context.handle(
         _syncedAtMeta,
@@ -3050,10 +3080,6 @@ class $SiteCheckinsTable extends SiteCheckins
         DriftSqlType.bool,
         data['${effectivePrefix}is_first_at_supercharger'],
       )!,
-      daysAfterOpen: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}days_after_open'],
-      ),
       syncedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}synced_at'],
@@ -3079,7 +3105,6 @@ class SiteCheckin extends DataClass implements Insertable<SiteCheckin> {
   final DateTime checkinDate;
   final DateTime checkinTime;
   final bool isFirstAtSupercharger;
-  final int? daysAfterOpen;
   final DateTime syncedAt;
   const SiteCheckin({
     required this.id,
@@ -3091,7 +3116,6 @@ class SiteCheckin extends DataClass implements Insertable<SiteCheckin> {
     required this.checkinDate,
     required this.checkinTime,
     required this.isFirstAtSupercharger,
-    this.daysAfterOpen,
     required this.syncedAt,
   });
   @override
@@ -3108,9 +3132,6 @@ class SiteCheckin extends DataClass implements Insertable<SiteCheckin> {
     map['checkin_date'] = Variable<DateTime>(checkinDate);
     map['checkin_time'] = Variable<DateTime>(checkinTime);
     map['is_first_at_supercharger'] = Variable<bool>(isFirstAtSupercharger);
-    if (!nullToAbsent || daysAfterOpen != null) {
-      map['days_after_open'] = Variable<int>(daysAfterOpen);
-    }
     map['synced_at'] = Variable<DateTime>(syncedAt);
     return map;
   }
@@ -3128,9 +3149,6 @@ class SiteCheckin extends DataClass implements Insertable<SiteCheckin> {
       checkinDate: Value(checkinDate),
       checkinTime: Value(checkinTime),
       isFirstAtSupercharger: Value(isFirstAtSupercharger),
-      daysAfterOpen: daysAfterOpen == null && nullToAbsent
-          ? const Value.absent()
-          : Value(daysAfterOpen),
       syncedAt: Value(syncedAt),
     );
   }
@@ -3152,7 +3170,6 @@ class SiteCheckin extends DataClass implements Insertable<SiteCheckin> {
       isFirstAtSupercharger: serializer.fromJson<bool>(
         json['isFirstAtSupercharger'],
       ),
-      daysAfterOpen: serializer.fromJson<int?>(json['daysAfterOpen']),
       syncedAt: serializer.fromJson<DateTime>(json['syncedAt']),
     );
   }
@@ -3169,7 +3186,6 @@ class SiteCheckin extends DataClass implements Insertable<SiteCheckin> {
       'checkinDate': serializer.toJson<DateTime>(checkinDate),
       'checkinTime': serializer.toJson<DateTime>(checkinTime),
       'isFirstAtSupercharger': serializer.toJson<bool>(isFirstAtSupercharger),
-      'daysAfterOpen': serializer.toJson<int?>(daysAfterOpen),
       'syncedAt': serializer.toJson<DateTime>(syncedAt),
     };
   }
@@ -3184,7 +3200,6 @@ class SiteCheckin extends DataClass implements Insertable<SiteCheckin> {
     DateTime? checkinDate,
     DateTime? checkinTime,
     bool? isFirstAtSupercharger,
-    Value<int?> daysAfterOpen = const Value.absent(),
     DateTime? syncedAt,
   }) => SiteCheckin(
     id: id ?? this.id,
@@ -3196,9 +3211,6 @@ class SiteCheckin extends DataClass implements Insertable<SiteCheckin> {
     checkinDate: checkinDate ?? this.checkinDate,
     checkinTime: checkinTime ?? this.checkinTime,
     isFirstAtSupercharger: isFirstAtSupercharger ?? this.isFirstAtSupercharger,
-    daysAfterOpen: daysAfterOpen.present
-        ? daysAfterOpen.value
-        : this.daysAfterOpen,
     syncedAt: syncedAt ?? this.syncedAt,
   );
   SiteCheckin copyWithCompanion(SiteCheckinsCompanion data) {
@@ -3220,9 +3232,6 @@ class SiteCheckin extends DataClass implements Insertable<SiteCheckin> {
       isFirstAtSupercharger: data.isFirstAtSupercharger.present
           ? data.isFirstAtSupercharger.value
           : this.isFirstAtSupercharger,
-      daysAfterOpen: data.daysAfterOpen.present
-          ? data.daysAfterOpen.value
-          : this.daysAfterOpen,
       syncedAt: data.syncedAt.present ? data.syncedAt.value : this.syncedAt,
     );
   }
@@ -3239,7 +3248,6 @@ class SiteCheckin extends DataClass implements Insertable<SiteCheckin> {
           ..write('checkinDate: $checkinDate, ')
           ..write('checkinTime: $checkinTime, ')
           ..write('isFirstAtSupercharger: $isFirstAtSupercharger, ')
-          ..write('daysAfterOpen: $daysAfterOpen, ')
           ..write('syncedAt: $syncedAt')
           ..write(')'))
         .toString();
@@ -3256,7 +3264,6 @@ class SiteCheckin extends DataClass implements Insertable<SiteCheckin> {
     checkinDate,
     checkinTime,
     isFirstAtSupercharger,
-    daysAfterOpen,
     syncedAt,
   );
   @override
@@ -3272,7 +3279,6 @@ class SiteCheckin extends DataClass implements Insertable<SiteCheckin> {
           other.checkinDate == this.checkinDate &&
           other.checkinTime == this.checkinTime &&
           other.isFirstAtSupercharger == this.isFirstAtSupercharger &&
-          other.daysAfterOpen == this.daysAfterOpen &&
           other.syncedAt == this.syncedAt);
 }
 
@@ -3286,7 +3292,6 @@ class SiteCheckinsCompanion extends UpdateCompanion<SiteCheckin> {
   final Value<DateTime> checkinDate;
   final Value<DateTime> checkinTime;
   final Value<bool> isFirstAtSupercharger;
-  final Value<int?> daysAfterOpen;
   final Value<DateTime> syncedAt;
   const SiteCheckinsCompanion({
     this.id = const Value.absent(),
@@ -3298,7 +3303,6 @@ class SiteCheckinsCompanion extends UpdateCompanion<SiteCheckin> {
     this.checkinDate = const Value.absent(),
     this.checkinTime = const Value.absent(),
     this.isFirstAtSupercharger = const Value.absent(),
-    this.daysAfterOpen = const Value.absent(),
     this.syncedAt = const Value.absent(),
   });
   SiteCheckinsCompanion.insert({
@@ -3311,7 +3315,6 @@ class SiteCheckinsCompanion extends UpdateCompanion<SiteCheckin> {
     required DateTime checkinDate,
     required DateTime checkinTime,
     this.isFirstAtSupercharger = const Value.absent(),
-    this.daysAfterOpen = const Value.absent(),
     required DateTime syncedAt,
   }) : checkinId = Value(checkinId),
        siteId = Value(siteId),
@@ -3330,7 +3333,6 @@ class SiteCheckinsCompanion extends UpdateCompanion<SiteCheckin> {
     Expression<DateTime>? checkinDate,
     Expression<DateTime>? checkinTime,
     Expression<bool>? isFirstAtSupercharger,
-    Expression<int>? daysAfterOpen,
     Expression<DateTime>? syncedAt,
   }) {
     return RawValuesInsertable({
@@ -3344,7 +3346,6 @@ class SiteCheckinsCompanion extends UpdateCompanion<SiteCheckin> {
       if (checkinTime != null) 'checkin_time': checkinTime,
       if (isFirstAtSupercharger != null)
         'is_first_at_supercharger': isFirstAtSupercharger,
-      if (daysAfterOpen != null) 'days_after_open': daysAfterOpen,
       if (syncedAt != null) 'synced_at': syncedAt,
     });
   }
@@ -3359,7 +3360,6 @@ class SiteCheckinsCompanion extends UpdateCompanion<SiteCheckin> {
     Value<DateTime>? checkinDate,
     Value<DateTime>? checkinTime,
     Value<bool>? isFirstAtSupercharger,
-    Value<int?>? daysAfterOpen,
     Value<DateTime>? syncedAt,
   }) {
     return SiteCheckinsCompanion(
@@ -3373,7 +3373,6 @@ class SiteCheckinsCompanion extends UpdateCompanion<SiteCheckin> {
       checkinTime: checkinTime ?? this.checkinTime,
       isFirstAtSupercharger:
           isFirstAtSupercharger ?? this.isFirstAtSupercharger,
-      daysAfterOpen: daysAfterOpen ?? this.daysAfterOpen,
       syncedAt: syncedAt ?? this.syncedAt,
     );
   }
@@ -3410,9 +3409,6 @@ class SiteCheckinsCompanion extends UpdateCompanion<SiteCheckin> {
         isFirstAtSupercharger.value,
       );
     }
-    if (daysAfterOpen.present) {
-      map['days_after_open'] = Variable<int>(daysAfterOpen.value);
-    }
     if (syncedAt.present) {
       map['synced_at'] = Variable<DateTime>(syncedAt.value);
     }
@@ -3431,7 +3427,6 @@ class SiteCheckinsCompanion extends UpdateCompanion<SiteCheckin> {
           ..write('checkinDate: $checkinDate, ')
           ..write('checkinTime: $checkinTime, ')
           ..write('isFirstAtSupercharger: $isFirstAtSupercharger, ')
-          ..write('daysAfterOpen: $daysAfterOpen, ')
           ..write('syncedAt: $syncedAt')
           ..write(')'))
         .toString();
@@ -3505,6 +3500,18 @@ class $UserSettingsTableTable extends UserSettingsTable
     ),
     defaultValue: const Constant(false),
   );
+  @override
+  late final GeneratedColumnWithTypeConverter<AuthProvider?, String>
+  authProvider =
+      GeneratedColumn<String>(
+        'auth_provider',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      ).withConverter<AuthProvider?>(
+        $UserSettingsTableTable.$converterauthProvidern,
+      );
   static const VerificationMeta _firstLoginAtMeta = const VerificationMeta(
     'firstLoginAt',
   );
@@ -3625,6 +3632,21 @@ class $UserSettingsTableTable extends UserSettingsTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _includeVehicleInPrivateNoteMeta =
+      const VerificationMeta('includeVehicleInPrivateNote');
+  @override
+  late final GeneratedColumn<bool> includeVehicleInPrivateNote =
+      GeneratedColumn<bool>(
+        'include_vehicle_in_private_note',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("include_vehicle_in_private_note" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
   static const VerificationMeta _lastLatitudeMeta = const VerificationMeta(
     'lastLatitude',
   );
@@ -3677,6 +3699,7 @@ class $UserSettingsTableTable extends UserSettingsTable
     username,
     displayName,
     isAuthenticated,
+    authProvider,
     firstLoginAt,
     lastLoginAt,
     lastXlsxSyncAt,
@@ -3687,6 +3710,7 @@ class $UserSettingsTableTable extends UserSettingsTable
     checkinRadiusKm,
     unitSystem,
     includeVisitedNearby,
+    includeVehicleInPrivateNote,
     lastLatitude,
     lastLongitude,
     lastSitesSyncAt,
@@ -3800,6 +3824,15 @@ class $UserSettingsTableTable extends UserSettingsTable
         ),
       );
     }
+    if (data.containsKey('include_vehicle_in_private_note')) {
+      context.handle(
+        _includeVehicleInPrivateNoteMeta,
+        includeVehicleInPrivateNote.isAcceptableOrUnknown(
+          data['include_vehicle_in_private_note']!,
+          _includeVehicleInPrivateNoteMeta,
+        ),
+      );
+    }
     if (data.containsKey('last_latitude')) {
       context.handle(
         _lastLatitudeMeta,
@@ -3865,6 +3898,12 @@ class $UserSettingsTableTable extends UserSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}is_authenticated'],
       )!,
+      authProvider: $UserSettingsTableTable.$converterauthProvidern.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}auth_provider'],
+        ),
+      ),
       firstLoginAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}first_login_at'],
@@ -3912,6 +3951,10 @@ class $UserSettingsTableTable extends UserSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}include_visited_nearby'],
       )!,
+      includeVehicleInPrivateNote: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}include_vehicle_in_private_note'],
+      )!,
       lastLatitude: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}last_latitude'],
@@ -3936,6 +3979,14 @@ class $UserSettingsTableTable extends UserSettingsTable
     return $UserSettingsTableTable(attachedDatabase, alias);
   }
 
+  static JsonTypeConverter2<AuthProvider, String, String>
+  $converterauthProvider = const EnumNameConverter<AuthProvider>(
+    AuthProvider.values,
+  );
+  static JsonTypeConverter2<AuthProvider?, String?, String?>
+  $converterauthProvidern = JsonTypeConverter2.asNullable(
+    $converterauthProvider,
+  );
   static JsonTypeConverter2<PollingInterval, String, String>
   $converterpollingInterval = const EnumNameConverter<PollingInterval>(
     PollingInterval.values,
@@ -3953,6 +4004,9 @@ class UserSettingsTableData extends DataClass
   final String? username;
   final String? displayName;
   final bool isAuthenticated;
+
+  /// GitHub or Google. Set for a live session and for a device-only sign-in.
+  final AuthProvider? authProvider;
   final DateTime? firstLoginAt;
   final DateTime? lastLoginAt;
   final DateTime? lastXlsxSyncAt;
@@ -3966,6 +4020,10 @@ class UserSettingsTableData extends DataClass
   /// When false, the nearby check-in list hides sites the user has already
   /// visited. Turn on to show those sites with their last visit date.
   final bool includeVisitedNearby;
+
+  /// When true, a check-in that names a vehicle appends year, make, model,
+  /// and trim to the private note. The VIN is never included.
+  final bool includeVehicleInPrivateNote;
   final double? lastLatitude;
   final double? lastLongitude;
   final DateTime? lastSitesSyncAt;
@@ -3976,6 +4034,7 @@ class UserSettingsTableData extends DataClass
     this.username,
     this.displayName,
     required this.isAuthenticated,
+    this.authProvider,
     this.firstLoginAt,
     this.lastLoginAt,
     this.lastXlsxSyncAt,
@@ -3986,6 +4045,7 @@ class UserSettingsTableData extends DataClass
     required this.checkinRadiusKm,
     required this.unitSystem,
     required this.includeVisitedNearby,
+    required this.includeVehicleInPrivateNote,
     this.lastLatitude,
     this.lastLongitude,
     this.lastSitesSyncAt,
@@ -4005,6 +4065,11 @@ class UserSettingsTableData extends DataClass
       map['display_name'] = Variable<String>(displayName);
     }
     map['is_authenticated'] = Variable<bool>(isAuthenticated);
+    if (!nullToAbsent || authProvider != null) {
+      map['auth_provider'] = Variable<String>(
+        $UserSettingsTableTable.$converterauthProvidern.toSql(authProvider),
+      );
+    }
     if (!nullToAbsent || firstLoginAt != null) {
       map['first_login_at'] = Variable<DateTime>(firstLoginAt);
     }
@@ -4035,6 +4100,9 @@ class UserSettingsTableData extends DataClass
       );
     }
     map['include_visited_nearby'] = Variable<bool>(includeVisitedNearby);
+    map['include_vehicle_in_private_note'] = Variable<bool>(
+      includeVehicleInPrivateNote,
+    );
     if (!nullToAbsent || lastLatitude != null) {
       map['last_latitude'] = Variable<double>(lastLatitude);
     }
@@ -4065,6 +4133,9 @@ class UserSettingsTableData extends DataClass
           ? const Value.absent()
           : Value(displayName),
       isAuthenticated: Value(isAuthenticated),
+      authProvider: authProvider == null && nullToAbsent
+          ? const Value.absent()
+          : Value(authProvider),
       firstLoginAt: firstLoginAt == null && nullToAbsent
           ? const Value.absent()
           : Value(firstLoginAt),
@@ -4081,6 +4152,7 @@ class UserSettingsTableData extends DataClass
       checkinRadiusKm: Value(checkinRadiusKm),
       unitSystem: Value(unitSystem),
       includeVisitedNearby: Value(includeVisitedNearby),
+      includeVehicleInPrivateNote: Value(includeVehicleInPrivateNote),
       lastLatitude: lastLatitude == null && nullToAbsent
           ? const Value.absent()
           : Value(lastLatitude),
@@ -4107,6 +4179,9 @@ class UserSettingsTableData extends DataClass
       username: serializer.fromJson<String?>(json['username']),
       displayName: serializer.fromJson<String?>(json['displayName']),
       isAuthenticated: serializer.fromJson<bool>(json['isAuthenticated']),
+      authProvider: $UserSettingsTableTable.$converterauthProvidern.fromJson(
+        serializer.fromJson<String?>(json['authProvider']),
+      ),
       firstLoginAt: serializer.fromJson<DateTime?>(json['firstLoginAt']),
       lastLoginAt: serializer.fromJson<DateTime?>(json['lastLoginAt']),
       lastXlsxSyncAt: serializer.fromJson<DateTime?>(json['lastXlsxSyncAt']),
@@ -4126,6 +4201,9 @@ class UserSettingsTableData extends DataClass
       includeVisitedNearby: serializer.fromJson<bool>(
         json['includeVisitedNearby'],
       ),
+      includeVehicleInPrivateNote: serializer.fromJson<bool>(
+        json['includeVehicleInPrivateNote'],
+      ),
       lastLatitude: serializer.fromJson<double?>(json['lastLatitude']),
       lastLongitude: serializer.fromJson<double?>(json['lastLongitude']),
       lastSitesSyncAt: serializer.fromJson<DateTime?>(json['lastSitesSyncAt']),
@@ -4143,6 +4221,9 @@ class UserSettingsTableData extends DataClass
       'username': serializer.toJson<String?>(username),
       'displayName': serializer.toJson<String?>(displayName),
       'isAuthenticated': serializer.toJson<bool>(isAuthenticated),
+      'authProvider': serializer.toJson<String?>(
+        $UserSettingsTableTable.$converterauthProvidern.toJson(authProvider),
+      ),
       'firstLoginAt': serializer.toJson<DateTime?>(firstLoginAt),
       'lastLoginAt': serializer.toJson<DateTime?>(lastLoginAt),
       'lastXlsxSyncAt': serializer.toJson<DateTime?>(lastXlsxSyncAt),
@@ -4161,6 +4242,9 @@ class UserSettingsTableData extends DataClass
         $UserSettingsTableTable.$converterunitSystem.toJson(unitSystem),
       ),
       'includeVisitedNearby': serializer.toJson<bool>(includeVisitedNearby),
+      'includeVehicleInPrivateNote': serializer.toJson<bool>(
+        includeVehicleInPrivateNote,
+      ),
       'lastLatitude': serializer.toJson<double?>(lastLatitude),
       'lastLongitude': serializer.toJson<double?>(lastLongitude),
       'lastSitesSyncAt': serializer.toJson<DateTime?>(lastSitesSyncAt),
@@ -4176,6 +4260,7 @@ class UserSettingsTableData extends DataClass
     Value<String?> username = const Value.absent(),
     Value<String?> displayName = const Value.absent(),
     bool? isAuthenticated,
+    Value<AuthProvider?> authProvider = const Value.absent(),
     Value<DateTime?> firstLoginAt = const Value.absent(),
     Value<DateTime?> lastLoginAt = const Value.absent(),
     Value<DateTime?> lastXlsxSyncAt = const Value.absent(),
@@ -4186,6 +4271,7 @@ class UserSettingsTableData extends DataClass
     double? checkinRadiusKm,
     UnitSystem? unitSystem,
     bool? includeVisitedNearby,
+    bool? includeVehicleInPrivateNote,
     Value<double?> lastLatitude = const Value.absent(),
     Value<double?> lastLongitude = const Value.absent(),
     Value<DateTime?> lastSitesSyncAt = const Value.absent(),
@@ -4196,6 +4282,7 @@ class UserSettingsTableData extends DataClass
     username: username.present ? username.value : this.username,
     displayName: displayName.present ? displayName.value : this.displayName,
     isAuthenticated: isAuthenticated ?? this.isAuthenticated,
+    authProvider: authProvider.present ? authProvider.value : this.authProvider,
     firstLoginAt: firstLoginAt.present ? firstLoginAt.value : this.firstLoginAt,
     lastLoginAt: lastLoginAt.present ? lastLoginAt.value : this.lastLoginAt,
     lastXlsxSyncAt: lastXlsxSyncAt.present
@@ -4208,6 +4295,8 @@ class UserSettingsTableData extends DataClass
     checkinRadiusKm: checkinRadiusKm ?? this.checkinRadiusKm,
     unitSystem: unitSystem ?? this.unitSystem,
     includeVisitedNearby: includeVisitedNearby ?? this.includeVisitedNearby,
+    includeVehicleInPrivateNote:
+        includeVehicleInPrivateNote ?? this.includeVehicleInPrivateNote,
     lastLatitude: lastLatitude.present ? lastLatitude.value : this.lastLatitude,
     lastLongitude: lastLongitude.present
         ? lastLongitude.value
@@ -4230,6 +4319,9 @@ class UserSettingsTableData extends DataClass
       isAuthenticated: data.isAuthenticated.present
           ? data.isAuthenticated.value
           : this.isAuthenticated,
+      authProvider: data.authProvider.present
+          ? data.authProvider.value
+          : this.authProvider,
       firstLoginAt: data.firstLoginAt.present
           ? data.firstLoginAt.value
           : this.firstLoginAt,
@@ -4258,6 +4350,9 @@ class UserSettingsTableData extends DataClass
       includeVisitedNearby: data.includeVisitedNearby.present
           ? data.includeVisitedNearby.value
           : this.includeVisitedNearby,
+      includeVehicleInPrivateNote: data.includeVehicleInPrivateNote.present
+          ? data.includeVehicleInPrivateNote.value
+          : this.includeVehicleInPrivateNote,
       lastLatitude: data.lastLatitude.present
           ? data.lastLatitude.value
           : this.lastLatitude,
@@ -4281,6 +4376,7 @@ class UserSettingsTableData extends DataClass
           ..write('username: $username, ')
           ..write('displayName: $displayName, ')
           ..write('isAuthenticated: $isAuthenticated, ')
+          ..write('authProvider: $authProvider, ')
           ..write('firstLoginAt: $firstLoginAt, ')
           ..write('lastLoginAt: $lastLoginAt, ')
           ..write('lastXlsxSyncAt: $lastXlsxSyncAt, ')
@@ -4291,6 +4387,7 @@ class UserSettingsTableData extends DataClass
           ..write('checkinRadiusKm: $checkinRadiusKm, ')
           ..write('unitSystem: $unitSystem, ')
           ..write('includeVisitedNearby: $includeVisitedNearby, ')
+          ..write('includeVehicleInPrivateNote: $includeVehicleInPrivateNote, ')
           ..write('lastLatitude: $lastLatitude, ')
           ..write('lastLongitude: $lastLongitude, ')
           ..write('lastSitesSyncAt: $lastSitesSyncAt, ')
@@ -4300,12 +4397,13 @@ class UserSettingsTableData extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     odUserId,
     username,
     displayName,
     isAuthenticated,
+    authProvider,
     firstLoginAt,
     lastLoginAt,
     lastXlsxSyncAt,
@@ -4316,11 +4414,12 @@ class UserSettingsTableData extends DataClass
     checkinRadiusKm,
     unitSystem,
     includeVisitedNearby,
+    includeVehicleInPrivateNote,
     lastLatitude,
     lastLongitude,
     lastSitesSyncAt,
     lastCheckinHistorySyncAt,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -4330,6 +4429,7 @@ class UserSettingsTableData extends DataClass
           other.username == this.username &&
           other.displayName == this.displayName &&
           other.isAuthenticated == this.isAuthenticated &&
+          other.authProvider == this.authProvider &&
           other.firstLoginAt == this.firstLoginAt &&
           other.lastLoginAt == this.lastLoginAt &&
           other.lastXlsxSyncAt == this.lastXlsxSyncAt &&
@@ -4340,6 +4440,8 @@ class UserSettingsTableData extends DataClass
           other.checkinRadiusKm == this.checkinRadiusKm &&
           other.unitSystem == this.unitSystem &&
           other.includeVisitedNearby == this.includeVisitedNearby &&
+          other.includeVehicleInPrivateNote ==
+              this.includeVehicleInPrivateNote &&
           other.lastLatitude == this.lastLatitude &&
           other.lastLongitude == this.lastLongitude &&
           other.lastSitesSyncAt == this.lastSitesSyncAt &&
@@ -4353,6 +4455,7 @@ class UserSettingsTableCompanion
   final Value<String?> username;
   final Value<String?> displayName;
   final Value<bool> isAuthenticated;
+  final Value<AuthProvider?> authProvider;
   final Value<DateTime?> firstLoginAt;
   final Value<DateTime?> lastLoginAt;
   final Value<DateTime?> lastXlsxSyncAt;
@@ -4363,6 +4466,7 @@ class UserSettingsTableCompanion
   final Value<double> checkinRadiusKm;
   final Value<UnitSystem> unitSystem;
   final Value<bool> includeVisitedNearby;
+  final Value<bool> includeVehicleInPrivateNote;
   final Value<double?> lastLatitude;
   final Value<double?> lastLongitude;
   final Value<DateTime?> lastSitesSyncAt;
@@ -4373,6 +4477,7 @@ class UserSettingsTableCompanion
     this.username = const Value.absent(),
     this.displayName = const Value.absent(),
     this.isAuthenticated = const Value.absent(),
+    this.authProvider = const Value.absent(),
     this.firstLoginAt = const Value.absent(),
     this.lastLoginAt = const Value.absent(),
     this.lastXlsxSyncAt = const Value.absent(),
@@ -4383,6 +4488,7 @@ class UserSettingsTableCompanion
     this.checkinRadiusKm = const Value.absent(),
     this.unitSystem = const Value.absent(),
     this.includeVisitedNearby = const Value.absent(),
+    this.includeVehicleInPrivateNote = const Value.absent(),
     this.lastLatitude = const Value.absent(),
     this.lastLongitude = const Value.absent(),
     this.lastSitesSyncAt = const Value.absent(),
@@ -4394,6 +4500,7 @@ class UserSettingsTableCompanion
     this.username = const Value.absent(),
     this.displayName = const Value.absent(),
     this.isAuthenticated = const Value.absent(),
+    this.authProvider = const Value.absent(),
     this.firstLoginAt = const Value.absent(),
     this.lastLoginAt = const Value.absent(),
     this.lastXlsxSyncAt = const Value.absent(),
@@ -4404,6 +4511,7 @@ class UserSettingsTableCompanion
     this.checkinRadiusKm = const Value.absent(),
     this.unitSystem = const Value.absent(),
     this.includeVisitedNearby = const Value.absent(),
+    this.includeVehicleInPrivateNote = const Value.absent(),
     this.lastLatitude = const Value.absent(),
     this.lastLongitude = const Value.absent(),
     this.lastSitesSyncAt = const Value.absent(),
@@ -4415,6 +4523,7 @@ class UserSettingsTableCompanion
     Expression<String>? username,
     Expression<String>? displayName,
     Expression<bool>? isAuthenticated,
+    Expression<String>? authProvider,
     Expression<DateTime>? firstLoginAt,
     Expression<DateTime>? lastLoginAt,
     Expression<DateTime>? lastXlsxSyncAt,
@@ -4425,6 +4534,7 @@ class UserSettingsTableCompanion
     Expression<double>? checkinRadiusKm,
     Expression<String>? unitSystem,
     Expression<bool>? includeVisitedNearby,
+    Expression<bool>? includeVehicleInPrivateNote,
     Expression<double>? lastLatitude,
     Expression<double>? lastLongitude,
     Expression<DateTime>? lastSitesSyncAt,
@@ -4436,6 +4546,7 @@ class UserSettingsTableCompanion
       if (username != null) 'username': username,
       if (displayName != null) 'display_name': displayName,
       if (isAuthenticated != null) 'is_authenticated': isAuthenticated,
+      if (authProvider != null) 'auth_provider': authProvider,
       if (firstLoginAt != null) 'first_login_at': firstLoginAt,
       if (lastLoginAt != null) 'last_login_at': lastLoginAt,
       if (lastXlsxSyncAt != null) 'last_xlsx_sync_at': lastXlsxSyncAt,
@@ -4448,6 +4559,8 @@ class UserSettingsTableCompanion
       if (unitSystem != null) 'unit_system': unitSystem,
       if (includeVisitedNearby != null)
         'include_visited_nearby': includeVisitedNearby,
+      if (includeVehicleInPrivateNote != null)
+        'include_vehicle_in_private_note': includeVehicleInPrivateNote,
       if (lastLatitude != null) 'last_latitude': lastLatitude,
       if (lastLongitude != null) 'last_longitude': lastLongitude,
       if (lastSitesSyncAt != null) 'last_sites_sync_at': lastSitesSyncAt,
@@ -4462,6 +4575,7 @@ class UserSettingsTableCompanion
     Value<String?>? username,
     Value<String?>? displayName,
     Value<bool>? isAuthenticated,
+    Value<AuthProvider?>? authProvider,
     Value<DateTime?>? firstLoginAt,
     Value<DateTime?>? lastLoginAt,
     Value<DateTime?>? lastXlsxSyncAt,
@@ -4472,6 +4586,7 @@ class UserSettingsTableCompanion
     Value<double>? checkinRadiusKm,
     Value<UnitSystem>? unitSystem,
     Value<bool>? includeVisitedNearby,
+    Value<bool>? includeVehicleInPrivateNote,
     Value<double?>? lastLatitude,
     Value<double?>? lastLongitude,
     Value<DateTime?>? lastSitesSyncAt,
@@ -4483,6 +4598,7 @@ class UserSettingsTableCompanion
       username: username ?? this.username,
       displayName: displayName ?? this.displayName,
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
+      authProvider: authProvider ?? this.authProvider,
       firstLoginAt: firstLoginAt ?? this.firstLoginAt,
       lastLoginAt: lastLoginAt ?? this.lastLoginAt,
       lastXlsxSyncAt: lastXlsxSyncAt ?? this.lastXlsxSyncAt,
@@ -4493,6 +4609,8 @@ class UserSettingsTableCompanion
       checkinRadiusKm: checkinRadiusKm ?? this.checkinRadiusKm,
       unitSystem: unitSystem ?? this.unitSystem,
       includeVisitedNearby: includeVisitedNearby ?? this.includeVisitedNearby,
+      includeVehicleInPrivateNote:
+          includeVehicleInPrivateNote ?? this.includeVehicleInPrivateNote,
       lastLatitude: lastLatitude ?? this.lastLatitude,
       lastLongitude: lastLongitude ?? this.lastLongitude,
       lastSitesSyncAt: lastSitesSyncAt ?? this.lastSitesSyncAt,
@@ -4518,6 +4636,13 @@ class UserSettingsTableCompanion
     }
     if (isAuthenticated.present) {
       map['is_authenticated'] = Variable<bool>(isAuthenticated.value);
+    }
+    if (authProvider.present) {
+      map['auth_provider'] = Variable<String>(
+        $UserSettingsTableTable.$converterauthProvidern.toSql(
+          authProvider.value,
+        ),
+      );
     }
     if (firstLoginAt.present) {
       map['first_login_at'] = Variable<DateTime>(firstLoginAt.value);
@@ -4561,6 +4686,11 @@ class UserSettingsTableCompanion
         includeVisitedNearby.value,
       );
     }
+    if (includeVehicleInPrivateNote.present) {
+      map['include_vehicle_in_private_note'] = Variable<bool>(
+        includeVehicleInPrivateNote.value,
+      );
+    }
     if (lastLatitude.present) {
       map['last_latitude'] = Variable<double>(lastLatitude.value);
     }
@@ -4586,6 +4716,7 @@ class UserSettingsTableCompanion
           ..write('username: $username, ')
           ..write('displayName: $displayName, ')
           ..write('isAuthenticated: $isAuthenticated, ')
+          ..write('authProvider: $authProvider, ')
           ..write('firstLoginAt: $firstLoginAt, ')
           ..write('lastLoginAt: $lastLoginAt, ')
           ..write('lastXlsxSyncAt: $lastXlsxSyncAt, ')
@@ -4596,6 +4727,7 @@ class UserSettingsTableCompanion
           ..write('checkinRadiusKm: $checkinRadiusKm, ')
           ..write('unitSystem: $unitSystem, ')
           ..write('includeVisitedNearby: $includeVisitedNearby, ')
+          ..write('includeVehicleInPrivateNote: $includeVehicleInPrivateNote, ')
           ..write('lastLatitude: $lastLatitude, ')
           ..write('lastLongitude: $lastLongitude, ')
           ..write('lastSitesSyncAt: $lastSitesSyncAt, ')
@@ -4664,21 +4796,6 @@ class $VehiclesTable extends Vehicles with TableInfo<$VehiclesTable, Vehicle> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _displayOptInMeta = const VerificationMeta(
-    'displayOptIn',
-  );
-  @override
-  late final GeneratedColumn<bool> displayOptIn = GeneratedColumn<bool>(
-    'display_opt_in',
-    aliasedName,
-    false,
-    type: DriftSqlType.bool,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("display_opt_in" IN (0, 1))',
-    ),
-    defaultValue: const Constant(false),
-  );
   static const VerificationMeta _hasVinMeta = const VerificationMeta('hasVin');
   @override
   late final GeneratedColumn<bool> hasVin = GeneratedColumn<bool>(
@@ -4712,7 +4829,6 @@ class $VehiclesTable extends Vehicles with TableInfo<$VehiclesTable, Vehicle> {
     model,
     year,
     trim,
-    displayOptIn,
     hasVin,
     createdAt,
   ];
@@ -4765,15 +4881,6 @@ class $VehiclesTable extends Vehicles with TableInfo<$VehiclesTable, Vehicle> {
         trim.isAcceptableOrUnknown(data['trim']!, _trimMeta),
       );
     }
-    if (data.containsKey('display_opt_in')) {
-      context.handle(
-        _displayOptInMeta,
-        displayOptIn.isAcceptableOrUnknown(
-          data['display_opt_in']!,
-          _displayOptInMeta,
-        ),
-      );
-    }
     if (data.containsKey('has_vin')) {
       context.handle(
         _hasVinMeta,
@@ -4819,10 +4926,6 @@ class $VehiclesTable extends Vehicles with TableInfo<$VehiclesTable, Vehicle> {
         DriftSqlType.string,
         data['${effectivePrefix}trim'],
       ),
-      displayOptIn: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}display_opt_in'],
-      )!,
       hasVin: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}has_vin'],
@@ -4847,7 +4950,6 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
   final String? model;
   final String? year;
   final String? trim;
-  final bool displayOptIn;
   final bool hasVin;
   final DateTime createdAt;
   const Vehicle({
@@ -4857,7 +4959,6 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
     this.model,
     this.year,
     this.trim,
-    required this.displayOptIn,
     required this.hasVin,
     required this.createdAt,
   });
@@ -4878,7 +4979,6 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
     if (!nullToAbsent || trim != null) {
       map['trim'] = Variable<String>(trim);
     }
-    map['display_opt_in'] = Variable<bool>(displayOptIn);
     map['has_vin'] = Variable<bool>(hasVin);
     map['created_at'] = Variable<DateTime>(createdAt);
     return map;
@@ -4894,7 +4994,6 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
           : Value(model),
       year: year == null && nullToAbsent ? const Value.absent() : Value(year),
       trim: trim == null && nullToAbsent ? const Value.absent() : Value(trim),
-      displayOptIn: Value(displayOptIn),
       hasVin: Value(hasVin),
       createdAt: Value(createdAt),
     );
@@ -4912,7 +5011,6 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
       model: serializer.fromJson<String?>(json['model']),
       year: serializer.fromJson<String?>(json['year']),
       trim: serializer.fromJson<String?>(json['trim']),
-      displayOptIn: serializer.fromJson<bool>(json['displayOptIn']),
       hasVin: serializer.fromJson<bool>(json['hasVin']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
@@ -4927,7 +5025,6 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
       'model': serializer.toJson<String?>(model),
       'year': serializer.toJson<String?>(year),
       'trim': serializer.toJson<String?>(trim),
-      'displayOptIn': serializer.toJson<bool>(displayOptIn),
       'hasVin': serializer.toJson<bool>(hasVin),
       'createdAt': serializer.toJson<DateTime>(createdAt),
     };
@@ -4940,7 +5037,6 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
     Value<String?> model = const Value.absent(),
     Value<String?> year = const Value.absent(),
     Value<String?> trim = const Value.absent(),
-    bool? displayOptIn,
     bool? hasVin,
     DateTime? createdAt,
   }) => Vehicle(
@@ -4950,7 +5046,6 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
     model: model.present ? model.value : this.model,
     year: year.present ? year.value : this.year,
     trim: trim.present ? trim.value : this.trim,
-    displayOptIn: displayOptIn ?? this.displayOptIn,
     hasVin: hasVin ?? this.hasVin,
     createdAt: createdAt ?? this.createdAt,
   );
@@ -4962,9 +5057,6 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
       model: data.model.present ? data.model.value : this.model,
       year: data.year.present ? data.year.value : this.year,
       trim: data.trim.present ? data.trim.value : this.trim,
-      displayOptIn: data.displayOptIn.present
-          ? data.displayOptIn.value
-          : this.displayOptIn,
       hasVin: data.hasVin.present ? data.hasVin.value : this.hasVin,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
@@ -4979,7 +5071,6 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
           ..write('model: $model, ')
           ..write('year: $year, ')
           ..write('trim: $trim, ')
-          ..write('displayOptIn: $displayOptIn, ')
           ..write('hasVin: $hasVin, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
@@ -4987,17 +5078,8 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
   }
 
   @override
-  int get hashCode => Object.hash(
-    id,
-    label,
-    make,
-    model,
-    year,
-    trim,
-    displayOptIn,
-    hasVin,
-    createdAt,
-  );
+  int get hashCode =>
+      Object.hash(id, label, make, model, year, trim, hasVin, createdAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -5008,7 +5090,6 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
           other.model == this.model &&
           other.year == this.year &&
           other.trim == this.trim &&
-          other.displayOptIn == this.displayOptIn &&
           other.hasVin == this.hasVin &&
           other.createdAt == this.createdAt);
 }
@@ -5020,7 +5101,6 @@ class VehiclesCompanion extends UpdateCompanion<Vehicle> {
   final Value<String?> model;
   final Value<String?> year;
   final Value<String?> trim;
-  final Value<bool> displayOptIn;
   final Value<bool> hasVin;
   final Value<DateTime> createdAt;
   final Value<int> rowid;
@@ -5031,7 +5111,6 @@ class VehiclesCompanion extends UpdateCompanion<Vehicle> {
     this.model = const Value.absent(),
     this.year = const Value.absent(),
     this.trim = const Value.absent(),
-    this.displayOptIn = const Value.absent(),
     this.hasVin = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -5043,7 +5122,6 @@ class VehiclesCompanion extends UpdateCompanion<Vehicle> {
     this.model = const Value.absent(),
     this.year = const Value.absent(),
     this.trim = const Value.absent(),
-    this.displayOptIn = const Value.absent(),
     this.hasVin = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -5056,7 +5134,6 @@ class VehiclesCompanion extends UpdateCompanion<Vehicle> {
     Expression<String>? model,
     Expression<String>? year,
     Expression<String>? trim,
-    Expression<bool>? displayOptIn,
     Expression<bool>? hasVin,
     Expression<DateTime>? createdAt,
     Expression<int>? rowid,
@@ -5068,7 +5145,6 @@ class VehiclesCompanion extends UpdateCompanion<Vehicle> {
       if (model != null) 'model': model,
       if (year != null) 'year': year,
       if (trim != null) 'trim': trim,
-      if (displayOptIn != null) 'display_opt_in': displayOptIn,
       if (hasVin != null) 'has_vin': hasVin,
       if (createdAt != null) 'created_at': createdAt,
       if (rowid != null) 'rowid': rowid,
@@ -5082,7 +5158,6 @@ class VehiclesCompanion extends UpdateCompanion<Vehicle> {
     Value<String?>? model,
     Value<String?>? year,
     Value<String?>? trim,
-    Value<bool>? displayOptIn,
     Value<bool>? hasVin,
     Value<DateTime>? createdAt,
     Value<int>? rowid,
@@ -5094,7 +5169,6 @@ class VehiclesCompanion extends UpdateCompanion<Vehicle> {
       model: model ?? this.model,
       year: year ?? this.year,
       trim: trim ?? this.trim,
-      displayOptIn: displayOptIn ?? this.displayOptIn,
       hasVin: hasVin ?? this.hasVin,
       createdAt: createdAt ?? this.createdAt,
       rowid: rowid ?? this.rowid,
@@ -5122,9 +5196,6 @@ class VehiclesCompanion extends UpdateCompanion<Vehicle> {
     if (trim.present) {
       map['trim'] = Variable<String>(trim.value);
     }
-    if (displayOptIn.present) {
-      map['display_opt_in'] = Variable<bool>(displayOptIn.value);
-    }
     if (hasVin.present) {
       map['has_vin'] = Variable<bool>(hasVin.value);
     }
@@ -5146,7 +5217,6 @@ class VehiclesCompanion extends UpdateCompanion<Vehicle> {
           ..write('model: $model, ')
           ..write('year: $year, ')
           ..write('trim: $trim, ')
-          ..write('displayOptIn: $displayOptIn, ')
           ..write('hasVin: $hasVin, ')
           ..write('createdAt: $createdAt, ')
           ..write('rowid: $rowid')
@@ -5872,7 +5942,7 @@ typedef $$SitesTableProcessedTableManager =
 typedef $$VisitsTableCreateCompanionBuilder =
     VisitsCompanion Function({
       Value<int> id,
-      required int checkinId,
+      Value<int?> checkinId,
       required int siteId,
       required DateTime checkinDate,
       required DateTime checkinTime,
@@ -5884,13 +5954,14 @@ typedef $$VisitsTableCreateCompanionBuilder =
       Value<String?> vehicleId,
       Value<int?> geoDistanceAccuracy,
       Value<int?> geoDistance,
-      Value<int?> distinctUserSuperSeq,
+      Value<VisitSyncStatus> syncStatus,
+      Value<int?> pendingId,
       required DateTime importedAt,
     });
 typedef $$VisitsTableUpdateCompanionBuilder =
     VisitsCompanion Function({
       Value<int> id,
-      Value<int> checkinId,
+      Value<int?> checkinId,
       Value<int> siteId,
       Value<DateTime> checkinDate,
       Value<DateTime> checkinTime,
@@ -5902,7 +5973,8 @@ typedef $$VisitsTableUpdateCompanionBuilder =
       Value<String?> vehicleId,
       Value<int?> geoDistanceAccuracy,
       Value<int?> geoDistance,
-      Value<int?> distinctUserSuperSeq,
+      Value<VisitSyncStatus> syncStatus,
+      Value<int?> pendingId,
       Value<DateTime> importedAt,
     });
 
@@ -5982,8 +6054,14 @@ class $$VisitsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<int> get distinctUserSuperSeq => $composableBuilder(
-    column: $table.distinctUserSuperSeq,
+  ColumnWithTypeConverterFilters<VisitSyncStatus, VisitSyncStatus, String>
+  get syncStatus => $composableBuilder(
+    column: $table.syncStatus,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnFilters<int> get pendingId => $composableBuilder(
+    column: $table.pendingId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6067,8 +6145,13 @@ class $$VisitsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get distinctUserSuperSeq => $composableBuilder(
-    column: $table.distinctUserSuperSeq,
+  ColumnOrderings<String> get syncStatus => $composableBuilder(
+    column: $table.syncStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get pendingId => $composableBuilder(
+    column: $table.pendingId,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -6141,10 +6224,14 @@ class $$VisitsTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<int> get distinctUserSuperSeq => $composableBuilder(
-    column: $table.distinctUserSuperSeq,
-    builder: (column) => column,
-  );
+  GeneratedColumnWithTypeConverter<VisitSyncStatus, String> get syncStatus =>
+      $composableBuilder(
+        column: $table.syncStatus,
+        builder: (column) => column,
+      );
+
+  GeneratedColumn<int> get pendingId =>
+      $composableBuilder(column: $table.pendingId, builder: (column) => column);
 
   GeneratedColumn<DateTime> get importedAt => $composableBuilder(
     column: $table.importedAt,
@@ -6181,7 +6268,7 @@ class $$VisitsTableTableManager
           updateCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
-                Value<int> checkinId = const Value.absent(),
+                Value<int?> checkinId = const Value.absent(),
                 Value<int> siteId = const Value.absent(),
                 Value<DateTime> checkinDate = const Value.absent(),
                 Value<DateTime> checkinTime = const Value.absent(),
@@ -6193,7 +6280,8 @@ class $$VisitsTableTableManager
                 Value<String?> vehicleId = const Value.absent(),
                 Value<int?> geoDistanceAccuracy = const Value.absent(),
                 Value<int?> geoDistance = const Value.absent(),
-                Value<int?> distinctUserSuperSeq = const Value.absent(),
+                Value<VisitSyncStatus> syncStatus = const Value.absent(),
+                Value<int?> pendingId = const Value.absent(),
                 Value<DateTime> importedAt = const Value.absent(),
               }) => VisitsCompanion(
                 id: id,
@@ -6209,13 +6297,14 @@ class $$VisitsTableTableManager
                 vehicleId: vehicleId,
                 geoDistanceAccuracy: geoDistanceAccuracy,
                 geoDistance: geoDistance,
-                distinctUserSuperSeq: distinctUserSuperSeq,
+                syncStatus: syncStatus,
+                pendingId: pendingId,
                 importedAt: importedAt,
               ),
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
-                required int checkinId,
+                Value<int?> checkinId = const Value.absent(),
                 required int siteId,
                 required DateTime checkinDate,
                 required DateTime checkinTime,
@@ -6227,7 +6316,8 @@ class $$VisitsTableTableManager
                 Value<String?> vehicleId = const Value.absent(),
                 Value<int?> geoDistanceAccuracy = const Value.absent(),
                 Value<int?> geoDistance = const Value.absent(),
-                Value<int?> distinctUserSuperSeq = const Value.absent(),
+                Value<VisitSyncStatus> syncStatus = const Value.absent(),
+                Value<int?> pendingId = const Value.absent(),
                 required DateTime importedAt,
               }) => VisitsCompanion.insert(
                 id: id,
@@ -6243,7 +6333,8 @@ class $$VisitsTableTableManager
                 vehicleId: vehicleId,
                 geoDistanceAccuracy: geoDistanceAccuracy,
                 geoDistance: geoDistance,
-                distinctUserSuperSeq: distinctUserSuperSeq,
+                syncStatus: syncStatus,
+                pendingId: pendingId,
                 importedAt: importedAt,
               ),
           withReferenceMapper: (p0) => p0
@@ -6682,7 +6773,6 @@ typedef $$SiteCheckinsTableCreateCompanionBuilder =
       required DateTime checkinDate,
       required DateTime checkinTime,
       Value<bool> isFirstAtSupercharger,
-      Value<int?> daysAfterOpen,
       required DateTime syncedAt,
     });
 typedef $$SiteCheckinsTableUpdateCompanionBuilder =
@@ -6696,7 +6786,6 @@ typedef $$SiteCheckinsTableUpdateCompanionBuilder =
       Value<DateTime> checkinDate,
       Value<DateTime> checkinTime,
       Value<bool> isFirstAtSupercharger,
-      Value<int?> daysAfterOpen,
       Value<DateTime> syncedAt,
     });
 
@@ -6751,11 +6840,6 @@ class $$SiteCheckinsTableFilterComposer
 
   ColumnFilters<bool> get isFirstAtSupercharger => $composableBuilder(
     column: $table.isFirstAtSupercharger,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get daysAfterOpen => $composableBuilder(
-    column: $table.daysAfterOpen,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6819,11 +6903,6 @@ class $$SiteCheckinsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get daysAfterOpen => $composableBuilder(
-    column: $table.daysAfterOpen,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<DateTime> get syncedAt => $composableBuilder(
     column: $table.syncedAt,
     builder: (column) => ColumnOrderings(column),
@@ -6874,11 +6953,6 @@ class $$SiteCheckinsTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<int> get daysAfterOpen => $composableBuilder(
-    column: $table.daysAfterOpen,
-    builder: (column) => column,
-  );
-
   GeneratedColumn<DateTime> get syncedAt =>
       $composableBuilder(column: $table.syncedAt, builder: (column) => column);
 }
@@ -6923,7 +6997,6 @@ class $$SiteCheckinsTableTableManager
                 Value<DateTime> checkinDate = const Value.absent(),
                 Value<DateTime> checkinTime = const Value.absent(),
                 Value<bool> isFirstAtSupercharger = const Value.absent(),
-                Value<int?> daysAfterOpen = const Value.absent(),
                 Value<DateTime> syncedAt = const Value.absent(),
               }) => SiteCheckinsCompanion(
                 id: id,
@@ -6935,7 +7008,6 @@ class $$SiteCheckinsTableTableManager
                 checkinDate: checkinDate,
                 checkinTime: checkinTime,
                 isFirstAtSupercharger: isFirstAtSupercharger,
-                daysAfterOpen: daysAfterOpen,
                 syncedAt: syncedAt,
               ),
           createCompanionCallback:
@@ -6949,7 +7021,6 @@ class $$SiteCheckinsTableTableManager
                 required DateTime checkinDate,
                 required DateTime checkinTime,
                 Value<bool> isFirstAtSupercharger = const Value.absent(),
-                Value<int?> daysAfterOpen = const Value.absent(),
                 required DateTime syncedAt,
               }) => SiteCheckinsCompanion.insert(
                 id: id,
@@ -6961,7 +7032,6 @@ class $$SiteCheckinsTableTableManager
                 checkinDate: checkinDate,
                 checkinTime: checkinTime,
                 isFirstAtSupercharger: isFirstAtSupercharger,
-                daysAfterOpen: daysAfterOpen,
                 syncedAt: syncedAt,
               ),
           withReferenceMapper: (p0) => p0
@@ -6996,6 +7066,7 @@ typedef $$UserSettingsTableTableCreateCompanionBuilder =
       Value<String?> username,
       Value<String?> displayName,
       Value<bool> isAuthenticated,
+      Value<AuthProvider?> authProvider,
       Value<DateTime?> firstLoginAt,
       Value<DateTime?> lastLoginAt,
       Value<DateTime?> lastXlsxSyncAt,
@@ -7006,6 +7077,7 @@ typedef $$UserSettingsTableTableCreateCompanionBuilder =
       Value<double> checkinRadiusKm,
       Value<UnitSystem> unitSystem,
       Value<bool> includeVisitedNearby,
+      Value<bool> includeVehicleInPrivateNote,
       Value<double?> lastLatitude,
       Value<double?> lastLongitude,
       Value<DateTime?> lastSitesSyncAt,
@@ -7018,6 +7090,7 @@ typedef $$UserSettingsTableTableUpdateCompanionBuilder =
       Value<String?> username,
       Value<String?> displayName,
       Value<bool> isAuthenticated,
+      Value<AuthProvider?> authProvider,
       Value<DateTime?> firstLoginAt,
       Value<DateTime?> lastLoginAt,
       Value<DateTime?> lastXlsxSyncAt,
@@ -7028,6 +7101,7 @@ typedef $$UserSettingsTableTableUpdateCompanionBuilder =
       Value<double> checkinRadiusKm,
       Value<UnitSystem> unitSystem,
       Value<bool> includeVisitedNearby,
+      Value<bool> includeVehicleInPrivateNote,
       Value<double?> lastLatitude,
       Value<double?> lastLongitude,
       Value<DateTime?> lastSitesSyncAt,
@@ -7066,6 +7140,12 @@ class $$UserSettingsTableTableFilterComposer
   ColumnFilters<bool> get isAuthenticated => $composableBuilder(
     column: $table.isAuthenticated,
     builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<AuthProvider?, AuthProvider, String>
+  get authProvider => $composableBuilder(
+    column: $table.authProvider,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
   );
 
   ColumnFilters<DateTime> get firstLoginAt => $composableBuilder(
@@ -7118,6 +7198,11 @@ class $$UserSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get includeVisitedNearby => $composableBuilder(
     column: $table.includeVisitedNearby,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get includeVehicleInPrivateNote => $composableBuilder(
+    column: $table.includeVehicleInPrivateNote,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7176,6 +7261,11 @@ class $$UserSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get authProvider => $composableBuilder(
+    column: $table.authProvider,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get firstLoginAt => $composableBuilder(
     column: $table.firstLoginAt,
     builder: (column) => ColumnOrderings(column),
@@ -7223,6 +7313,11 @@ class $$UserSettingsTableTableOrderingComposer
 
   ColumnOrderings<bool> get includeVisitedNearby => $composableBuilder(
     column: $table.includeVisitedNearby,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get includeVehicleInPrivateNote => $composableBuilder(
+    column: $table.includeVehicleInPrivateNote,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -7275,6 +7370,12 @@ class $$UserSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumnWithTypeConverter<AuthProvider?, String> get authProvider =>
+      $composableBuilder(
+        column: $table.authProvider,
+        builder: (column) => column,
+      );
+
   GeneratedColumn<DateTime> get firstLoginAt => $composableBuilder(
     column: $table.firstLoginAt,
     builder: (column) => column,
@@ -7322,6 +7423,11 @@ class $$UserSettingsTableTableAnnotationComposer
 
   GeneratedColumn<bool> get includeVisitedNearby => $composableBuilder(
     column: $table.includeVisitedNearby,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get includeVehicleInPrivateNote => $composableBuilder(
+    column: $table.includeVehicleInPrivateNote,
     builder: (column) => column,
   );
 
@@ -7391,6 +7497,7 @@ class $$UserSettingsTableTableTableManager
                 Value<String?> username = const Value.absent(),
                 Value<String?> displayName = const Value.absent(),
                 Value<bool> isAuthenticated = const Value.absent(),
+                Value<AuthProvider?> authProvider = const Value.absent(),
                 Value<DateTime?> firstLoginAt = const Value.absent(),
                 Value<DateTime?> lastLoginAt = const Value.absent(),
                 Value<DateTime?> lastXlsxSyncAt = const Value.absent(),
@@ -7401,6 +7508,7 @@ class $$UserSettingsTableTableTableManager
                 Value<double> checkinRadiusKm = const Value.absent(),
                 Value<UnitSystem> unitSystem = const Value.absent(),
                 Value<bool> includeVisitedNearby = const Value.absent(),
+                Value<bool> includeVehicleInPrivateNote = const Value.absent(),
                 Value<double?> lastLatitude = const Value.absent(),
                 Value<double?> lastLongitude = const Value.absent(),
                 Value<DateTime?> lastSitesSyncAt = const Value.absent(),
@@ -7412,6 +7520,7 @@ class $$UserSettingsTableTableTableManager
                 username: username,
                 displayName: displayName,
                 isAuthenticated: isAuthenticated,
+                authProvider: authProvider,
                 firstLoginAt: firstLoginAt,
                 lastLoginAt: lastLoginAt,
                 lastXlsxSyncAt: lastXlsxSyncAt,
@@ -7422,6 +7531,7 @@ class $$UserSettingsTableTableTableManager
                 checkinRadiusKm: checkinRadiusKm,
                 unitSystem: unitSystem,
                 includeVisitedNearby: includeVisitedNearby,
+                includeVehicleInPrivateNote: includeVehicleInPrivateNote,
                 lastLatitude: lastLatitude,
                 lastLongitude: lastLongitude,
                 lastSitesSyncAt: lastSitesSyncAt,
@@ -7434,6 +7544,7 @@ class $$UserSettingsTableTableTableManager
                 Value<String?> username = const Value.absent(),
                 Value<String?> displayName = const Value.absent(),
                 Value<bool> isAuthenticated = const Value.absent(),
+                Value<AuthProvider?> authProvider = const Value.absent(),
                 Value<DateTime?> firstLoginAt = const Value.absent(),
                 Value<DateTime?> lastLoginAt = const Value.absent(),
                 Value<DateTime?> lastXlsxSyncAt = const Value.absent(),
@@ -7444,6 +7555,7 @@ class $$UserSettingsTableTableTableManager
                 Value<double> checkinRadiusKm = const Value.absent(),
                 Value<UnitSystem> unitSystem = const Value.absent(),
                 Value<bool> includeVisitedNearby = const Value.absent(),
+                Value<bool> includeVehicleInPrivateNote = const Value.absent(),
                 Value<double?> lastLatitude = const Value.absent(),
                 Value<double?> lastLongitude = const Value.absent(),
                 Value<DateTime?> lastSitesSyncAt = const Value.absent(),
@@ -7455,6 +7567,7 @@ class $$UserSettingsTableTableTableManager
                 username: username,
                 displayName: displayName,
                 isAuthenticated: isAuthenticated,
+                authProvider: authProvider,
                 firstLoginAt: firstLoginAt,
                 lastLoginAt: lastLoginAt,
                 lastXlsxSyncAt: lastXlsxSyncAt,
@@ -7465,6 +7578,7 @@ class $$UserSettingsTableTableTableManager
                 checkinRadiusKm: checkinRadiusKm,
                 unitSystem: unitSystem,
                 includeVisitedNearby: includeVisitedNearby,
+                includeVehicleInPrivateNote: includeVehicleInPrivateNote,
                 lastLatitude: lastLatitude,
                 lastLongitude: lastLongitude,
                 lastSitesSyncAt: lastSitesSyncAt,
@@ -7507,7 +7621,6 @@ typedef $$VehiclesTableCreateCompanionBuilder =
       Value<String?> model,
       Value<String?> year,
       Value<String?> trim,
-      Value<bool> displayOptIn,
       Value<bool> hasVin,
       Value<DateTime> createdAt,
       Value<int> rowid,
@@ -7520,7 +7633,6 @@ typedef $$VehiclesTableUpdateCompanionBuilder =
       Value<String?> model,
       Value<String?> year,
       Value<String?> trim,
-      Value<bool> displayOptIn,
       Value<bool> hasVin,
       Value<DateTime> createdAt,
       Value<int> rowid,
@@ -7562,11 +7674,6 @@ class $$VehiclesTableFilterComposer
 
   ColumnFilters<String> get trim => $composableBuilder(
     column: $table.trim,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<bool> get displayOptIn => $composableBuilder(
-    column: $table.displayOptIn,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7620,11 +7727,6 @@ class $$VehiclesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<bool> get displayOptIn => $composableBuilder(
-    column: $table.displayOptIn,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<bool> get hasVin => $composableBuilder(
     column: $table.hasVin,
     builder: (column) => ColumnOrderings(column),
@@ -7662,11 +7764,6 @@ class $$VehiclesTableAnnotationComposer
 
   GeneratedColumn<String> get trim =>
       $composableBuilder(column: $table.trim, builder: (column) => column);
-
-  GeneratedColumn<bool> get displayOptIn => $composableBuilder(
-    column: $table.displayOptIn,
-    builder: (column) => column,
-  );
 
   GeneratedColumn<bool> get hasVin =>
       $composableBuilder(column: $table.hasVin, builder: (column) => column);
@@ -7709,7 +7806,6 @@ class $$VehiclesTableTableManager
                 Value<String?> model = const Value.absent(),
                 Value<String?> year = const Value.absent(),
                 Value<String?> trim = const Value.absent(),
-                Value<bool> displayOptIn = const Value.absent(),
                 Value<bool> hasVin = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -7720,7 +7816,6 @@ class $$VehiclesTableTableManager
                 model: model,
                 year: year,
                 trim: trim,
-                displayOptIn: displayOptIn,
                 hasVin: hasVin,
                 createdAt: createdAt,
                 rowid: rowid,
@@ -7733,7 +7828,6 @@ class $$VehiclesTableTableManager
                 Value<String?> model = const Value.absent(),
                 Value<String?> year = const Value.absent(),
                 Value<String?> trim = const Value.absent(),
-                Value<bool> displayOptIn = const Value.absent(),
                 Value<bool> hasVin = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -7744,7 +7838,6 @@ class $$VehiclesTableTableManager
                 model: model,
                 year: year,
                 trim: trim,
-                displayOptIn: displayOptIn,
                 hasVin: hasVin,
                 createdAt: createdAt,
                 rowid: rowid,

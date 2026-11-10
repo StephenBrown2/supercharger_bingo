@@ -9,8 +9,8 @@ import '../services/vehicle_service.dart';
 
 /// Local vehicle management (SPEC Section 3 / Section 8). Vehicles are local
 /// only and never synced. The raw VIN is stored in secure storage and never
-/// displayed; only the derived make/model/year/trim are shown, and only when
-/// the user opts in.
+/// displayed. Saved make, model, year, and trim are shown here. A check-in
+/// adds them to the private note only when that Check-in setting is on.
 class VehiclesScreen extends StatefulWidget {
   const VehiclesScreen({super.key});
 
@@ -75,7 +75,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     return ListTile(
       leading: const Icon(Icons.directions_car),
       title: Text(v.label),
-      subtitle: v.displayOptIn && derived.isNotEmpty
+      subtitle: derived.isNotEmpty
           ? Text(derived)
           : (v.hasVin ? const Text('VIN stored') : null),
       trailing: IconButton(
@@ -102,7 +102,6 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
   Future<void> _save({
     required String label,
     required String vin,
-    required bool displayOptIn,
     required String make,
     required String model,
     required String year,
@@ -139,7 +138,6 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
         model: Value(fields.model),
         year: Value(fields.year),
         trim: Value(fields.trim),
-        displayOptIn: Value(displayOptIn),
         hasVin: Value(vin.isNotEmpty),
       ),
     );
@@ -153,7 +151,6 @@ class _AddVehicleDialog extends StatefulWidget {
   final Future<void> Function({
     required String label,
     required String vin,
-    required bool displayOptIn,
     required String make,
     required String model,
     required String year,
@@ -175,7 +172,6 @@ class _AddVehicleDialogState extends State<_AddVehicleDialog> {
   final _yearController = TextEditingController();
   final _trimController = TextEditingController();
   final _edited = <String>{};
-  bool _displayOptIn = false;
   bool _working = false;
   bool _decoding = false;
   bool _suppressEdit = false;
@@ -301,15 +297,6 @@ class _AddVehicleDialogState extends State<_AddVehicleDialog> {
                 border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 4),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Show decoded make/model'),
-              value: _displayOptIn,
-              onChanged: _working
-                  ? null
-                  : (v) => setState(() => _displayOptIn = v),
-            ),
           ],
         ),
       ),
@@ -325,7 +312,6 @@ class _AddVehicleDialogState extends State<_AddVehicleDialog> {
                   await widget.onSave(
                     label: _labelController.text.trim(),
                     vin: _vinController.text.trim(),
-                    displayOptIn: _displayOptIn,
                     make: _makeController.text.trim(),
                     model: _modelController.text.trim(),
                     year: _yearController.text.trim(),

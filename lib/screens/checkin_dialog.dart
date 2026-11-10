@@ -32,6 +32,7 @@ Future<bool> showCheckinDialog(
       vehicles: vehicles,
       lastVisit: lastVisit,
       unitSystem: settings.unitSystem,
+      includeVehicleInPrivateNote: settings.includeVehicleInPrivateNote,
       lastVehicleId: lastVehicleId,
     ),
   );
@@ -47,6 +48,7 @@ class _CheckinDialog extends StatefulWidget {
   final List<Vehicle> vehicles;
   final DateTime? lastVisit;
   final UnitSystem unitSystem;
+  final bool includeVehicleInPrivateNote;
   final String? lastVehicleId;
 
   const _CheckinDialog({
@@ -56,6 +58,7 @@ class _CheckinDialog extends StatefulWidget {
     required this.vehicles,
     required this.lastVisit,
     required this.unitSystem,
+    required this.includeVehicleInPrivateNote,
     required this.lastVehicleId,
   });
 
@@ -211,7 +214,7 @@ class _CheckinDialogState extends State<_CheckinDialog> {
     final privateNotes = <String>[
       if (_privateController.text.isNotEmpty) _privateController.text,
     ];
-    if (vehicle != null && vehicle.displayOptIn) {
+    if (vehicle != null && widget.includeVehicleInPrivateNote) {
       final details = [
         vehicle.year,
         vehicle.make,
@@ -222,27 +225,25 @@ class _CheckinDialogState extends State<_CheckinDialog> {
     }
 
     try {
-      await DatabaseService.db.transaction(() async {
-        await DatabaseService.addPendingCheckin(
-          PendingCheckinsCompanion(
-            siteId: Value(widget.site.siteId),
-            checkinDate: Value(now),
-            checkinPrecision: const Value(CheckinPrecision.timestamp),
-            createdAt: Value(now),
-            latitude: Value(pos?.latitude),
-            longitude: Value(pos?.longitude),
-            accuracy: Value(pos?.accuracy),
-            notesPublic: Value(
-              _publicController.text.isEmpty ? null : _publicController.text,
-            ),
-            notesPrivate: Value(
-              privateNotes.isEmpty ? null : privateNotes.join('\n'),
-            ),
-            vehicleId: Value(_selectedVehicleId),
+      await DatabaseService.saveQueuedCheckin(
+        method: pos == null ? CheckinMethod.manual : CheckinMethod.gps,
+        pending: PendingCheckinsCompanion(
+          siteId: Value(widget.site.siteId),
+          checkinDate: Value(now),
+          checkinPrecision: const Value(CheckinPrecision.timestamp),
+          createdAt: Value(now),
+          latitude: Value(pos?.latitude),
+          longitude: Value(pos?.longitude),
+          accuracy: Value(pos?.accuracy),
+          notesPublic: Value(
+            _publicController.text.isEmpty ? null : _publicController.text,
           ),
-        );
-        await DatabaseService.markSiteVisited(widget.site.siteId, true);
-      });
+          notesPrivate: Value(
+            privateNotes.isEmpty ? null : privateNotes.join('\n'),
+          ),
+          vehicleId: Value(_selectedVehicleId),
+        ),
+      );
 
       if (mounted) Navigator.pop(context, true);
     } catch (_) {

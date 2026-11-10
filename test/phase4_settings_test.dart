@@ -15,5 +15,6 @@ void main() {
     final settings = await db.getUserSettings();
     expect(settings.unitSystem, UnitSystem.imperial);
     expect(settings.includeVisitedNearby, isFalse);
+    expect(settings.includeVehicleInPrivateNote, isFalse);
   });
 }
