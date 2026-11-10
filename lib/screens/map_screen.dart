@@ -11,7 +11,9 @@ import '../services/database_service.dart';
 import '../services/location_service.dart';
 import '../services/sync_service.dart';
 import '../services/timezone_service.dart';
+import '../services/write_result.dart';
 import 'checkin_dialog.dart';
+import 'login_screen.dart';
 import 'map_marker_style.dart';
 
 /// Full-screen map with filter controls and accessible markers
@@ -59,6 +61,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   bool _isLoadingLocation = false;
   bool _isLoadingSites = false;
   String? _locationError;
+  bool _needsSignIn = false;
 
   @override
   void initState() {
@@ -121,8 +124,33 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     // Recompute pin colours once community check-in data finishes syncing.
     SyncService.instance.communityDataVersion.addListener(_onCommunityData);
     SyncService.instance.sitesVersion.addListener(_onSitesSynced);
+    SyncService.instance.sessionExpiredVersion.addListener(_onSessionExpired);
+    _refreshSignInBanner();
 
     _fetchLocationForCheckin();
+  }
+
+  void _onSessionExpired() {
+    if (mounted) setState(() => _needsSignIn = true);
+  }
+
+  Future<void> _refreshSignInBanner() async {
+    final pending = await DatabaseService.getPendingCheckins();
+    final needs = pending.any(
+      (row) =>
+          row.lastError == signInAgainMessage ||
+          row.lastError == waitingForSignInMessage,
+    );
+    if (mounted && needs) setState(() => _needsSignIn = true);
+  }
+
+  Future<void> _openSignIn() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => LoginScreen(onLoginSuccess: () {})),
+    );
+    if (!mounted) return;
+    final settings = await DatabaseService.getUserSettings();
+    setState(() => _needsSignIn = !settings.isAuthenticated);
   }
 
   void _onCommunityData() {
@@ -148,6 +176,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   void dispose() {
     SyncService.instance.communityDataVersion.removeListener(_onCommunityData);
     SyncService.instance.sitesVersion.removeListener(_onSitesSynced);
+    SyncService.instance.sessionExpiredVersion.removeListener(
+      _onSessionExpired,
+    );
     _locationAnimController.dispose();
     _drawerAnimController.dispose();
     super.dispose();
@@ -387,6 +418,26 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             right: 8,
             child: _buildFilterChips(theme),
           ),
+
+          if (_needsSignIn)
+            Positioned(
+              top: 52,
+              left: 8,
+              right: 8,
+              child: Material(
+                elevation: 2,
+                borderRadius: BorderRadius.circular(8),
+                color: theme.colorScheme.errorContainer,
+                child: ListTile(
+                  dense: true,
+                  title: const Text(signInAgainMessage),
+                  trailing: TextButton(
+                    onPressed: _openSignIn,
+                    child: const Text('Sign in'),
+                  ),
+                ),
+              ),
+            ),
 
           // Legend at bottom
           Positioned(bottom: 16, left: 16, child: _buildLegend(theme)),

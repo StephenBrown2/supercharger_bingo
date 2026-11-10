@@ -243,7 +243,7 @@ Route planning, real-time stall availability, leaderboards beyond the basic Firs
 
 ## 13. Migration Plan: Prototype to Spec
 
-Status: Complete through Phase 4 for the POC. The official API coordination in the last paragraph is deferred.
+Status: Complete through Phase 6 for the POC. The official API coordination in the last paragraph is deferred.
 
 The existing `supercharger_bingo` prototype is a real starting point, not a throwaway: it already has working drift persistence, supercharge.info parsing, GPS-plus-IP location, a timezone dataset and lookup, background sync scaffolding with the two notification channels, and a check-in screen with nearest-site sorting. The work is changing what it stores and how it talks to supercharging.life, not starting over.
 
@@ -268,6 +268,8 @@ Status: Complete. Distance units default to imperial.
 Status: Complete. CheckinWriter returns a distinct result for accepted, rejected, retry, and needs sign-in.
 
 **Phase 6, harden auth.** Keep the webview cookie-capture login rather than replacing it; it's the only thing making Phase 5's POC writer work. The improvement here is robustness: detect and surface session expiry instead of failing silently, retry or re-prompt login when the captured cookie stops working, and extract the session-management logic behind an auth interface so swapping in shared GitHub/Google OAuth later, once the official API supports it, is a second implementation rather than a rewrite. This pairs naturally with Phase 5, since both are about making the current unofficial-endpoint POC dependable enough to rely on while waiting for the real API.
+
+Status: Complete. An expired or missing SCLSESSION clears the cookie, clears isAuthenticated, leaves lastLoginAt in place, and the map asks the user to sign in.
 
 **Ongoing, in parallel:** the Section 9 provisional API contract is the artifact to take to supercharging.life for coordination; it doesn't block any of the phases above and can start immediately.
 
