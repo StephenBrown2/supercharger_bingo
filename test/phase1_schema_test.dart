@@ -1,4 +1,4 @@
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' show Value, Migrator;
 import 'package:drift/native.dart' show NativeDatabase;
 import 'package:flutter_test/flutter_test.dart';
 
@@ -18,6 +18,36 @@ void main() {
     test('schemaVersion is bumped past the prototype (>= 4)', () {
       expect(db.schemaVersion, greaterThanOrEqualTo(4));
     });
+
+    test(
+      'v3 upgrade initializes new timezone without reading a missing column',
+      () async {
+        await db.upsertSite(
+          SitesCompanion.insert(
+            siteId: 42,
+            name: 'Existing site',
+            visited: const Value(true),
+          ),
+        );
+        for (final statement in [
+          'ALTER TABLE sites DROP COLUMN timezone',
+          'ALTER TABLE visits DROP COLUMN notes_private',
+          'ALTER TABLE visits DROP COLUMN vehicle_id',
+          'ALTER TABLE pending_checkins DROP COLUMN notes_private',
+          'ALTER TABLE pending_checkins DROP COLUMN vehicle_id',
+          'DROP TABLE vehicles',
+          'ALTER TABLE user_settings DROP COLUMN include_visited_nearby',
+        ]) {
+          await db.customStatement(statement);
+        }
+        await db.migration.onUpgrade!(Migrator(db), 3, 6);
+        final site = await db.getSiteBySiteId(42);
+        expect(site!.timezone, isNull);
+        expect(site.visited, isTrue);
+        expect(await db.getAllVehicles(), isEmpty);
+        expect((await db.getUserSettings()).includeVisitedNearby, isFalse);
+      },
+    );
 
     test('site persists new enum value and derived timezone column', () async {
       await db.upsertSite(

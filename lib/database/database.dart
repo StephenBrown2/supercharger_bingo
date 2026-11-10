@@ -54,7 +54,9 @@ class Sites extends Table {
   IntColumn get stallCount => integer().nullable()();
   DateTimeColumn get dateOpened => dateTime().nullable()();
 
-  /// Whether this site has any check-ins from any user (false = first eligible)
+  /// Cache of "community check-in count > 0" from the counts endpoint.
+  /// First eligibility comes from getEarliestCheckinDates (the earliest
+  /// qualifying community check-in). This flag is only the counts cache.
   BoolColumn get hasCheckins => boolean().withDefault(const Constant(false))();
 
   /// Whether the current user has visited this site
@@ -65,6 +67,8 @@ class Sites extends Table {
 /// User's visits (check-ins)
 class Visits extends Table {
   IntColumn get id => integer().autoIncrement()();
+
+  /// Server-assigned supercharging.life check-in id, kept as that integer.
   IntColumn get checkinId => integer().unique()();
   IntColumn get siteId => integer()();
   DateTimeColumn get checkinDate => dateTime()();
@@ -109,6 +113,8 @@ class PendingCheckins extends Table {
 /// Others' check-ins (for First eligibility tracking)
 class SiteCheckins extends Table {
   IntColumn get id => integer().autoIncrement()();
+
+  /// Same server-assigned supercharging.life check-in id as [Visits.checkinId].
   IntColumn get checkinId => integer().unique()();
   IntColumn get siteId => integer()();
   IntColumn get odUserId => integer()();
@@ -133,11 +139,9 @@ class Vehicles extends Table {
   TextColumn get model => text().nullable()();
   TextColumn get year => text().nullable()();
   TextColumn get trim => text().nullable()();
-  BoolColumn get displayOptIn =>
-      boolean().withDefault(const Constant(false))();
+  BoolColumn get displayOptIn => boolean().withDefault(const Constant(false))();
   BoolColumn get hasVin => boolean().withDefault(const Constant(false))();
-  DateTimeColumn get createdAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -168,6 +172,11 @@ class UserSettingsTable extends Table {
       real().withDefault(const Constant(5000.0))();
   TextColumn get unitSystem =>
       textEnum<UnitSystem>().withDefault(Constant(UnitSystem.imperial.name))();
+
+  /// When false, the nearby check-in list hides sites the user has already
+  /// visited. Turn on to show those sites with their last visit date.
+  BoolColumn get includeVisitedNearby =>
+      boolean().withDefault(const Constant(false))();
   RealColumn get lastLatitude => real().nullable()();
   RealColumn get lastLongitude => real().nullable()();
   DateTimeColumn get lastSitesSyncAt => dateTime().nullable()();
@@ -198,7 +207,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration {
@@ -241,7 +250,9 @@ class AppDatabase extends _$AppDatabase {
           // Recreate the sites table from the current schema: drops the removed
           // columns (street/zip/stallsV2-4/powerKilowatt) and adds the nullable
           // timezone column (null until backfilled on next site sync).
-          await m.alterTable(TableMigration(sites));
+          await m.alterTable(
+            TableMigration(sites, newColumns: [sites.timezone]),
+          );
         }
         if (from < 5) {
           // SPEC Phase 3: private notes + local vehicle association, plus the
@@ -259,6 +270,12 @@ class AppDatabase extends _$AppDatabase {
             'ALTER TABLE pending_checkins ADD COLUMN vehicle_id TEXT',
           );
           await m.createTable(vehicles);
+        }
+        if (from < 6) {
+          await m.addColumn(
+            userSettingsTable,
+            userSettingsTable.includeVisitedNearby,
+          );
         }
       },
     );
@@ -321,8 +338,19 @@ class AppDatabase extends _$AppDatabase {
     if (siteIds.isEmpty) return {};
     final minDate = siteCheckins.checkinDate.min();
     final query = selectOnly(siteCheckins)
+      ..join([
+        innerJoin(
+          sites,
+          sites.siteId.equalsExp(siteCheckins.siteId),
+          useColumns: false,
+        ),
+      ])
       ..addColumns([siteCheckins.siteId, minDate])
       ..where(siteCheckins.siteId.isIn(siteIds))
+      ..where(
+        sites.dateOpened.isNull() |
+            siteCheckins.checkinDate.isBiggerOrEqual(sites.dateOpened),
+      )
       ..groupBy([siteCheckins.siteId]);
     final rows = await query.get();
     final result = <int, DateTime>{};
@@ -360,7 +388,7 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> markSiteVisited(int siteId, bool visited) async {
     await (update(sites)..where((t) => t.siteId.equals(siteId))).write(
-      SitesCompanion(visited: Value(visited), hasCheckins: const Value(true)),
+      SitesCompanion(visited: Value(visited)),
     );
   }
 
@@ -401,7 +429,19 @@ class AppDatabase extends _$AppDatabase {
               ..orderBy([(t) => OrderingTerm.desc(t.checkinDate)])
               ..limit(1))
             .getSingleOrNull();
-    return visit?.checkinDate;
+    final pending =
+        await (select(pendingCheckins)
+              ..where((t) => t.siteId.equals(siteId))
+              ..orderBy([(t) => OrderingTerm.desc(t.checkinDate)])
+              ..limit(1))
+            .getSingleOrNull();
+    final dates = <DateTime>[
+      if (visit != null) visit.checkinDate,
+      if (pending != null) pending.checkinDate,
+    ];
+    if (dates.isEmpty) return null;
+    dates.sort();
+    return dates.last;
   }
 
   Future<void> addVisit(VisitsCompanion visit) async {
@@ -471,7 +511,10 @@ class AppDatabase extends _$AppDatabase {
           checkin,
           // Conflict is on the checkin_id unique index, not the PK; without an
           // explicit target drift assumes the PK and the insert fails.
-          onConflict: DoUpdate((old) => checkin, target: [siteCheckins.checkinId]),
+          onConflict: DoUpdate(
+            (old) => checkin,
+            target: [siteCheckins.checkinId],
+          ),
         );
       }
     });
@@ -500,8 +543,21 @@ class AppDatabase extends _$AppDatabase {
   // -------------------------------------------------------------------------
 
   Future<List<Vehicle>> getAllVehicles() {
-    return (select(vehicles)..orderBy([(t) => OrderingTerm(expression: t.label)]))
-        .get();
+    return (select(
+      vehicles,
+    )..orderBy([(t) => OrderingTerm(expression: t.label)])).get();
+  }
+
+  Future<String?> getLastUsedVehicleId() async {
+    final row = await customSelect('''
+      SELECT vehicle_id FROM (
+        SELECT vehicle_id, created_at AS used_at FROM pending_checkins
+        UNION ALL
+        SELECT vehicle_id, checkin_date AS used_at FROM visits
+      ) WHERE vehicle_id IS NOT NULL
+      ORDER BY used_at DESC LIMIT 1
+    ''').getSingleOrNull();
+    return row?.read<String>('vehicle_id');
   }
 
   Future<Vehicle?> getVehicle(String id) {

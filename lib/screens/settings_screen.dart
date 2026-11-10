@@ -17,6 +17,7 @@ class MutableSettings {
   bool showVisitedOnMap;
   double checkinRadiusKm;
   UnitSystem unitSystem;
+  bool includeVisitedNearby;
   DateTime? lastSitesSyncAt;
   DateTime? lastCheckinHistorySyncAt;
   DateTime? lastXlsxSyncAt;
@@ -31,6 +32,7 @@ class MutableSettings {
     this.showVisitedOnMap = false,
     this.checkinRadiusKm = 5000.0,
     this.unitSystem = UnitSystem.imperial,
+    this.includeVisitedNearby = false,
     this.lastSitesSyncAt,
     this.lastCheckinHistorySyncAt,
     this.lastXlsxSyncAt,
@@ -47,6 +49,7 @@ class MutableSettings {
       showVisitedOnMap: data.showVisitedOnMap,
       checkinRadiusKm: data.checkinRadiusKm,
       unitSystem: data.unitSystem,
+      includeVisitedNearby: data.includeVisitedNearby,
       lastSitesSyncAt: data.lastSitesSyncAt,
       lastCheckinHistorySyncAt: data.lastCheckinHistorySyncAt,
       lastXlsxSyncAt: data.lastXlsxSyncAt,
@@ -64,6 +67,7 @@ class MutableSettings {
       showVisitedOnMap: Value(showVisitedOnMap),
       checkinRadiusKm: Value(checkinRadiusKm),
       unitSystem: Value(unitSystem),
+      includeVisitedNearby: Value(includeVisitedNearby),
     );
   }
 }
@@ -189,6 +193,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: _showCheckinRadiusPicker,
                 ),
+                SwitchListTile(
+                  secondary: const Icon(Icons.history),
+                  title: const Text('Include visited sites'),
+                  subtitle: const Text(
+                    'Show them in the nearby check-in list, with the last visit date',
+                  ),
+                  value: _settings?.includeVisitedNearby ?? false,
+                  onChanged: (value) {
+                    setState(() => _settings?.includeVisitedNearby = value);
+                    _saveSettings();
+                  },
+                ),
                 ListTile(
                   leading: const Icon(Icons.straighten),
                   title: const Text('Distance Units'),
@@ -222,9 +238,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: const Text('Manage your vehicles (local only)'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const VehiclesScreen(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const VehiclesScreen()),
                   ),
                 ),
                 const Divider(),

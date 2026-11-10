@@ -14,8 +14,8 @@ void main() {
   tearDown(() => db.close());
 
   group('Phase 3 schema (v5)', () {
-    test('schemaVersion is bumped to 5', () {
-      expect(db.schemaVersion, 5);
+    test('schemaVersion is bumped to at least 5', () {
+      expect(db.schemaVersion, greaterThanOrEqualTo(5));
     });
 
     test('Vehicles CRUD round-trips, raw VIN is not a column', () async {

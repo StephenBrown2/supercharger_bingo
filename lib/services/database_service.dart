@@ -24,9 +24,9 @@ class DatabaseService {
   }
 
   /// Initialize the database
-  static Future<void> initialize() async {
+  static Future<void> initialize({AppDatabase? database}) async {
     if (_db != null) return;
-    _db = AppDatabase(connect());
+    _db = database ?? AppDatabase(connect());
   }
 
   /// Preload user settings and default filtered sites for first screen.
@@ -61,6 +61,11 @@ class DatabaseService {
     UserSettingsTableCompanion settings,
   ) async {
     await db.updateUserSettings(settings);
+    // Splash caches the first settings row. Refresh it so a change, such as
+    // including visited sites nearby, is visible for the rest of the session.
+    if (bootstrapUserSettings != null) {
+      bootstrapUserSettings = await db.getUserSettings();
+    }
   }
 
   /// Get all sites, optionally filtered
@@ -213,9 +218,7 @@ class DatabaseService {
 
   /// Map of siteId -> the current user's most recent check-in date (or absent
   /// if none), for the "most-recent check-in" annotation in the nearby list.
-  static Future<Map<int, DateTime>> getLastVisitDates(
-    List<int> siteIds,
-  ) async {
+  static Future<Map<int, DateTime>> getLastVisitDates(List<int> siteIds) async {
     final result = <int, DateTime>{};
     for (final id in siteIds) {
       final date = await db.getLastVisitDate(id);

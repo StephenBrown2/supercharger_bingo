@@ -6,13 +6,14 @@ import 'package:excel/excel.dart';
 import 'package:flutter/foundation.dart';
 
 import '../database/database.dart';
+import '../models/supercharge_info.dart';
 import 'api_service.dart';
 import 'database_service.dart';
 
 /// Service for syncing data between local database and remote APIs
 class SyncService {
   static SyncService? _instance;
-  static SyncService get instance => _instance ??= SyncService._();
+  static SyncService get instance => _instance ??= SyncService();
 
   /// Bumped whenever community check-in data finishes syncing, so screens can
   /// recompute First state (pin colours) once the data lands.
@@ -25,7 +26,10 @@ class SyncService {
   bool _isSyncingCheckinCounts = false;
   bool _isSyncingUser = false;
 
-  SyncService._();
+  final ApiService _apiService;
+
+  SyncService({ApiService? apiService})
+    : _apiService = apiService ?? ApiService.instance;
 
   /// Initialize sync service and listen for connectivity changes
   void initialize() {
@@ -56,7 +60,7 @@ class SyncService {
     _isSyncingSites = true;
 
     try {
-      final sites = await ApiService.instance.fetchAllSites();
+      final sites = await _apiService.fetchAllSites();
       await DatabaseService.upsertSites(sites);
 
       // Update last sync time
@@ -74,7 +78,7 @@ class SyncService {
     _isSyncingCheckinHistory = true;
 
     try {
-      final checkins = await ApiService.instance.fetchCheckinHistory();
+      final checkins = await _apiService.fetchCheckinHistory();
       await DatabaseService.upsertSiteCheckins(checkins);
 
       // Mark sites that have check-ins (not first eligible)
@@ -114,8 +118,9 @@ class SyncService {
     communityDataVersion.value++;
   }
 
-  /// Sync supercharger check-in counts from supercharging.life
-  /// This determines which sites have been visited by anyone (hasCheckins)
+  /// Sync supercharger check-in counts from supercharging.life.
+  /// Sets the hasCheckins cache when the community count is above zero.
+  /// First eligibility is computed from check-in dates, not from this flag.
   Future<void> syncSuperchargerCheckinCounts() async {
     if (_isSyncingCheckinCounts) {
       debugPrint('syncSuperchargerCheckinCounts: Already syncing, skipping');
@@ -125,8 +130,7 @@ class SyncService {
     debugPrint('syncSuperchargerCheckinCounts: Starting');
 
     try {
-      final checkinCounts = await ApiService.instance
-          .fetchSuperchargerCheckinCounts();
+      final checkinCounts = await _apiService.fetchSuperchargerCheckinCounts();
       debugPrint(
         'syncSuperchargerCheckinCounts: Got ${checkinCounts.length} total sites from API',
       );
@@ -169,7 +173,7 @@ class SyncService {
 
     try {
       // Find user by username
-      final userData = await ApiService.instance.fetchUserByUsername(username);
+      final userData = await _apiService.fetchUserByUsername(username);
       if (userData == null) {
         debugPrint('syncUserByUsername: User not found: $username');
         return false; // User not found
@@ -196,7 +200,7 @@ class SyncService {
 
       // Download and parse user's XLSX to get their visits
       debugPrint('syncUserByUsername: Downloading XLSX for user $userId');
-      final xlsxBytes = await ApiService.instance.downloadUserXlsx(userId);
+      final xlsxBytes = await _apiService.downloadUserXlsx(userId);
       debugPrint('syncUserByUsername: Got ${xlsxBytes.length} bytes');
 
       final visits = await _parseUserXlsx(xlsxBytes);
@@ -360,19 +364,21 @@ class SyncService {
     double? longitude,
     double? accuracy,
     String? notes,
+    String? notesPrivate,
   }) async {
     final hasNetwork = await hasConnectivity();
 
     if (hasNetwork) {
       // Try to submit directly
       try {
-        final success = await ApiService.instance.submitCheckin(
+        final success = await _apiService.submitCheckin(
           siteId: siteId,
           date: date,
           latitude: latitude,
           longitude: longitude,
           accuracy: accuracy,
           notes: notes,
+          notesPrivate: notesPrivate,
         );
 
         if (success) {
@@ -390,6 +396,7 @@ class SyncService {
               latitude != null ? CheckinMethod.gps : CheckinMethod.manual,
             ),
             notesPublic: Value(notes),
+            notesPrivate: Value(notesPrivate),
             geoDistanceAccuracy: Value(accuracy?.toInt()),
             importedAt: Value(DateTime.now()),
           );
@@ -411,6 +418,7 @@ class SyncService {
       longitude: Value(longitude),
       accuracy: Value(accuracy),
       notesPublic: Value(notes),
+      notesPrivate: Value(notesPrivate),
       status: const Value(PendingStatus.pending),
     );
 
@@ -440,13 +448,14 @@ class SyncService {
       );
 
       try {
-        final success = await ApiService.instance.submitCheckin(
+        final success = await _apiService.submitCheckin(
           siteId: checkin.siteId,
           date: checkin.checkinDate,
           latitude: checkin.latitude,
           longitude: checkin.longitude,
           accuracy: checkin.accuracy,
           notes: checkin.notesPublic,
+          notesPrivate: checkin.notesPrivate,
         );
 
         if (success) {
@@ -479,16 +488,17 @@ class SyncService {
   }
 
   /// Check for new superchargers within radius
-  Future<List<Map<String, dynamic>>> checkForNewSuperchargers(
+  Future<List<AllChanges>> checkForNewSuperchargers(
     double userLat,
     double userLng,
     double radiusKm,
   ) async {
-    final changes = await ApiService.instance.fetchAllChanges();
-    final newSuperchargers = <Map<String, dynamic>>[];
+    final changes = await _apiService.fetchAllChanges();
+    final newSuperchargers = <AllChanges>[];
 
     for (final change in changes) {
-      if (change['changeType'] == 'ADD' && change['siteStatus'] == 'OPEN') {
+      if (change.changeType == ChangeType.ADD &&
+          change.siteStatus == Status.OPEN) {
         // Check if within radius (simplified great-circle distance)
         // TODO: Get actual coordinates from the change or fetch site details
         // For now, include all new opens

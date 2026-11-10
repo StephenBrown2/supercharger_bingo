@@ -3478,6 +3478,20 @@ class $UserSettingsTableTable extends UserSettingsTable
         requiredDuringInsert: false,
         defaultValue: Constant(UnitSystem.imperial.name),
       ).withConverter<UnitSystem>($UserSettingsTableTable.$converterunitSystem);
+  static const VerificationMeta _includeVisitedNearbyMeta =
+      const VerificationMeta('includeVisitedNearby');
+  @override
+  late final GeneratedColumn<bool> includeVisitedNearby = GeneratedColumn<bool>(
+    'include_visited_nearby',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("include_visited_nearby" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _lastLatitudeMeta = const VerificationMeta(
     'lastLatitude',
   );
@@ -3539,6 +3553,7 @@ class $UserSettingsTableTable extends UserSettingsTable
     showVisitedOnMap,
     checkinRadiusKm,
     unitSystem,
+    includeVisitedNearby,
     lastLatitude,
     lastLongitude,
     lastSitesSyncAt,
@@ -3640,6 +3655,15 @@ class $UserSettingsTableTable extends UserSettingsTable
         checkinRadiusKm.isAcceptableOrUnknown(
           data['checkin_radius_km']!,
           _checkinRadiusKmMeta,
+        ),
+      );
+    }
+    if (data.containsKey('include_visited_nearby')) {
+      context.handle(
+        _includeVisitedNearbyMeta,
+        includeVisitedNearby.isAcceptableOrUnknown(
+          data['include_visited_nearby']!,
+          _includeVisitedNearbyMeta,
         ),
       );
     }
@@ -3751,6 +3775,10 @@ class $UserSettingsTableTable extends UserSettingsTable
           data['${effectivePrefix}unit_system'],
         )!,
       ),
+      includeVisitedNearby: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}include_visited_nearby'],
+      )!,
       lastLatitude: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}last_latitude'],
@@ -3801,6 +3829,10 @@ class UserSettingsTableData extends DataClass
   final bool showVisitedOnMap;
   final double checkinRadiusKm;
   final UnitSystem unitSystem;
+
+  /// When false, the nearby check-in list hides sites the user has already
+  /// visited. Turn on to show those sites with their last visit date.
+  final bool includeVisitedNearby;
   final double? lastLatitude;
   final double? lastLongitude;
   final DateTime? lastSitesSyncAt;
@@ -3820,6 +3852,7 @@ class UserSettingsTableData extends DataClass
     required this.showVisitedOnMap,
     required this.checkinRadiusKm,
     required this.unitSystem,
+    required this.includeVisitedNearby,
     this.lastLatitude,
     this.lastLongitude,
     this.lastSitesSyncAt,
@@ -3868,6 +3901,7 @@ class UserSettingsTableData extends DataClass
         $UserSettingsTableTable.$converterunitSystem.toSql(unitSystem),
       );
     }
+    map['include_visited_nearby'] = Variable<bool>(includeVisitedNearby);
     if (!nullToAbsent || lastLatitude != null) {
       map['last_latitude'] = Variable<double>(lastLatitude);
     }
@@ -3913,6 +3947,7 @@ class UserSettingsTableData extends DataClass
       showVisitedOnMap: Value(showVisitedOnMap),
       checkinRadiusKm: Value(checkinRadiusKm),
       unitSystem: Value(unitSystem),
+      includeVisitedNearby: Value(includeVisitedNearby),
       lastLatitude: lastLatitude == null && nullToAbsent
           ? const Value.absent()
           : Value(lastLatitude),
@@ -3955,6 +3990,9 @@ class UserSettingsTableData extends DataClass
       unitSystem: $UserSettingsTableTable.$converterunitSystem.fromJson(
         serializer.fromJson<String>(json['unitSystem']),
       ),
+      includeVisitedNearby: serializer.fromJson<bool>(
+        json['includeVisitedNearby'],
+      ),
       lastLatitude: serializer.fromJson<double?>(json['lastLatitude']),
       lastLongitude: serializer.fromJson<double?>(json['lastLongitude']),
       lastSitesSyncAt: serializer.fromJson<DateTime?>(json['lastSitesSyncAt']),
@@ -3989,6 +4027,7 @@ class UserSettingsTableData extends DataClass
       'unitSystem': serializer.toJson<String>(
         $UserSettingsTableTable.$converterunitSystem.toJson(unitSystem),
       ),
+      'includeVisitedNearby': serializer.toJson<bool>(includeVisitedNearby),
       'lastLatitude': serializer.toJson<double?>(lastLatitude),
       'lastLongitude': serializer.toJson<double?>(lastLongitude),
       'lastSitesSyncAt': serializer.toJson<DateTime?>(lastSitesSyncAt),
@@ -4013,6 +4052,7 @@ class UserSettingsTableData extends DataClass
     bool? showVisitedOnMap,
     double? checkinRadiusKm,
     UnitSystem? unitSystem,
+    bool? includeVisitedNearby,
     Value<double?> lastLatitude = const Value.absent(),
     Value<double?> lastLongitude = const Value.absent(),
     Value<DateTime?> lastSitesSyncAt = const Value.absent(),
@@ -4034,6 +4074,7 @@ class UserSettingsTableData extends DataClass
     showVisitedOnMap: showVisitedOnMap ?? this.showVisitedOnMap,
     checkinRadiusKm: checkinRadiusKm ?? this.checkinRadiusKm,
     unitSystem: unitSystem ?? this.unitSystem,
+    includeVisitedNearby: includeVisitedNearby ?? this.includeVisitedNearby,
     lastLatitude: lastLatitude.present ? lastLatitude.value : this.lastLatitude,
     lastLongitude: lastLongitude.present
         ? lastLongitude.value
@@ -4081,6 +4122,9 @@ class UserSettingsTableData extends DataClass
       unitSystem: data.unitSystem.present
           ? data.unitSystem.value
           : this.unitSystem,
+      includeVisitedNearby: data.includeVisitedNearby.present
+          ? data.includeVisitedNearby.value
+          : this.includeVisitedNearby,
       lastLatitude: data.lastLatitude.present
           ? data.lastLatitude.value
           : this.lastLatitude,
@@ -4113,6 +4157,7 @@ class UserSettingsTableData extends DataClass
           ..write('showVisitedOnMap: $showVisitedOnMap, ')
           ..write('checkinRadiusKm: $checkinRadiusKm, ')
           ..write('unitSystem: $unitSystem, ')
+          ..write('includeVisitedNearby: $includeVisitedNearby, ')
           ..write('lastLatitude: $lastLatitude, ')
           ..write('lastLongitude: $lastLongitude, ')
           ..write('lastSitesSyncAt: $lastSitesSyncAt, ')
@@ -4137,6 +4182,7 @@ class UserSettingsTableData extends DataClass
     showVisitedOnMap,
     checkinRadiusKm,
     unitSystem,
+    includeVisitedNearby,
     lastLatitude,
     lastLongitude,
     lastSitesSyncAt,
@@ -4160,6 +4206,7 @@ class UserSettingsTableData extends DataClass
           other.showVisitedOnMap == this.showVisitedOnMap &&
           other.checkinRadiusKm == this.checkinRadiusKm &&
           other.unitSystem == this.unitSystem &&
+          other.includeVisitedNearby == this.includeVisitedNearby &&
           other.lastLatitude == this.lastLatitude &&
           other.lastLongitude == this.lastLongitude &&
           other.lastSitesSyncAt == this.lastSitesSyncAt &&
@@ -4182,6 +4229,7 @@ class UserSettingsTableCompanion
   final Value<bool> showVisitedOnMap;
   final Value<double> checkinRadiusKm;
   final Value<UnitSystem> unitSystem;
+  final Value<bool> includeVisitedNearby;
   final Value<double?> lastLatitude;
   final Value<double?> lastLongitude;
   final Value<DateTime?> lastSitesSyncAt;
@@ -4201,6 +4249,7 @@ class UserSettingsTableCompanion
     this.showVisitedOnMap = const Value.absent(),
     this.checkinRadiusKm = const Value.absent(),
     this.unitSystem = const Value.absent(),
+    this.includeVisitedNearby = const Value.absent(),
     this.lastLatitude = const Value.absent(),
     this.lastLongitude = const Value.absent(),
     this.lastSitesSyncAt = const Value.absent(),
@@ -4221,6 +4270,7 @@ class UserSettingsTableCompanion
     this.showVisitedOnMap = const Value.absent(),
     this.checkinRadiusKm = const Value.absent(),
     this.unitSystem = const Value.absent(),
+    this.includeVisitedNearby = const Value.absent(),
     this.lastLatitude = const Value.absent(),
     this.lastLongitude = const Value.absent(),
     this.lastSitesSyncAt = const Value.absent(),
@@ -4241,6 +4291,7 @@ class UserSettingsTableCompanion
     Expression<bool>? showVisitedOnMap,
     Expression<double>? checkinRadiusKm,
     Expression<String>? unitSystem,
+    Expression<bool>? includeVisitedNearby,
     Expression<double>? lastLatitude,
     Expression<double>? lastLongitude,
     Expression<DateTime>? lastSitesSyncAt,
@@ -4262,6 +4313,8 @@ class UserSettingsTableCompanion
       if (showVisitedOnMap != null) 'show_visited_on_map': showVisitedOnMap,
       if (checkinRadiusKm != null) 'checkin_radius_km': checkinRadiusKm,
       if (unitSystem != null) 'unit_system': unitSystem,
+      if (includeVisitedNearby != null)
+        'include_visited_nearby': includeVisitedNearby,
       if (lastLatitude != null) 'last_latitude': lastLatitude,
       if (lastLongitude != null) 'last_longitude': lastLongitude,
       if (lastSitesSyncAt != null) 'last_sites_sync_at': lastSitesSyncAt,
@@ -4285,6 +4338,7 @@ class UserSettingsTableCompanion
     Value<bool>? showVisitedOnMap,
     Value<double>? checkinRadiusKm,
     Value<UnitSystem>? unitSystem,
+    Value<bool>? includeVisitedNearby,
     Value<double?>? lastLatitude,
     Value<double?>? lastLongitude,
     Value<DateTime?>? lastSitesSyncAt,
@@ -4305,6 +4359,7 @@ class UserSettingsTableCompanion
       showVisitedOnMap: showVisitedOnMap ?? this.showVisitedOnMap,
       checkinRadiusKm: checkinRadiusKm ?? this.checkinRadiusKm,
       unitSystem: unitSystem ?? this.unitSystem,
+      includeVisitedNearby: includeVisitedNearby ?? this.includeVisitedNearby,
       lastLatitude: lastLatitude ?? this.lastLatitude,
       lastLongitude: lastLongitude ?? this.lastLongitude,
       lastSitesSyncAt: lastSitesSyncAt ?? this.lastSitesSyncAt,
@@ -4368,6 +4423,11 @@ class UserSettingsTableCompanion
         $UserSettingsTableTable.$converterunitSystem.toSql(unitSystem.value),
       );
     }
+    if (includeVisitedNearby.present) {
+      map['include_visited_nearby'] = Variable<bool>(
+        includeVisitedNearby.value,
+      );
+    }
     if (lastLatitude.present) {
       map['last_latitude'] = Variable<double>(lastLatitude.value);
     }
@@ -4402,6 +4462,7 @@ class UserSettingsTableCompanion
           ..write('showVisitedOnMap: $showVisitedOnMap, ')
           ..write('checkinRadiusKm: $checkinRadiusKm, ')
           ..write('unitSystem: $unitSystem, ')
+          ..write('includeVisitedNearby: $includeVisitedNearby, ')
           ..write('lastLatitude: $lastLatitude, ')
           ..write('lastLongitude: $lastLongitude, ')
           ..write('lastSitesSyncAt: $lastSitesSyncAt, ')
@@ -6503,6 +6564,7 @@ typedef $$UserSettingsTableTableCreateCompanionBuilder =
       Value<bool> showVisitedOnMap,
       Value<double> checkinRadiusKm,
       Value<UnitSystem> unitSystem,
+      Value<bool> includeVisitedNearby,
       Value<double?> lastLatitude,
       Value<double?> lastLongitude,
       Value<DateTime?> lastSitesSyncAt,
@@ -6524,6 +6586,7 @@ typedef $$UserSettingsTableTableUpdateCompanionBuilder =
       Value<bool> showVisitedOnMap,
       Value<double> checkinRadiusKm,
       Value<UnitSystem> unitSystem,
+      Value<bool> includeVisitedNearby,
       Value<double?> lastLatitude,
       Value<double?> lastLongitude,
       Value<DateTime?> lastSitesSyncAt,
@@ -6610,6 +6673,11 @@ class $$UserSettingsTableTableFilterComposer
   get unitSystem => $composableBuilder(
     column: $table.unitSystem,
     builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnFilters<bool> get includeVisitedNearby => $composableBuilder(
+    column: $table.includeVisitedNearby,
+    builder: (column) => ColumnFilters(column),
   );
 
   ColumnFilters<double> get lastLatitude => $composableBuilder(
@@ -6712,6 +6780,11 @@ class $$UserSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get includeVisitedNearby => $composableBuilder(
+    column: $table.includeVisitedNearby,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get lastLatitude => $composableBuilder(
     column: $table.lastLatitude,
     builder: (column) => ColumnOrderings(column),
@@ -6806,6 +6879,11 @@ class $$UserSettingsTableTableAnnotationComposer
         builder: (column) => column,
       );
 
+  GeneratedColumn<bool> get includeVisitedNearby => $composableBuilder(
+    column: $table.includeVisitedNearby,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<double> get lastLatitude => $composableBuilder(
     column: $table.lastLatitude,
     builder: (column) => column,
@@ -6881,6 +6959,7 @@ class $$UserSettingsTableTableTableManager
                 Value<bool> showVisitedOnMap = const Value.absent(),
                 Value<double> checkinRadiusKm = const Value.absent(),
                 Value<UnitSystem> unitSystem = const Value.absent(),
+                Value<bool> includeVisitedNearby = const Value.absent(),
                 Value<double?> lastLatitude = const Value.absent(),
                 Value<double?> lastLongitude = const Value.absent(),
                 Value<DateTime?> lastSitesSyncAt = const Value.absent(),
@@ -6901,6 +6980,7 @@ class $$UserSettingsTableTableTableManager
                 showVisitedOnMap: showVisitedOnMap,
                 checkinRadiusKm: checkinRadiusKm,
                 unitSystem: unitSystem,
+                includeVisitedNearby: includeVisitedNearby,
                 lastLatitude: lastLatitude,
                 lastLongitude: lastLongitude,
                 lastSitesSyncAt: lastSitesSyncAt,
@@ -6922,6 +7002,7 @@ class $$UserSettingsTableTableTableManager
                 Value<bool> showVisitedOnMap = const Value.absent(),
                 Value<double> checkinRadiusKm = const Value.absent(),
                 Value<UnitSystem> unitSystem = const Value.absent(),
+                Value<bool> includeVisitedNearby = const Value.absent(),
                 Value<double?> lastLatitude = const Value.absent(),
                 Value<double?> lastLongitude = const Value.absent(),
                 Value<DateTime?> lastSitesSyncAt = const Value.absent(),
@@ -6942,6 +7023,7 @@ class $$UserSettingsTableTableTableManager
                 showVisitedOnMap: showVisitedOnMap,
                 checkinRadiusKm: checkinRadiusKm,
                 unitSystem: unitSystem,
+                includeVisitedNearby: includeVisitedNearby,
                 lastLatitude: lastLatitude,
                 lastLongitude: lastLongitude,
                 lastSitesSyncAt: lastSitesSyncAt,

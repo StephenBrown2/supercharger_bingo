@@ -61,9 +61,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
           ? const Center(child: CircularProgressIndicator())
           : _vehicles.isEmpty
           ? const Center(child: Text('No vehicles yet.'))
-          : ListView(
-              children: _vehicles.map(_buildTile).toList(),
-            ),
+          : ListView(children: _vehicles.map(_buildTile).toList()),
     );
   }
 
@@ -94,78 +92,10 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
   }
 
   Future<void> _showAddDialog() async {
-    final labelController = TextEditingController();
-    final vinController = TextEditingController();
-    bool displayOptIn = false;
-    bool working = false;
-
     final added = await showDialog<bool>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Add vehicle'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: labelController,
-                  decoration: const InputDecoration(
-                    labelText: 'Nickname (required)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: vinController,
-                  decoration: const InputDecoration(
-                    labelText: 'VIN (optional)',
-                    helperText: 'Stored securely, never shown',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Show decoded make/model'),
-                  value: displayOptIn,
-                  onChanged: (v) => setDialogState(() => displayOptIn = v),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: working ? null : () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: working || labelController.text.trim().isEmpty
-                  ? null
-                  : () async {
-                      setDialogState(() => working = true);
-                      await _save(
-                        label: labelController.text.trim(),
-                        vin: vinController.text.trim(),
-                        displayOptIn: displayOptIn,
-                      );
-                      if (context.mounted) Navigator.pop(context, true);
-                    },
-              child: working
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Save'),
-            ),
-          ],
-        ),
-      ),
+      builder: (context) => _AddVehicleDialog(onSave: _save),
     );
-
-    labelController.dispose();
-    vinController.dispose();
     if (added == true) await _load();
   }
 
@@ -193,6 +123,104 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
         displayOptIn: Value(displayOptIn),
         hasVin: Value(vin.isNotEmpty),
       ),
+    );
+  }
+}
+
+/// Owns its text controllers so they are disposed with the route, after the
+/// close animation finishes. Disposing them when [showDialog] returns rebuilds
+/// the exiting fields against a disposed controller.
+class _AddVehicleDialog extends StatefulWidget {
+  final Future<void> Function({
+    required String label,
+    required String vin,
+    required bool displayOptIn,
+  })
+  onSave;
+
+  const _AddVehicleDialog({required this.onSave});
+
+  @override
+  State<_AddVehicleDialog> createState() => _AddVehicleDialogState();
+}
+
+class _AddVehicleDialogState extends State<_AddVehicleDialog> {
+  final _labelController = TextEditingController();
+  final _vinController = TextEditingController();
+  bool _displayOptIn = false;
+  bool _working = false;
+
+  @override
+  void dispose() {
+    _labelController.dispose();
+    _vinController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canSave = !_working && _labelController.text.trim().isNotEmpty;
+    return AlertDialog(
+      title: const Text('Add vehicle'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _labelController,
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                labelText: 'Nickname (required)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _vinController,
+              decoration: const InputDecoration(
+                labelText: 'VIN (optional)',
+                helperText: 'Stored securely, never shown',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 4),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Show decoded make/model'),
+              value: _displayOptIn,
+              onChanged: _working
+                  ? null
+                  : (v) => setState(() => _displayOptIn = v),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _working ? null : () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: canSave
+              ? () async {
+                  setState(() => _working = true);
+                  await widget.onSave(
+                    label: _labelController.text.trim(),
+                    vin: _vinController.text.trim(),
+                    displayOptIn: _displayOptIn,
+                  );
+                  if (context.mounted) Navigator.pop(context, true);
+                }
+              : null,
+          child: _working
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Save'),
+        ),
+      ],
     );
   }
 }

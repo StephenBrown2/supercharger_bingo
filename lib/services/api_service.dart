@@ -6,12 +6,13 @@ import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../database/database.dart';
+import '../models/supercharge_info.dart';
 import 'timezone_service.dart';
 
 /// API service for supercharge.info and supercharging.life
 class ApiService {
   static ApiService? _instance;
-  static ApiService get instance => _instance ??= ApiService._();
+  static ApiService get instance => _instance ??= ApiService();
 
   late final Dio _dio;
   CookieJar? _cookieJar;
@@ -21,17 +22,19 @@ class ApiService {
   static const String superchargeInfoBaseUrl = 'https://supercharge.info';
   static const String superchargingLifeBaseUrl = 'https://supercharging.life';
 
-  ApiService._() {
-    _dio = Dio(
-      BaseOptions(
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
-        headers: {
-          'User-Agent': 'SuperchargerBingo/1.0 (Flutter)',
-          'Accept': 'application/json',
-        },
-      ),
-    );
+  ApiService({Dio? dio}) {
+    _dio =
+        dio ??
+        Dio(
+          BaseOptions(
+            connectTimeout: const Duration(seconds: 30),
+            receiveTimeout: const Duration(seconds: 30),
+            headers: {
+              'User-Agent': 'SuperchargerBingo/1.0 (Flutter)',
+              'Accept': 'application/json',
+            },
+          ),
+        );
     // CookieManager doesn't work on web
     if (!kIsWeb) {
       _cookieJar = CookieJar();
@@ -73,12 +76,16 @@ class ApiService {
 
     if (response.statusCode == 200) {
       final List<dynamic> data = response.data;
-      // Skip sites whose status is not one of the authoritative 8 values
-      // (SPEC Section 2.1): _parseSite returns null for those.
-      return data
-          .map((json) => _parseSite(json))
-          .whereType<SitesCompanion>()
-          .toList();
+      // Skip a row whose status is not one of the authoritative 8 values,
+      // or that fails to parse (SPEC Section 2.1). One bad row does not
+      // fail the pull.
+      final sites = <SitesCompanion>[];
+      for (final row in data) {
+        if (row is! Map) continue;
+        final parsed = _parseSite(Map<String, dynamic>.from(row));
+        if (parsed != null) sites.add(parsed);
+      }
+      return sites;
     }
     throw DioException(
       requestOptions: response.requestOptions,
@@ -88,14 +95,20 @@ class ApiService {
   }
 
   /// Fetch recent changes from supercharge.info
-  Future<List<Map<String, dynamic>>> fetchAllChanges() async {
+  Future<List<AllChanges>> fetchAllChanges() async {
     final response = await _dio.get(
       '$superchargeInfoBaseUrl/service/supercharge/allChanges',
     );
 
     if (response.statusCode == 200) {
       final List<dynamic> data = response.data;
-      return data.cast<Map<String, dynamic>>();
+      final changes = <AllChanges>[];
+      for (final row in data) {
+        if (row is! Map) continue;
+        final parsed = parseChangeRecord(Map<String, dynamic>.from(row));
+        if (parsed != null) changes.add(parsed);
+      }
+      return changes;
     }
     throw DioException(
       requestOptions: response.requestOptions,
@@ -202,8 +215,9 @@ class ApiService {
     double? longitude,
     double? accuracy,
     String? notes,
+    String? notesPrivate,
   }) async {
-    final formData = FormData.fromMap({
+    final formData = {
       'supercharger_id': siteId.toString(),
       'checkin_date':
           '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
@@ -216,7 +230,9 @@ class ApiService {
         'method': 'manual',
       },
       if (notes != null && notes.isNotEmpty) 'notes_public': notes,
-    });
+      if (notesPrivate != null && notesPrivate.isNotEmpty)
+        'notes_private': notesPrivate,
+    };
 
     final response = await _dio.post(
       '$superchargingLifeBaseUrl/supercharging/checkin.php',
@@ -246,42 +262,81 @@ class ApiService {
     );
   }
 
-  /// Parse a site from supercharge.info JSON.
+  /// Parse a site from supercharge.info JSON into the stored companion.
   /// Returns null when the status is not one of the authoritative 8 values,
-  /// so unrecognized sites are skipped on ingestion (SPEC Section 2.1).
-  SitesCompanion? _parseSite(Map<String, dynamic> json) {
-    final status = parseSiteStatus(json['status'] as String?);
-    if (status == null) return null;
+  /// or when the record cannot be parsed, so that row is skipped
+  /// (SPEC Section 2.1).
+  @visibleForTesting
+  static SitesCompanion? parseSiteRecord(Map<String, dynamic> json) =>
+      _parseSite(json);
 
-    DateTime? dateOpened;
-    if (json['dateOpened'] != null) {
-      try {
-        dateOpened = DateTime.parse(json['dateOpened'] as String);
-      } catch (_) {}
+  /// Parse one allChanges row. Returns null when the row cannot be parsed.
+  @visibleForTesting
+  static AllChanges? parseChangeRecord(Map<String, dynamic> json) {
+    try {
+      return AllChanges.fromJson(Map<String, dynamic>.from(json));
+    } catch (_) {
+      return null;
     }
+  }
 
-    final latitude = (json['gps']?['latitude'] as num?)?.toDouble() ?? 0.0;
-    final longitude = (json['gps']?['longitude'] as num?)?.toDouble() ?? 0.0;
+  static SitesCompanion? _parseSite(Map<String, dynamic> json) {
+    try {
+      final record = Map<String, dynamic>.from(json);
+      final rawStatus = record['status'];
+      final status = parseSiteStatus(rawStatus is String ? rawStatus : null);
+      if (status == null) return null;
+      // AllSites.fromJson accepts only the canonical wire spelling.
+      record['status'] = _statusWireName(status);
+      final site = AllSites.fromJson(record);
+      return SitesCompanion(
+        siteId: Value(site.id),
+        locationId: Value(site.locationId),
+        name: Value(site.name),
+        status: Value(status),
+        latitude: Value(site.gps.latitude),
+        longitude: Value(site.gps.longitude),
+        city: Value(site.address.city),
+        state: Value(site.address.state),
+        country: Value(
+          countryValues.reverse[site.address.country] ?? 'Unknown',
+        ),
+        region: Value(regionValues.reverse[site.address.region] ?? 'Unknown'),
+        // Derived at ingestion from coordinates (SPEC Section 3).
+        timezone: Value(
+          TimezoneService.instance.getTimezoneForLocation(
+            site.gps.latitude,
+            site.gps.longitude,
+          ),
+        ),
+        stallCount: Value(site.stallCount),
+        dateOpened: Value(site.dateOpened),
+        lastSynced: Value(DateTime.now()),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
 
-    return SitesCompanion(
-      siteId: Value(json['id'] as int),
-      locationId: Value(json['locationId'] as String?),
-      name: Value(json['name'] as String),
-      status: Value(status),
-      latitude: Value(latitude),
-      longitude: Value(longitude),
-      city: Value(json['address']?['city'] as String?),
-      state: Value(json['address']?['state'] as String?),
-      country: Value(json['address']?['country'] as String? ?? 'Unknown'),
-      region: Value(json['address']?['region'] as String? ?? 'Unknown'),
-      // Derived at ingestion from coordinates (SPEC Section 3).
-      timezone: Value(
-        TimezoneService.instance.getTimezoneForLocation(latitude, longitude),
-      ),
-      stallCount: Value(json['stallCount'] as int?),
-      dateOpened: Value(dateOpened),
-      lastSynced: Value(DateTime.now()),
-    );
+  static String _statusWireName(SiteStatus status) {
+    switch (status) {
+      case SiteStatus.open:
+        return 'OPEN';
+      case SiteStatus.expanding:
+        return 'EXPANDING';
+      case SiteStatus.construction:
+        return 'CONSTRUCTION';
+      case SiteStatus.permit:
+        return 'PERMIT';
+      case SiteStatus.plan:
+        return 'PLAN';
+      case SiteStatus.voting:
+        return 'VOTING';
+      case SiteStatus.closedTemp:
+        return 'CLOSED_TEMP';
+      case SiteStatus.closedPerm:
+        return 'CLOSED_PERM';
+    }
   }
 
   /// Map a supercharge.info status string to the authoritative 8-value enum.

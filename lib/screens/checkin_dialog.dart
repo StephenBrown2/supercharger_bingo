@@ -17,6 +17,8 @@ Future<bool> showCheckinDialog(
 }) async {
   final vehicles = await DatabaseService.getVehicles();
   final lastVisit = await DatabaseService.db.getLastVisitDate(site.siteId);
+  final settings = await DatabaseService.getUserSettings();
+  final lastVehicleId = await DatabaseService.db.getLastUsedVehicleId();
   if (!context.mounted) return false;
 
   final result = await showDialog<bool>(
@@ -27,6 +29,8 @@ Future<bool> showCheckinDialog(
       position: position,
       vehicles: vehicles,
       lastVisit: lastVisit,
+      unitSystem: settings.unitSystem,
+      lastVehicleId: lastVehicleId,
     ),
   );
   return result ?? false;
@@ -41,6 +45,8 @@ class _CheckinDialog extends StatefulWidget {
   final Position? position;
   final List<Vehicle> vehicles;
   final DateTime? lastVisit;
+  final UnitSystem unitSystem;
+  final String? lastVehicleId;
 
   const _CheckinDialog({
     required this.site,
@@ -48,6 +54,8 @@ class _CheckinDialog extends StatefulWidget {
     required this.position,
     required this.vehicles,
     required this.lastVisit,
+    required this.unitSystem,
+    required this.lastVehicleId,
   });
 
   @override
@@ -63,9 +71,8 @@ class _CheckinDialogState extends State<_CheckinDialog> {
   @override
   void initState() {
     super.initState();
-    // Default to the most recently added vehicle (last used proxy).
-    if (widget.vehicles.isNotEmpty) {
-      _selectedVehicleId = widget.vehicles.last.id;
+    if (widget.vehicles.any((v) => v.id == widget.lastVehicleId)) {
+      _selectedVehicleId = widget.lastVehicleId;
     }
   }
 
@@ -80,6 +87,11 @@ class _CheckinDialogState extends State<_CheckinDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final site = widget.site;
+    final imperial = widget.unitSystem == UnitSystem.imperial;
+    final distance = imperial
+        ? widget.distanceKm / 1.609344
+        : widget.distanceKm;
+    final distanceUnit = imperial ? 'mi' : 'km';
 
     return AlertDialog(
       title: const Text('Check In'),
@@ -90,7 +102,7 @@ class _CheckinDialogState extends State<_CheckinDialog> {
           children: [
             Text(site.name, style: theme.textTheme.titleMedium),
             Text(
-              '${widget.distanceKm.toStringAsFixed(1)} km away',
+              '${distance.toStringAsFixed(1)} $distanceUnit away',
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
@@ -172,27 +184,54 @@ class _CheckinDialogState extends State<_CheckinDialog> {
     setState(() => _submitting = true);
     final now = DateTime.now();
     final pos = widget.position;
+    final vehicle = widget.vehicles
+        .where((v) => v.id == _selectedVehicleId)
+        .firstOrNull;
+    final privateNotes = <String>[
+      if (_privateController.text.isNotEmpty) _privateController.text,
+    ];
+    if (vehicle != null && vehicle.displayOptIn) {
+      final details = [
+        vehicle.year,
+        vehicle.make,
+        vehicle.model,
+        vehicle.trim,
+      ].where((s) => s != null && s.isNotEmpty).join(' ');
+      if (details.isNotEmpty) privateNotes.add('Vehicle: $details');
+    }
 
-    await DatabaseService.addPendingCheckin(
-      PendingCheckinsCompanion(
-        siteId: Value(widget.site.siteId),
-        checkinDate: Value(now),
-        createdAt: Value(now),
-        latitude: Value(pos?.latitude),
-        longitude: Value(pos?.longitude),
-        accuracy: Value(pos?.accuracy),
-        notesPublic: Value(
-          _publicController.text.isEmpty ? null : _publicController.text,
-        ),
-        notesPrivate: Value(
-          _privateController.text.isEmpty ? null : _privateController.text,
-        ),
-        vehicleId: Value(_selectedVehicleId),
-      ),
-    );
-    // Optimistically reflect the check-in on the map.
-    await DatabaseService.markSiteVisited(widget.site.siteId, true);
+    try {
+      await DatabaseService.db.transaction(() async {
+        await DatabaseService.addPendingCheckin(
+          PendingCheckinsCompanion(
+            siteId: Value(widget.site.siteId),
+            checkinDate: Value(now),
+            createdAt: Value(now),
+            latitude: Value(pos?.latitude),
+            longitude: Value(pos?.longitude),
+            accuracy: Value(pos?.accuracy),
+            notesPublic: Value(
+              _publicController.text.isEmpty ? null : _publicController.text,
+            ),
+            notesPrivate: Value(
+              privateNotes.isEmpty ? null : privateNotes.join('\n'),
+            ),
+            vehicleId: Value(_selectedVehicleId),
+          ),
+        );
+        await DatabaseService.markSiteVisited(widget.site.siteId, true);
+      });
 
-    if (mounted) Navigator.pop(context, true);
+      if (mounted) Navigator.pop(context, true);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _submitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not save check-in. Please try again.'),
+          ),
+        );
+      }
+    }
   }
 }

@@ -53,6 +53,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   Position? _userPosition;
   List<SiteWithDistance> _nearbySites = [];
   Map<int, DateTime> _lastVisits = {};
+  // Earliest qualifying community check-in for the nearby rows. Absence means
+  // the First is still open. Independent of the hasCheckins counts cache.
+  Map<int, DateTime> _nearbyFirstDates = {};
   bool _isLoadingLocation = false;
   bool _isLoadingSites = false;
   String? _locationError;
@@ -852,18 +855,17 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     final recent = lastVisit != null
         ? 'Last: ${_formatShortDate(lastVisit)}'
         : 'No previous check-in';
+    final firstEligible = !_nearbyFirstDates.containsKey(site.siteId);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: ListTile(
-        leading: _buildCheckinLeadingIcon(theme, site),
+        leading: _buildCheckinLeadingIcon(theme, firstEligible),
         title: Text(site.name),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '$distanceStr${!site.hasCheckins ? " • FIRST eligible" : ""}',
-            ),
+            Text('$distanceStr${firstEligible ? " • FIRST eligible" : ""}'),
             Text(recent, style: theme.textTheme.bodySmall),
           ],
         ),
@@ -888,9 +890,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   String _formatShortDate(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-  Widget _buildCheckinLeadingIcon(ThemeData theme, Site site) {
-    // First eligible (no check-ins yet)
-    if (!site.hasCheckins) {
+  Widget _buildCheckinLeadingIcon(ThemeData theme, bool firstEligible) {
+    // No qualifying community check-in on or after date_opened.
+    if (firstEligible) {
       return Container(
         width: 40,
         height: 40,
@@ -968,16 +970,17 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         radiusKm: settings.checkinRadiusKm,
         limit: 10,
         status: SiteStatus.open,
-        visited: false,
+        visited: settings.includeVisitedNearby ? null : false,
       );
 
-      final lastVisits = await DatabaseService.getLastVisitDates(
-        sites.map((s) => s.site.siteId).toList(),
-      );
+      final siteIds = sites.map((s) => s.site.siteId).toList();
+      final lastVisits = await DatabaseService.getLastVisitDates(siteIds);
+      final firstDates = await DatabaseService.getEarliestCheckinDates(siteIds);
 
       setState(() {
         _nearbySites = sites;
         _lastVisits = lastVisits;
+        _nearbyFirstDates = firstDates;
         _isLoadingSites = false;
       });
     } catch (e) {
