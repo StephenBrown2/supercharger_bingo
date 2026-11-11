@@ -231,7 +231,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     label: const Text('Login with GitHub'),
                   ),
                   const SizedBox(height: 12),
-                  FilledButton.tonalIcon(
+                  FilledButton.icon(
                     onPressed: _isLoading
                         ? null
                         : () => _signIn(AuthProvider.google),
