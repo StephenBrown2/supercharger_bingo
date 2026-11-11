@@ -128,6 +128,15 @@ void main() {
       },
     );
 
+    test(
+      'v10 upgrade clears the region cursor so otherEvs can reload',
+      () async {
+        await db.upsertRegionSync(100, 27726);
+        await db.migration.onUpgrade(Migrator(db), 9, 10);
+        expect(await db.getRegionSync(100), isNull);
+      },
+    );
+
     test('site persists new enum value and derived timezone column', () async {
       await db.upsertSite(
         SitesCompanion.insert(

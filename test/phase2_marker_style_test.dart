@@ -116,8 +116,14 @@ void main() {
     });
   });
 
-  test('MapFilter now includes a visited value (Show Visited restored)', () {
-    expect(MapFilter.values.contains(MapFilter.visited), isTrue);
+  test('MapFilter matches the supercharging.life My Map order', () {
+    expect(MapFilter.values, [
+      MapFilter.openUnvisited,
+      MapFilter.all,
+      MapFilter.visited,
+      MapFilter.unvisitedNacs,
+      MapFilter.openUnvisitedConstruction,
+    ]);
   });
 
   test('check-in row label matches name (status) (distance)', () {

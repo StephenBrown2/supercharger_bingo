@@ -409,6 +409,7 @@ class ApiService {
         ),
       ),
       stallCount: Value(site.stallCount),
+      otherEvs: Value(site.otherEVs),
       dateOpened: Value(site.dateOpened),
       lastSynced: Value(DateTime.now()),
     );

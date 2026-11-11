@@ -147,6 +147,21 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _otherEvsMeta = const VerificationMeta(
+    'otherEvs',
+  );
+  @override
+  late final GeneratedColumn<bool> otherEvs = GeneratedColumn<bool>(
+    'other_evs',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("other_evs" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _dateOpenedMeta = const VerificationMeta(
     'dateOpened',
   );
@@ -214,6 +229,7 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
     region,
     timezone,
     stallCount,
+    otherEvs,
     dateOpened,
     hasCheckins,
     visited,
@@ -302,6 +318,12 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
       context.handle(
         _stallCountMeta,
         stallCount.isAcceptableOrUnknown(data['stall_count']!, _stallCountMeta),
+      );
+    }
+    if (data.containsKey('other_evs')) {
+      context.handle(
+        _otherEvsMeta,
+        otherEvs.isAcceptableOrUnknown(data['other_evs']!, _otherEvsMeta),
       );
     }
     if (data.containsKey('date_opened')) {
@@ -394,6 +416,10 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
         DriftSqlType.int,
         data['${effectivePrefix}stall_count'],
       ),
+      otherEvs: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}other_evs'],
+      )!,
       dateOpened: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}date_opened'],
@@ -439,6 +465,9 @@ class Site extends DataClass implements Insertable<Site> {
   /// Drives the site-local "First" day boundary.
   final String? timezone;
   final int? stallCount;
+
+  /// Open to non-Tesla vehicles. supercharging.life calls this NACS.
+  final bool otherEvs;
   final DateTime? dateOpened;
 
   /// Cache of "community check-in count > 0" from the counts endpoint.
@@ -463,6 +492,7 @@ class Site extends DataClass implements Insertable<Site> {
     required this.region,
     this.timezone,
     this.stallCount,
+    required this.otherEvs,
     this.dateOpened,
     required this.hasCheckins,
     required this.visited,
@@ -498,6 +528,7 @@ class Site extends DataClass implements Insertable<Site> {
     if (!nullToAbsent || stallCount != null) {
       map['stall_count'] = Variable<int>(stallCount);
     }
+    map['other_evs'] = Variable<bool>(otherEvs);
     if (!nullToAbsent || dateOpened != null) {
       map['date_opened'] = Variable<DateTime>(dateOpened);
     }
@@ -532,6 +563,7 @@ class Site extends DataClass implements Insertable<Site> {
       stallCount: stallCount == null && nullToAbsent
           ? const Value.absent()
           : Value(stallCount),
+      otherEvs: Value(otherEvs),
       dateOpened: dateOpened == null && nullToAbsent
           ? const Value.absent()
           : Value(dateOpened),
@@ -564,6 +596,7 @@ class Site extends DataClass implements Insertable<Site> {
       region: serializer.fromJson<String>(json['region']),
       timezone: serializer.fromJson<String?>(json['timezone']),
       stallCount: serializer.fromJson<int?>(json['stallCount']),
+      otherEvs: serializer.fromJson<bool>(json['otherEvs']),
       dateOpened: serializer.fromJson<DateTime?>(json['dateOpened']),
       hasCheckins: serializer.fromJson<bool>(json['hasCheckins']),
       visited: serializer.fromJson<bool>(json['visited']),
@@ -589,6 +622,7 @@ class Site extends DataClass implements Insertable<Site> {
       'region': serializer.toJson<String>(region),
       'timezone': serializer.toJson<String?>(timezone),
       'stallCount': serializer.toJson<int?>(stallCount),
+      'otherEvs': serializer.toJson<bool>(otherEvs),
       'dateOpened': serializer.toJson<DateTime?>(dateOpened),
       'hasCheckins': serializer.toJson<bool>(hasCheckins),
       'visited': serializer.toJson<bool>(visited),
@@ -610,6 +644,7 @@ class Site extends DataClass implements Insertable<Site> {
     String? region,
     Value<String?> timezone = const Value.absent(),
     Value<int?> stallCount = const Value.absent(),
+    bool? otherEvs,
     Value<DateTime?> dateOpened = const Value.absent(),
     bool? hasCheckins,
     bool? visited,
@@ -628,6 +663,7 @@ class Site extends DataClass implements Insertable<Site> {
     region: region ?? this.region,
     timezone: timezone.present ? timezone.value : this.timezone,
     stallCount: stallCount.present ? stallCount.value : this.stallCount,
+    otherEvs: otherEvs ?? this.otherEvs,
     dateOpened: dateOpened.present ? dateOpened.value : this.dateOpened,
     hasCheckins: hasCheckins ?? this.hasCheckins,
     visited: visited ?? this.visited,
@@ -652,6 +688,7 @@ class Site extends DataClass implements Insertable<Site> {
       stallCount: data.stallCount.present
           ? data.stallCount.value
           : this.stallCount,
+      otherEvs: data.otherEvs.present ? data.otherEvs.value : this.otherEvs,
       dateOpened: data.dateOpened.present
           ? data.dateOpened.value
           : this.dateOpened,
@@ -681,6 +718,7 @@ class Site extends DataClass implements Insertable<Site> {
           ..write('region: $region, ')
           ..write('timezone: $timezone, ')
           ..write('stallCount: $stallCount, ')
+          ..write('otherEvs: $otherEvs, ')
           ..write('dateOpened: $dateOpened, ')
           ..write('hasCheckins: $hasCheckins, ')
           ..write('visited: $visited, ')
@@ -704,6 +742,7 @@ class Site extends DataClass implements Insertable<Site> {
     region,
     timezone,
     stallCount,
+    otherEvs,
     dateOpened,
     hasCheckins,
     visited,
@@ -726,6 +765,7 @@ class Site extends DataClass implements Insertable<Site> {
           other.region == this.region &&
           other.timezone == this.timezone &&
           other.stallCount == this.stallCount &&
+          other.otherEvs == this.otherEvs &&
           other.dateOpened == this.dateOpened &&
           other.hasCheckins == this.hasCheckins &&
           other.visited == this.visited &&
@@ -746,6 +786,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
   final Value<String> region;
   final Value<String?> timezone;
   final Value<int?> stallCount;
+  final Value<bool> otherEvs;
   final Value<DateTime?> dateOpened;
   final Value<bool> hasCheckins;
   final Value<bool> visited;
@@ -764,6 +805,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
     this.region = const Value.absent(),
     this.timezone = const Value.absent(),
     this.stallCount = const Value.absent(),
+    this.otherEvs = const Value.absent(),
     this.dateOpened = const Value.absent(),
     this.hasCheckins = const Value.absent(),
     this.visited = const Value.absent(),
@@ -783,6 +825,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
     this.region = const Value.absent(),
     this.timezone = const Value.absent(),
     this.stallCount = const Value.absent(),
+    this.otherEvs = const Value.absent(),
     this.dateOpened = const Value.absent(),
     this.hasCheckins = const Value.absent(),
     this.visited = const Value.absent(),
@@ -803,6 +846,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
     Expression<String>? region,
     Expression<String>? timezone,
     Expression<int>? stallCount,
+    Expression<bool>? otherEvs,
     Expression<DateTime>? dateOpened,
     Expression<bool>? hasCheckins,
     Expression<bool>? visited,
@@ -822,6 +866,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
       if (region != null) 'region': region,
       if (timezone != null) 'timezone': timezone,
       if (stallCount != null) 'stall_count': stallCount,
+      if (otherEvs != null) 'other_evs': otherEvs,
       if (dateOpened != null) 'date_opened': dateOpened,
       if (hasCheckins != null) 'has_checkins': hasCheckins,
       if (visited != null) 'visited': visited,
@@ -843,6 +888,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
     Value<String>? region,
     Value<String?>? timezone,
     Value<int?>? stallCount,
+    Value<bool>? otherEvs,
     Value<DateTime?>? dateOpened,
     Value<bool>? hasCheckins,
     Value<bool>? visited,
@@ -862,6 +908,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
       region: region ?? this.region,
       timezone: timezone ?? this.timezone,
       stallCount: stallCount ?? this.stallCount,
+      otherEvs: otherEvs ?? this.otherEvs,
       dateOpened: dateOpened ?? this.dateOpened,
       hasCheckins: hasCheckins ?? this.hasCheckins,
       visited: visited ?? this.visited,
@@ -913,6 +960,9 @@ class SitesCompanion extends UpdateCompanion<Site> {
     if (stallCount.present) {
       map['stall_count'] = Variable<int>(stallCount.value);
     }
+    if (otherEvs.present) {
+      map['other_evs'] = Variable<bool>(otherEvs.value);
+    }
     if (dateOpened.present) {
       map['date_opened'] = Variable<DateTime>(dateOpened.value);
     }
@@ -944,6 +994,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
           ..write('region: $region, ')
           ..write('timezone: $timezone, ')
           ..write('stallCount: $stallCount, ')
+          ..write('otherEvs: $otherEvs, ')
           ..write('dateOpened: $dateOpened, ')
           ..write('hasCheckins: $hasCheckins, ')
           ..write('visited: $visited, ')
@@ -5528,6 +5579,7 @@ typedef $$SitesTableCreateCompanionBuilder =
       Value<String> region,
       Value<String?> timezone,
       Value<int?> stallCount,
+      Value<bool> otherEvs,
       Value<DateTime?> dateOpened,
       Value<bool> hasCheckins,
       Value<bool> visited,
@@ -5548,6 +5600,7 @@ typedef $$SitesTableUpdateCompanionBuilder =
       Value<String> region,
       Value<String?> timezone,
       Value<int?> stallCount,
+      Value<bool> otherEvs,
       Value<DateTime?> dateOpened,
       Value<bool> hasCheckins,
       Value<bool> visited,
@@ -5625,6 +5678,11 @@ class $$SitesTableFilterComposer extends Composer<_$AppDatabase, $SitesTable> {
 
   ColumnFilters<int> get stallCount => $composableBuilder(
     column: $table.stallCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get otherEvs => $composableBuilder(
+    column: $table.otherEvs,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5723,6 +5781,11 @@ class $$SitesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get otherEvs => $composableBuilder(
+    column: $table.otherEvs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get dateOpened => $composableBuilder(
     column: $table.dateOpened,
     builder: (column) => ColumnOrderings(column),
@@ -5796,6 +5859,9 @@ class $$SitesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get otherEvs =>
+      $composableBuilder(column: $table.otherEvs, builder: (column) => column);
+
   GeneratedColumn<DateTime> get dateOpened => $composableBuilder(
     column: $table.dateOpened,
     builder: (column) => column,
@@ -5856,6 +5922,7 @@ class $$SitesTableTableManager
                 Value<String> region = const Value.absent(),
                 Value<String?> timezone = const Value.absent(),
                 Value<int?> stallCount = const Value.absent(),
+                Value<bool> otherEvs = const Value.absent(),
                 Value<DateTime?> dateOpened = const Value.absent(),
                 Value<bool> hasCheckins = const Value.absent(),
                 Value<bool> visited = const Value.absent(),
@@ -5874,6 +5941,7 @@ class $$SitesTableTableManager
                 region: region,
                 timezone: timezone,
                 stallCount: stallCount,
+                otherEvs: otherEvs,
                 dateOpened: dateOpened,
                 hasCheckins: hasCheckins,
                 visited: visited,
@@ -5894,6 +5962,7 @@ class $$SitesTableTableManager
                 Value<String> region = const Value.absent(),
                 Value<String?> timezone = const Value.absent(),
                 Value<int?> stallCount = const Value.absent(),
+                Value<bool> otherEvs = const Value.absent(),
                 Value<DateTime?> dateOpened = const Value.absent(),
                 Value<bool> hasCheckins = const Value.absent(),
                 Value<bool> visited = const Value.absent(),
@@ -5912,13 +5981,23 @@ class $$SitesTableTableManager
                 region: region,
                 timezone: timezone,
                 stallCount: stallCount,
+                otherEvs: otherEvs,
                 dateOpened: dateOpened,
                 hasCheckins: hasCheckins,
                 visited: visited,
                 lastSynced: lastSynced,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$SitesTable, Site>(table),
+                  BaseReferences<_$AppDatabase, $SitesTable, Site>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -6338,7 +6417,16 @@ class $$VisitsTableTableManager
                 importedAt: importedAt,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$VisitsTable, Visit>(table),
+                  BaseReferences<_$AppDatabase, $VisitsTable, Visit>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -6738,7 +6826,16 @@ class $$PendingCheckinsTableTableManager
                 lastError: lastError,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$PendingCheckinsTable, PendingCheckin>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $PendingCheckinsTable,
+                    PendingCheckin
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -7035,7 +7132,16 @@ class $$SiteCheckinsTableTableManager
                 syncedAt: syncedAt,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$SiteCheckinsTable, SiteCheckin>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $SiteCheckinsTable,
+                    SiteCheckin
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -7585,7 +7691,18 @@ class $$UserSettingsTableTableTableManager
                 lastCheckinHistorySyncAt: lastCheckinHistorySyncAt,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$UserSettingsTableTable, UserSettingsTableData>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $UserSettingsTableTable,
+                    UserSettingsTableData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -7843,7 +7960,16 @@ class $$VehiclesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$VehiclesTable, Vehicle>(table),
+                  BaseReferences<_$AppDatabase, $VehiclesTable, Vehicle>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -7998,7 +8124,16 @@ class $$RegionSyncsTableTableManager
                 syncedAt: syncedAt,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$RegionSyncsTable, RegionSync>(table),
+                  BaseReferences<_$AppDatabase, $RegionSyncsTable, RegionSync>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),

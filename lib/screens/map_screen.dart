@@ -219,6 +219,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           // Any site the current user has checked into, regardless of status.
           sites = await DatabaseService.getSites(visited: true);
           break;
+        case MapFilter.unvisitedNacs:
+          // OPEN, unvisited, open to non-Tesla vehicles.
+          sites = await DatabaseService.getUnvisitedNacsSites();
+          break;
         case MapFilter.all:
           // All sites
           sites = await DatabaseService.getSites();
@@ -507,53 +511,32 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          FilterChip(
-            label: const Text('Open + Unvisited'),
-            selected: _currentFilter == MapFilter.openUnvisited,
-            onSelected: (selected) {
-              if (selected) {
-                setState(() => _currentFilter = MapFilter.openUnvisited);
-                _loadSites();
-              }
-            },
-          ),
+          _filterChip('Unvisited (Open)', MapFilter.openUnvisited),
           const SizedBox(width: 8),
-          FilterChip(
-            label: const Text('+ Construction'),
-            selected: _currentFilter == MapFilter.openUnvisitedConstruction,
-            onSelected: (selected) {
-              if (selected) {
-                setState(
-                  () => _currentFilter = MapFilter.openUnvisitedConstruction,
-                );
-                _loadSites();
-              }
-            },
-          ),
+          _filterChip('All', MapFilter.all),
           const SizedBox(width: 8),
-          FilterChip(
-            label: const Text('Visited'),
-            selected: _currentFilter == MapFilter.visited,
-            onSelected: (selected) {
-              if (selected) {
-                setState(() => _currentFilter = MapFilter.visited);
-                _loadSites();
-              }
-            },
-          ),
+          _filterChip('Visited', MapFilter.visited),
           const SizedBox(width: 8),
-          FilterChip(
-            label: const Text('All Statuses'),
-            selected: _currentFilter == MapFilter.all,
-            onSelected: (selected) {
-              if (selected) {
-                setState(() => _currentFilter = MapFilter.all);
-                _loadSites();
-              }
-            },
+          _filterChip('Unvisited NACS (Open)', MapFilter.unvisitedNacs),
+          const SizedBox(width: 8),
+          _filterChip(
+            'Unvisited (Open+Construction)',
+            MapFilter.openUnvisitedConstruction,
           ),
         ],
       ),
+    );
+  }
+
+  Widget _filterChip(String label, MapFilter filter) {
+    return FilterChip(
+      label: Text(label),
+      selected: _currentFilter == filter,
+      onSelected: (selected) {
+        if (!selected) return;
+        setState(() => _currentFilter = filter);
+        _loadSites();
+      },
     );
   }
 

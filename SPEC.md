@@ -116,7 +116,11 @@ First status is community-wide, not per-user. Until the official API exists, it'
 
 ## 5. Site Status, Filtering, and Pin Color
 
+Status: Complete. The filter list below is the written target. The app follows supercharging.life My Map, which the Filters status records.
+
 ### Status to behavior
+
+Status: Complete. OPEN and EXPANDING stay operational for check-in and pin color. The Unvisited (Open) and NACS map filters are OPEN only, matching supercharging.life.
 
 The 8 statuses map to behavior as follows:
 
@@ -127,6 +131,8 @@ The 8 statuses map to behavior as follows:
 - **Closed:** CLOSED_TEMP and CLOSED_PERM. Shown only under All. CLOSED_TEMP gets its own distinct icon (it may reopen), separate from CLOSED_PERM.
 
 ### Filters
+
+Status: Complete. Chips match supercharging.life My Map, in this order: Unvisited (Open), All, Visited, Unvisited NACS (Open), Unvisited (Open+Construction). Unvisited (Open) is OPEN and not visited. NACS is OPEN, not visited, and otherEVs. Open+Construction adds CONSTRUCTION and does not add EXPANDING.
 
 Four top-level filters. The original "Show Visited" option is restored, since the prototype dropped it:
 
@@ -255,7 +261,7 @@ Status: Complete. City, state, and stallCount were kept for the map sheet.
 
 **Phase 2, filters and pins.** `MapFilter` has `openUnvisited, openUnvisitedConstruction, all`; add a fourth `visited` value (Section 5's "Show Visited" was dropped in the prototype and needs restoring). Rewrite the marker logic in `map_screen.dart`, which currently colors by status using plain Material colors (red/orange/blue/purple) plus a separate green star for First-eligible, to use the Okabe-Ito palette with shape redundancy and the three-state green/yellow/red First coloring from Section 5, computed at render time from each site's earliest check-in date and timezone, not from `date_opened`.
 
-Status: Complete. Visited is restored. Pins use the Okabe-Ito First colors.
+Status: Complete. Visited is restored, and the live My Map filters replace the four-filter list. Pins use the Okabe-Ito First colors.
 
 **Phase 3, check-in flow.** Add a `notesPrivate` column to `Visits` and `PendingCheckins` (currently public-only); add the most-recent-check-in lookup and display in the nearby-sites list, which the prototype sorts by distance but doesn't currently annotate; add a `Vehicles` table and the optional vehicle selector, with VIN encrypted via `flutter_secure_storage` (already a dependency, currently used for the session cookie) and the one-time vPIC enrichment call.
 

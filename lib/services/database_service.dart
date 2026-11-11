@@ -70,6 +70,11 @@ class DatabaseService {
     }
   }
 
+  /// Unvisited OPEN sites that supercharging.life shows as NACS.
+  /// This does not use the open-unvisited bootstrap cache.
+  static Future<List<Site>> getUnvisitedNacsSites() =>
+      db.getUnvisitedNacsSites();
+
   /// Get all sites, optionally filtered
   static Future<List<Site>> getSites({
     SiteStatus? status,

@@ -31,7 +31,15 @@ enum AuthProvider { github, google }
 
 enum PollingInterval { minutes15, hour1, hours4, hours6, hours12, hours24 }
 
-enum MapFilter { openUnvisited, openUnvisitedConstruction, visited, all }
+/// My Map filters on supercharging.life, in the order that page shows them.
+/// Unvisited (Open) is the default. NACS is supercharge.info `otherEVs`.
+enum MapFilter {
+  openUnvisited,
+  all,
+  visited,
+  unvisitedNacs,
+  openUnvisitedConstruction,
+}
 
 enum UnitSystem { metric, imperial }
 
@@ -62,6 +70,9 @@ class Sites extends Table {
   /// Drives the site-local "First" day boundary.
   TextColumn get timezone => text().nullable()();
   IntColumn get stallCount => integer().nullable()();
+
+  /// Open to non-Tesla vehicles. supercharging.life calls this NACS.
+  BoolColumn get otherEvs => boolean().withDefault(const Constant(false))();
   DateTimeColumn get dateOpened => dateTime().nullable()();
 
   /// Cache of "community check-in count > 0" from the counts endpoint.
@@ -256,7 +267,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration {
@@ -375,8 +386,35 @@ class AppDatabase extends _$AppDatabase {
             );
           }
         }
+        if (from < 10) {
+          // Guards matter when a test replays this step on a database that
+          // already has the column from onCreate.
+          if (!await _columnExists('sites', 'other_evs')) {
+            await m.addColumn(sites, sites.otherEvs);
+          }
+          // Rows saved before other_evs existed keep the false default.
+          // Drop the region cursor so the next sync reloads site pages
+          // and fills the flag. Visited state is not part of that payload.
+          if (await _tableExists('region_syncs')) {
+            await customStatement('DELETE FROM region_syncs');
+          }
+        }
       },
     );
+  }
+
+  Future<bool> _columnExists(String table, String name) async {
+    final rows = await customSelect(
+      "SELECT 1 AS present FROM pragma_table_info('$table') WHERE name = '$name'",
+    ).get();
+    return rows.isNotEmpty;
+  }
+
+  Future<bool> _tableExists(String name) async {
+    final rows = await customSelect(
+      "SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = '$name'",
+    ).get();
+    return rows.isNotEmpty;
   }
 
   // -------------------------------------------------------------------------
@@ -427,6 +465,17 @@ class AppDatabase extends _$AppDatabase {
 
   Future<List<Site>> getVisitedSites() {
     return (select(sites)..where((t) => t.visited.equals(true))).get();
+  }
+
+  /// Unvisited OPEN sites that supercharging.life shows as NACS.
+  Future<List<Site>> getUnvisitedNacsSites() {
+    return (select(sites)..where(
+          (t) =>
+              t.status.equals(SiteStatus.open.name) &
+              t.visited.equals(false) &
+              t.otherEvs.equals(true),
+        ))
+        .get();
   }
 
   /// Earliest community check-in date per site (the site-local "first_date"
