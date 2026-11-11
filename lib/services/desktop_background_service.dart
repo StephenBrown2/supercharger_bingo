@@ -19,6 +19,10 @@ class DesktopBackgroundService {
   bool _isRunning = false;
   PollingInterval? _currentInterval;
 
+  /// Runs after each sync. NotificationService sets this so desktop alerts
+  /// fire without this file importing the notification plugin.
+  Future<void> Function()? afterSync;
+
   /// Start background sync with the specified interval
   Future<void> startSync(PollingInterval interval) async {
     // Cancel any existing timer
@@ -48,6 +52,8 @@ class DesktopBackgroundService {
       await SyncService.instance.syncSites();
       await SyncService.instance.syncCommunityData();
       await SyncService.instance.syncPendingCheckins();
+      final hook = afterSync;
+      if (hook != null) await hook();
     } catch (e) {
       // Log error but don't crash
       // In a real app, consider using a proper logging package

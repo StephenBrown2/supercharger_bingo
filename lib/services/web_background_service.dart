@@ -20,6 +20,9 @@ class WebBackgroundService {
   bool _isRunning = false;
   PollingInterval? _currentInterval;
 
+  /// Runs after each sync. Set from NotificationService.
+  Future<void> Function()? afterSync;
+
   /// Start background sync with the specified interval
   Future<void> startSync(PollingInterval interval) async {
     // Cancel any existing interval
@@ -47,6 +50,8 @@ class WebBackgroundService {
     try {
       await SyncService.instance.syncSites();
       await SyncService.instance.syncPendingCheckins();
+      final hook = afterSync;
+      if (hook != null) await hook();
     } catch (e) {
       // Log error but don't crash
       html.window.console.warn('Web background sync error: $e');

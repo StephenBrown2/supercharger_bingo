@@ -1,10 +1,14 @@
 import 'dart:io';
 
+import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:workmanager/workmanager.dart';
 
 import '../database/database.dart';
+import '../models/supercharge_info.dart';
+import 'alert_rules.dart';
+import 'api_service.dart';
 import 'background/background_stub.dart'
     if (dart.library.io) 'background/background_native.dart'
     if (dart.library.html) 'background/background_web.dart'
@@ -35,6 +39,10 @@ class NotificationService {
   /// Initialize notification channels and workmanager
   Future<void> initialize() async {
     if (_initialized) return;
+
+    background.setAfterSync(
+      () => NotificationService.instance.deliverBackgroundAlerts(),
+    );
 
     // Skip notification initialization on web
     if (kIsWeb) {
@@ -209,6 +217,118 @@ class NotificationService {
     }
   }
 
+  /// New-site and First alerts for the saved location. Does not post check-ins
+  /// and does not require a supercharging.life session.
+  Future<void> deliverBackgroundAlerts() async {
+    if (kIsWeb) return;
+    final settings = await DatabaseService.getUserSettings();
+    final lat = settings.lastLatitude;
+    final lng = settings.lastLongitude;
+    if (lat == null || lng == null) return;
+
+    try {
+      final window = await SyncService.instance.changesNewerThan(
+        userLat: lat,
+        userLng: lng,
+        cursor: settings.lastNotifiedChangeId,
+      );
+      final plan = planOpeningAlerts(
+        changes: window.changes,
+        lastNotifiedChangeId: settings.lastNotifiedChangeId,
+        notifyNewSites: settings.notifyNewSites,
+      );
+      // The first poll returns no rows on purpose. Its cursor is the newest
+      // change id from the fetch, not from the empty plan.
+      final nextCursor = window.nextCursor;
+      if (nextCursor != null && nextCursor != settings.lastNotifiedChangeId) {
+        await DatabaseService.updateUserSettings(
+          UserSettingsTableCompanion(lastNotifiedChangeId: Value(nextCursor)),
+        );
+      }
+      for (final change in plan.toAlert) {
+        await _notifyOpening(change, lat, lng, settings.notificationRadiusKm);
+      }
+    } catch (_) {
+      // Leave the cursor where it is so the next poll can try again.
+    }
+
+    if (!settings.notifyFirstEligible) return;
+    await _notifyFirstWindow(lat, lng, settings.notificationRadiusKm);
+  }
+
+  Future<void> _notifyOpening(
+    AllChanges change,
+    double lat,
+    double lng,
+    double radiusKm,
+  ) async {
+    final distance = TimezoneService.instance.calculateDistanceKm(
+      lat,
+      lng,
+      change.site.gps.latitude,
+      change.site.gps.longitude,
+    );
+    if (distance > radiusKm) return;
+    final claimed = await DatabaseService.claimNotification(
+      siteId: change.siteId,
+      channel: newSuperchargersChannelId,
+      dedupeKey: '${change.id}',
+    );
+    if (!claimed) return;
+    var site = await DatabaseService.getSiteBySiteId(change.siteId);
+    if (site == null) {
+      await DatabaseService.upsertSites([ApiService.companionFor(change.site)]);
+      site = await DatabaseService.getSiteBySiteId(change.siteId);
+    }
+    if (site == null) return;
+    await showNewSuperchargerNotification(site, distance);
+  }
+
+  Future<void> _notifyFirstWindow(
+    double lat,
+    double lng,
+    double radiusKm,
+  ) async {
+    final openSites = await DatabaseService.getSites(status: SiteStatus.open);
+    final nearby = <Site>[];
+    final distances = <int, double>{};
+    for (final site in openSites) {
+      if (site.visited) continue;
+      final distance = TimezoneService.instance.calculateDistanceKm(
+        lat,
+        lng,
+        site.latitude,
+        site.longitude,
+      );
+      if (distance > radiusKm) continue;
+      nearby.add(site);
+      distances[site.siteId] = distance;
+    }
+    final firstDates = await DatabaseService.getEarliestCheckinDates(
+      nearby.map((site) => site.siteId).toList(),
+    );
+    for (final site in nearby) {
+      final localNow = TimezoneService.instance.getLocalTimeAtSite(site);
+      if (!isInFirstWindow(
+        earliestCheckin: firstDates[site.siteId],
+        siteLocalNow: localNow,
+      )) {
+        continue;
+      }
+      final day =
+          '${localNow.year.toString().padLeft(4, '0')}-'
+          '${localNow.month.toString().padLeft(2, '0')}-'
+          '${localNow.day.toString().padLeft(2, '0')}';
+      final claimed = await DatabaseService.claimNotification(
+        siteId: site.siteId,
+        channel: firstEligibleChannelId,
+        dedupeKey: day,
+      );
+      if (!claimed) continue;
+      await showFirstEligibleNotification(site, distances[site.siteId]!);
+    }
+  }
+
   /// Show notification for new supercharger
   Future<void> showNewSuperchargerNotification(
     Site site,
@@ -279,63 +399,12 @@ void backgroundSyncCallback() {
         await DatabaseService.initialize();
         await TimezoneService.instance.initialize();
 
-        var settings = await DatabaseService.getUserSettings();
-
-        if (!settings.isAuthenticated) return true;
-
-        // Sync sites from supercharge.info
+        // Sync sites from supercharge.info. Alerts do not need a session.
+        // The check-in flush still skips the post when the cookie is missing.
         await SyncService.instance.syncSites();
-
-        // Sync community First data from supercharging.life
         await SyncService.instance.syncCommunityData();
-
-        // The site sync stores the fix it just used. Re-read so this pass
-        // can apply the notification radius.
-        settings = await DatabaseService.getUserSettings();
-
-        // Check for new superchargers within radius
-        if (settings.lastLatitude != null && settings.lastLongitude != null) {
-          final sites = await DatabaseService.getSites(status: SiteStatus.open);
-
-          for (final site in sites) {
-            final distance = TimezoneService.instance.calculateDistanceKm(
-              settings.lastLatitude!,
-              settings.lastLongitude!,
-              site.latitude,
-              site.longitude,
-            );
-
-            if (distance <= settings.notificationRadiusKm) {
-              // Check if this is a newly opened site (opened in the last polling interval)
-              if (site.dateOpened != null) {
-                final intervalMinutes = NotificationService.instance
-                    ._pollingIntervalToMinutes(settings.pollingInterval);
-                final cutoff = DateTime.now().subtract(
-                  Duration(minutes: intervalMinutes * 2),
-                );
-                if (site.dateOpened!.isAfter(cutoff)) {
-                  await NotificationService.instance
-                      .showNewSuperchargerNotification(site, distance);
-                }
-              }
-
-              // Check for First eligibility
-              if (!site.visited && site.status == SiteStatus.open) {
-                // Get last check-in at this site from history
-                final lastCheckin =
-                    await DatabaseService.getLastPublicCheckinDate(site.siteId);
-
-                if (TimezoneService.instance.isSiteFirstEligibleToday(
-                  site,
-                  lastCheckin,
-                )) {
-                  await NotificationService.instance
-                      .showFirstEligibleNotification(site, distance);
-                }
-              }
-            }
-          }
-        }
+        await SyncService.instance.syncPendingCheckins();
+        await NotificationService.instance.deliverBackgroundAlerts();
 
         return true;
       } catch (e) {

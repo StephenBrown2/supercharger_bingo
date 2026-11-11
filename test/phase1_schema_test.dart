@@ -137,6 +137,28 @@ void main() {
       },
     );
 
+    test('v12 upgrade adds the alert cursor and dedupe log once', () async {
+      await db.customStatement(
+        'ALTER TABLE user_settings DROP COLUMN last_notified_change_id',
+      );
+      await db.customStatement('DROP TABLE notification_log');
+      await db.migration.onUpgrade(Migrator(db), 11, 12);
+      final columns = await db
+          .customSelect("SELECT name FROM pragma_table_info('user_settings')")
+          .get();
+      expect(
+        columns.map((row) => row.read<String>('name')),
+        contains('last_notified_change_id'),
+      );
+      final tables = await db
+          .customSelect(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'notification_log'",
+          )
+          .get();
+      expect(tables, isNotEmpty);
+      await db.migration.onUpgrade(Migrator(db), 11, 12);
+    });
+
     test('site persists new enum value and derived timezone column', () async {
       await db.upsertSite(
         SitesCompanion.insert(

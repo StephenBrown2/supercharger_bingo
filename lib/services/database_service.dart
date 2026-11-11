@@ -75,6 +75,19 @@ class DatabaseService {
   static Future<List<Site>> getUnvisitedNacsSites() =>
       db.getUnvisitedNacsSites();
 
+  /// Insert a notification dedupe row. False when this alert was already sent.
+  static Future<bool> claimNotification({
+    required int siteId,
+    required String channel,
+    required String dedupeKey,
+  }) {
+    return db.claimNotification(
+      siteId: siteId,
+      channel: channel,
+      dedupeKey: dedupeKey,
+    );
+  }
+
   /// Get all sites, optionally filtered
   static Future<List<Site>> getSites({
     SiteStatus? status,

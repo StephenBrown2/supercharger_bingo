@@ -232,6 +232,8 @@ The two endpoints that retire the current workarounds are `GET /v1/checkins` (re
 
 ## 10. Notifications
 
+Status: Complete for local alerts. New-site alerts come from allChanges ADD and UPDATE-to-OPEN inside the radius, not from dateOpened. First alerts use the yellow First-today window only, once per site-local day. The first poll records the change cursor and does not dump history. Alerts do not require a supercharging.life session. Server-pushed notifications are deferred.
+
 In scope, using background sync (Workmanager on mobile, platform services on desktop/web). Two local channels:
 
 - **New Superchargers:** a site opening within the notification radius (driven by allChanges ADD/UPDATE-to-OPEN events).
@@ -259,7 +261,7 @@ The existing `supercharger_bingo` prototype is a real starting point, not a thro
 
 **Phase 1, schema and status (foundational, do first).** `SiteStatus` in `database.dart` currently has 6 values (`open, construction, permit, planned, closed, unknown`); it needs to become the real 8-value enum (`open, expanding, construction, permit, plan, voting, closedTemp, closedPerm`), which is a drift migration (bump `schemaVersion` past 3). At the same time, trim the `Sites` table down to the Section 3 field list and drop the rest (street/city/zip, stall breakdowns v2/v3/v4, power, elevation) rather than carrying them forward; they were reasonable to capture but the spec deliberately excludes them now. This phase gates everything else, since the filter and pin-color logic both key off status.
 
-Status: Complete. City, state, and stallCount were kept for the map sheet.
+Status: Complete. City, state, and stallCount stay for the map sheet. Schema version is 12. Version 10 clears the region cursor so the next sync can fill otherEvs. Version 11 adds the notification toggles. Version 12 adds the alert cursor and the dedupe log.
 
 **Phase 2, filters and pins.** `MapFilter` has `openUnvisited, openUnvisitedConstruction, all`; add a fourth `visited` value (Section 5's "Show Visited" was dropped in the prototype and needs restoring). Rewrite the marker logic in `map_screen.dart`, which currently colors by status using plain Material colors (red/orange/blue/purple) plus a separate green star for First-eligible, to use the Okabe-Ito palette with shape redundancy and the three-state green/yellow/red First coloring from Section 5, computed at render time from each site's earliest check-in date and timezone, not from `date_opened`.
 

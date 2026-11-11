@@ -3727,6 +3727,16 @@ class $UserSettingsTableTable extends UserSettingsTable
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _lastNotifiedChangeIdMeta =
+      const VerificationMeta('lastNotifiedChangeId');
+  @override
+  late final GeneratedColumn<int> lastNotifiedChangeId = GeneratedColumn<int>(
+    'last_notified_change_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _lastLatitudeMeta = const VerificationMeta(
     'lastLatitude',
   );
@@ -3793,6 +3803,7 @@ class $UserSettingsTableTable extends UserSettingsTable
     includeVehicleInPrivateNote,
     notifyNewSites,
     notifyFirstEligible,
+    lastNotifiedChangeId,
     lastLatitude,
     lastLongitude,
     lastSitesSyncAt,
@@ -3933,6 +3944,15 @@ class $UserSettingsTableTable extends UserSettingsTable
         ),
       );
     }
+    if (data.containsKey('last_notified_change_id')) {
+      context.handle(
+        _lastNotifiedChangeIdMeta,
+        lastNotifiedChangeId.isAcceptableOrUnknown(
+          data['last_notified_change_id']!,
+          _lastNotifiedChangeIdMeta,
+        ),
+      );
+    }
     if (data.containsKey('last_latitude')) {
       context.handle(
         _lastLatitudeMeta,
@@ -4063,6 +4083,10 @@ class $UserSettingsTableTable extends UserSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}notify_first_eligible'],
       )!,
+      lastNotifiedChangeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_notified_change_id'],
+      ),
       lastLatitude: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}last_latitude'],
@@ -4136,6 +4160,10 @@ class UserSettingsTableData extends DataClass
   /// New-site and First-eligible alerts. Both default on.
   final bool notifyNewSites;
   final bool notifyFirstEligible;
+
+  /// Highest allChanges id already considered for a new-site alert.
+  /// Null until the first poll, which records the cursor and does not alert.
+  final int? lastNotifiedChangeId;
   final double? lastLatitude;
   final double? lastLongitude;
   final DateTime? lastSitesSyncAt;
@@ -4160,6 +4188,7 @@ class UserSettingsTableData extends DataClass
     required this.includeVehicleInPrivateNote,
     required this.notifyNewSites,
     required this.notifyFirstEligible,
+    this.lastNotifiedChangeId,
     this.lastLatitude,
     this.lastLongitude,
     this.lastSitesSyncAt,
@@ -4219,6 +4248,9 @@ class UserSettingsTableData extends DataClass
     );
     map['notify_new_sites'] = Variable<bool>(notifyNewSites);
     map['notify_first_eligible'] = Variable<bool>(notifyFirstEligible);
+    if (!nullToAbsent || lastNotifiedChangeId != null) {
+      map['last_notified_change_id'] = Variable<int>(lastNotifiedChangeId);
+    }
     if (!nullToAbsent || lastLatitude != null) {
       map['last_latitude'] = Variable<double>(lastLatitude);
     }
@@ -4271,6 +4303,9 @@ class UserSettingsTableData extends DataClass
       includeVehicleInPrivateNote: Value(includeVehicleInPrivateNote),
       notifyNewSites: Value(notifyNewSites),
       notifyFirstEligible: Value(notifyFirstEligible),
+      lastNotifiedChangeId: lastNotifiedChangeId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastNotifiedChangeId),
       lastLatitude: lastLatitude == null && nullToAbsent
           ? const Value.absent()
           : Value(lastLatitude),
@@ -4326,6 +4361,9 @@ class UserSettingsTableData extends DataClass
       notifyFirstEligible: serializer.fromJson<bool>(
         json['notifyFirstEligible'],
       ),
+      lastNotifiedChangeId: serializer.fromJson<int?>(
+        json['lastNotifiedChangeId'],
+      ),
       lastLatitude: serializer.fromJson<double?>(json['lastLatitude']),
       lastLongitude: serializer.fromJson<double?>(json['lastLongitude']),
       lastSitesSyncAt: serializer.fromJson<DateTime?>(json['lastSitesSyncAt']),
@@ -4369,6 +4407,7 @@ class UserSettingsTableData extends DataClass
       ),
       'notifyNewSites': serializer.toJson<bool>(notifyNewSites),
       'notifyFirstEligible': serializer.toJson<bool>(notifyFirstEligible),
+      'lastNotifiedChangeId': serializer.toJson<int?>(lastNotifiedChangeId),
       'lastLatitude': serializer.toJson<double?>(lastLatitude),
       'lastLongitude': serializer.toJson<double?>(lastLongitude),
       'lastSitesSyncAt': serializer.toJson<DateTime?>(lastSitesSyncAt),
@@ -4398,6 +4437,7 @@ class UserSettingsTableData extends DataClass
     bool? includeVehicleInPrivateNote,
     bool? notifyNewSites,
     bool? notifyFirstEligible,
+    Value<int?> lastNotifiedChangeId = const Value.absent(),
     Value<double?> lastLatitude = const Value.absent(),
     Value<double?> lastLongitude = const Value.absent(),
     Value<DateTime?> lastSitesSyncAt = const Value.absent(),
@@ -4425,6 +4465,9 @@ class UserSettingsTableData extends DataClass
         includeVehicleInPrivateNote ?? this.includeVehicleInPrivateNote,
     notifyNewSites: notifyNewSites ?? this.notifyNewSites,
     notifyFirstEligible: notifyFirstEligible ?? this.notifyFirstEligible,
+    lastNotifiedChangeId: lastNotifiedChangeId.present
+        ? lastNotifiedChangeId.value
+        : this.lastNotifiedChangeId,
     lastLatitude: lastLatitude.present ? lastLatitude.value : this.lastLatitude,
     lastLongitude: lastLongitude.present
         ? lastLongitude.value
@@ -4487,6 +4530,9 @@ class UserSettingsTableData extends DataClass
       notifyFirstEligible: data.notifyFirstEligible.present
           ? data.notifyFirstEligible.value
           : this.notifyFirstEligible,
+      lastNotifiedChangeId: data.lastNotifiedChangeId.present
+          ? data.lastNotifiedChangeId.value
+          : this.lastNotifiedChangeId,
       lastLatitude: data.lastLatitude.present
           ? data.lastLatitude.value
           : this.lastLatitude,
@@ -4524,6 +4570,7 @@ class UserSettingsTableData extends DataClass
           ..write('includeVehicleInPrivateNote: $includeVehicleInPrivateNote, ')
           ..write('notifyNewSites: $notifyNewSites, ')
           ..write('notifyFirstEligible: $notifyFirstEligible, ')
+          ..write('lastNotifiedChangeId: $lastNotifiedChangeId, ')
           ..write('lastLatitude: $lastLatitude, ')
           ..write('lastLongitude: $lastLongitude, ')
           ..write('lastSitesSyncAt: $lastSitesSyncAt, ')
@@ -4553,6 +4600,7 @@ class UserSettingsTableData extends DataClass
     includeVehicleInPrivateNote,
     notifyNewSites,
     notifyFirstEligible,
+    lastNotifiedChangeId,
     lastLatitude,
     lastLongitude,
     lastSitesSyncAt,
@@ -4582,6 +4630,7 @@ class UserSettingsTableData extends DataClass
               this.includeVehicleInPrivateNote &&
           other.notifyNewSites == this.notifyNewSites &&
           other.notifyFirstEligible == this.notifyFirstEligible &&
+          other.lastNotifiedChangeId == this.lastNotifiedChangeId &&
           other.lastLatitude == this.lastLatitude &&
           other.lastLongitude == this.lastLongitude &&
           other.lastSitesSyncAt == this.lastSitesSyncAt &&
@@ -4609,6 +4658,7 @@ class UserSettingsTableCompanion
   final Value<bool> includeVehicleInPrivateNote;
   final Value<bool> notifyNewSites;
   final Value<bool> notifyFirstEligible;
+  final Value<int?> lastNotifiedChangeId;
   final Value<double?> lastLatitude;
   final Value<double?> lastLongitude;
   final Value<DateTime?> lastSitesSyncAt;
@@ -4633,6 +4683,7 @@ class UserSettingsTableCompanion
     this.includeVehicleInPrivateNote = const Value.absent(),
     this.notifyNewSites = const Value.absent(),
     this.notifyFirstEligible = const Value.absent(),
+    this.lastNotifiedChangeId = const Value.absent(),
     this.lastLatitude = const Value.absent(),
     this.lastLongitude = const Value.absent(),
     this.lastSitesSyncAt = const Value.absent(),
@@ -4658,6 +4709,7 @@ class UserSettingsTableCompanion
     this.includeVehicleInPrivateNote = const Value.absent(),
     this.notifyNewSites = const Value.absent(),
     this.notifyFirstEligible = const Value.absent(),
+    this.lastNotifiedChangeId = const Value.absent(),
     this.lastLatitude = const Value.absent(),
     this.lastLongitude = const Value.absent(),
     this.lastSitesSyncAt = const Value.absent(),
@@ -4683,6 +4735,7 @@ class UserSettingsTableCompanion
     Expression<bool>? includeVehicleInPrivateNote,
     Expression<bool>? notifyNewSites,
     Expression<bool>? notifyFirstEligible,
+    Expression<int>? lastNotifiedChangeId,
     Expression<double>? lastLatitude,
     Expression<double>? lastLongitude,
     Expression<DateTime>? lastSitesSyncAt,
@@ -4712,6 +4765,8 @@ class UserSettingsTableCompanion
       if (notifyNewSites != null) 'notify_new_sites': notifyNewSites,
       if (notifyFirstEligible != null)
         'notify_first_eligible': notifyFirstEligible,
+      if (lastNotifiedChangeId != null)
+        'last_notified_change_id': lastNotifiedChangeId,
       if (lastLatitude != null) 'last_latitude': lastLatitude,
       if (lastLongitude != null) 'last_longitude': lastLongitude,
       if (lastSitesSyncAt != null) 'last_sites_sync_at': lastSitesSyncAt,
@@ -4740,6 +4795,7 @@ class UserSettingsTableCompanion
     Value<bool>? includeVehicleInPrivateNote,
     Value<bool>? notifyNewSites,
     Value<bool>? notifyFirstEligible,
+    Value<int?>? lastNotifiedChangeId,
     Value<double?>? lastLatitude,
     Value<double?>? lastLongitude,
     Value<DateTime?>? lastSitesSyncAt,
@@ -4766,6 +4822,7 @@ class UserSettingsTableCompanion
           includeVehicleInPrivateNote ?? this.includeVehicleInPrivateNote,
       notifyNewSites: notifyNewSites ?? this.notifyNewSites,
       notifyFirstEligible: notifyFirstEligible ?? this.notifyFirstEligible,
+      lastNotifiedChangeId: lastNotifiedChangeId ?? this.lastNotifiedChangeId,
       lastLatitude: lastLatitude ?? this.lastLatitude,
       lastLongitude: lastLongitude ?? this.lastLongitude,
       lastSitesSyncAt: lastSitesSyncAt ?? this.lastSitesSyncAt,
@@ -4852,6 +4909,11 @@ class UserSettingsTableCompanion
     if (notifyFirstEligible.present) {
       map['notify_first_eligible'] = Variable<bool>(notifyFirstEligible.value);
     }
+    if (lastNotifiedChangeId.present) {
+      map['last_notified_change_id'] = Variable<int>(
+        lastNotifiedChangeId.value,
+      );
+    }
     if (lastLatitude.present) {
       map['last_latitude'] = Variable<double>(lastLatitude.value);
     }
@@ -4891,6 +4953,7 @@ class UserSettingsTableCompanion
           ..write('includeVehicleInPrivateNote: $includeVehicleInPrivateNote, ')
           ..write('notifyNewSites: $notifyNewSites, ')
           ..write('notifyFirstEligible: $notifyFirstEligible, ')
+          ..write('lastNotifiedChangeId: $lastNotifiedChangeId, ')
           ..write('lastLatitude: $lastLatitude, ')
           ..write('lastLongitude: $lastLongitude, ')
           ..write('lastSitesSyncAt: $lastSitesSyncAt, ')
@@ -5648,6 +5711,361 @@ class RegionSyncsCompanion extends UpdateCompanion<RegionSync> {
   }
 }
 
+class $NotificationLogTable extends NotificationLog
+    with TableInfo<$NotificationLogTable, NotificationLogData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $NotificationLogTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _siteIdMeta = const VerificationMeta('siteId');
+  @override
+  late final GeneratedColumn<int> siteId = GeneratedColumn<int>(
+    'site_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _channelMeta = const VerificationMeta(
+    'channel',
+  );
+  @override
+  late final GeneratedColumn<String> channel = GeneratedColumn<String>(
+    'channel',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _dedupeKeyMeta = const VerificationMeta(
+    'dedupeKey',
+  );
+  @override
+  late final GeneratedColumn<String> dedupeKey = GeneratedColumn<String>(
+    'dedupe_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sentAtMeta = const VerificationMeta('sentAt');
+  @override
+  late final GeneratedColumn<DateTime> sentAt = GeneratedColumn<DateTime>(
+    'sent_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    siteId,
+    channel,
+    dedupeKey,
+    sentAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'notification_log';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<NotificationLogData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('site_id')) {
+      context.handle(
+        _siteIdMeta,
+        siteId.isAcceptableOrUnknown(data['site_id']!, _siteIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_siteIdMeta);
+    }
+    if (data.containsKey('channel')) {
+      context.handle(
+        _channelMeta,
+        channel.isAcceptableOrUnknown(data['channel']!, _channelMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_channelMeta);
+    }
+    if (data.containsKey('dedupe_key')) {
+      context.handle(
+        _dedupeKeyMeta,
+        dedupeKey.isAcceptableOrUnknown(data['dedupe_key']!, _dedupeKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dedupeKeyMeta);
+    }
+    if (data.containsKey('sent_at')) {
+      context.handle(
+        _sentAtMeta,
+        sentAt.isAcceptableOrUnknown(data['sent_at']!, _sentAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sentAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {siteId, channel, dedupeKey},
+  ];
+  @override
+  NotificationLogData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return NotificationLogData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      siteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}site_id'],
+      )!,
+      channel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}channel'],
+      )!,
+      dedupeKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dedupe_key'],
+      )!,
+      sentAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}sent_at'],
+      )!,
+    );
+  }
+
+  @override
+  $NotificationLogTable createAlias(String alias) {
+    return $NotificationLogTable(attachedDatabase, alias);
+  }
+}
+
+class NotificationLogData extends DataClass
+    implements Insertable<NotificationLogData> {
+  final int id;
+  final int siteId;
+  final String channel;
+
+  /// Change id for a new site, or the site-local day for a First alert.
+  final String dedupeKey;
+  final DateTime sentAt;
+  const NotificationLogData({
+    required this.id,
+    required this.siteId,
+    required this.channel,
+    required this.dedupeKey,
+    required this.sentAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['site_id'] = Variable<int>(siteId);
+    map['channel'] = Variable<String>(channel);
+    map['dedupe_key'] = Variable<String>(dedupeKey);
+    map['sent_at'] = Variable<DateTime>(sentAt);
+    return map;
+  }
+
+  NotificationLogCompanion toCompanion(bool nullToAbsent) {
+    return NotificationLogCompanion(
+      id: Value(id),
+      siteId: Value(siteId),
+      channel: Value(channel),
+      dedupeKey: Value(dedupeKey),
+      sentAt: Value(sentAt),
+    );
+  }
+
+  factory NotificationLogData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return NotificationLogData(
+      id: serializer.fromJson<int>(json['id']),
+      siteId: serializer.fromJson<int>(json['siteId']),
+      channel: serializer.fromJson<String>(json['channel']),
+      dedupeKey: serializer.fromJson<String>(json['dedupeKey']),
+      sentAt: serializer.fromJson<DateTime>(json['sentAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'siteId': serializer.toJson<int>(siteId),
+      'channel': serializer.toJson<String>(channel),
+      'dedupeKey': serializer.toJson<String>(dedupeKey),
+      'sentAt': serializer.toJson<DateTime>(sentAt),
+    };
+  }
+
+  NotificationLogData copyWith({
+    int? id,
+    int? siteId,
+    String? channel,
+    String? dedupeKey,
+    DateTime? sentAt,
+  }) => NotificationLogData(
+    id: id ?? this.id,
+    siteId: siteId ?? this.siteId,
+    channel: channel ?? this.channel,
+    dedupeKey: dedupeKey ?? this.dedupeKey,
+    sentAt: sentAt ?? this.sentAt,
+  );
+  NotificationLogData copyWithCompanion(NotificationLogCompanion data) {
+    return NotificationLogData(
+      id: data.id.present ? data.id.value : this.id,
+      siteId: data.siteId.present ? data.siteId.value : this.siteId,
+      channel: data.channel.present ? data.channel.value : this.channel,
+      dedupeKey: data.dedupeKey.present ? data.dedupeKey.value : this.dedupeKey,
+      sentAt: data.sentAt.present ? data.sentAt.value : this.sentAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NotificationLogData(')
+          ..write('id: $id, ')
+          ..write('siteId: $siteId, ')
+          ..write('channel: $channel, ')
+          ..write('dedupeKey: $dedupeKey, ')
+          ..write('sentAt: $sentAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, siteId, channel, dedupeKey, sentAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is NotificationLogData &&
+          other.id == this.id &&
+          other.siteId == this.siteId &&
+          other.channel == this.channel &&
+          other.dedupeKey == this.dedupeKey &&
+          other.sentAt == this.sentAt);
+}
+
+class NotificationLogCompanion extends UpdateCompanion<NotificationLogData> {
+  final Value<int> id;
+  final Value<int> siteId;
+  final Value<String> channel;
+  final Value<String> dedupeKey;
+  final Value<DateTime> sentAt;
+  const NotificationLogCompanion({
+    this.id = const Value.absent(),
+    this.siteId = const Value.absent(),
+    this.channel = const Value.absent(),
+    this.dedupeKey = const Value.absent(),
+    this.sentAt = const Value.absent(),
+  });
+  NotificationLogCompanion.insert({
+    this.id = const Value.absent(),
+    required int siteId,
+    required String channel,
+    required String dedupeKey,
+    required DateTime sentAt,
+  }) : siteId = Value(siteId),
+       channel = Value(channel),
+       dedupeKey = Value(dedupeKey),
+       sentAt = Value(sentAt);
+  static Insertable<NotificationLogData> custom({
+    Expression<int>? id,
+    Expression<int>? siteId,
+    Expression<String>? channel,
+    Expression<String>? dedupeKey,
+    Expression<DateTime>? sentAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (siteId != null) 'site_id': siteId,
+      if (channel != null) 'channel': channel,
+      if (dedupeKey != null) 'dedupe_key': dedupeKey,
+      if (sentAt != null) 'sent_at': sentAt,
+    });
+  }
+
+  NotificationLogCompanion copyWith({
+    Value<int>? id,
+    Value<int>? siteId,
+    Value<String>? channel,
+    Value<String>? dedupeKey,
+    Value<DateTime>? sentAt,
+  }) {
+    return NotificationLogCompanion(
+      id: id ?? this.id,
+      siteId: siteId ?? this.siteId,
+      channel: channel ?? this.channel,
+      dedupeKey: dedupeKey ?? this.dedupeKey,
+      sentAt: sentAt ?? this.sentAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (siteId.present) {
+      map['site_id'] = Variable<int>(siteId.value);
+    }
+    if (channel.present) {
+      map['channel'] = Variable<String>(channel.value);
+    }
+    if (dedupeKey.present) {
+      map['dedupe_key'] = Variable<String>(dedupeKey.value);
+    }
+    if (sentAt.present) {
+      map['sent_at'] = Variable<DateTime>(sentAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NotificationLogCompanion(')
+          ..write('id: $id, ')
+          ..write('siteId: $siteId, ')
+          ..write('channel: $channel, ')
+          ..write('dedupeKey: $dedupeKey, ')
+          ..write('sentAt: $sentAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -5661,6 +6079,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $UserSettingsTableTable(this);
   late final $VehiclesTable vehicles = $VehiclesTable(this);
   late final $RegionSyncsTable regionSyncs = $RegionSyncsTable(this);
+  late final $NotificationLogTable notificationLog = $NotificationLogTable(
+    this,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -5673,6 +6094,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     userSettingsTable,
     vehicles,
     regionSyncs,
+    notificationLog,
   ];
 }
 
@@ -7298,6 +7720,7 @@ typedef $$UserSettingsTableTableCreateCompanionBuilder =
       Value<bool> includeVehicleInPrivateNote,
       Value<bool> notifyNewSites,
       Value<bool> notifyFirstEligible,
+      Value<int?> lastNotifiedChangeId,
       Value<double?> lastLatitude,
       Value<double?> lastLongitude,
       Value<DateTime?> lastSitesSyncAt,
@@ -7324,6 +7747,7 @@ typedef $$UserSettingsTableTableUpdateCompanionBuilder =
       Value<bool> includeVehicleInPrivateNote,
       Value<bool> notifyNewSites,
       Value<bool> notifyFirstEligible,
+      Value<int?> lastNotifiedChangeId,
       Value<double?> lastLatitude,
       Value<double?> lastLongitude,
       Value<DateTime?> lastSitesSyncAt,
@@ -7435,6 +7859,11 @@ class $$UserSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get notifyFirstEligible => $composableBuilder(
     column: $table.notifyFirstEligible,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastNotifiedChangeId => $composableBuilder(
+    column: $table.lastNotifiedChangeId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7563,6 +7992,11 @@ class $$UserSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get lastNotifiedChangeId => $composableBuilder(
+    column: $table.lastNotifiedChangeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get lastLatitude => $composableBuilder(
     column: $table.lastLatitude,
     builder: (column) => ColumnOrderings(column),
@@ -7683,6 +8117,11 @@ class $$UserSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get lastNotifiedChangeId => $composableBuilder(
+    column: $table.lastNotifiedChangeId,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<double> get lastLatitude => $composableBuilder(
     column: $table.lastLatitude,
     builder: (column) => column,
@@ -7763,6 +8202,7 @@ class $$UserSettingsTableTableTableManager
                 Value<bool> includeVehicleInPrivateNote = const Value.absent(),
                 Value<bool> notifyNewSites = const Value.absent(),
                 Value<bool> notifyFirstEligible = const Value.absent(),
+                Value<int?> lastNotifiedChangeId = const Value.absent(),
                 Value<double?> lastLatitude = const Value.absent(),
                 Value<double?> lastLongitude = const Value.absent(),
                 Value<DateTime?> lastSitesSyncAt = const Value.absent(),
@@ -7788,6 +8228,7 @@ class $$UserSettingsTableTableTableManager
                 includeVehicleInPrivateNote: includeVehicleInPrivateNote,
                 notifyNewSites: notifyNewSites,
                 notifyFirstEligible: notifyFirstEligible,
+                lastNotifiedChangeId: lastNotifiedChangeId,
                 lastLatitude: lastLatitude,
                 lastLongitude: lastLongitude,
                 lastSitesSyncAt: lastSitesSyncAt,
@@ -7814,6 +8255,7 @@ class $$UserSettingsTableTableTableManager
                 Value<bool> includeVehicleInPrivateNote = const Value.absent(),
                 Value<bool> notifyNewSites = const Value.absent(),
                 Value<bool> notifyFirstEligible = const Value.absent(),
+                Value<int?> lastNotifiedChangeId = const Value.absent(),
                 Value<double?> lastLatitude = const Value.absent(),
                 Value<double?> lastLongitude = const Value.absent(),
                 Value<DateTime?> lastSitesSyncAt = const Value.absent(),
@@ -7839,6 +8281,7 @@ class $$UserSettingsTableTableTableManager
                 includeVehicleInPrivateNote: includeVehicleInPrivateNote,
                 notifyNewSites: notifyNewSites,
                 notifyFirstEligible: notifyFirstEligible,
+                lastNotifiedChangeId: lastNotifiedChangeId,
                 lastLatitude: lastLatitude,
                 lastLongitude: lastLongitude,
                 lastSitesSyncAt: lastSitesSyncAt,
@@ -8311,6 +8754,221 @@ typedef $$RegionSyncsTableProcessedTableManager =
       RegionSync,
       PrefetchHooks Function()
     >;
+typedef $$NotificationLogTableCreateCompanionBuilder =
+    NotificationLogCompanion Function({
+      Value<int> id,
+      required int siteId,
+      required String channel,
+      required String dedupeKey,
+      required DateTime sentAt,
+    });
+typedef $$NotificationLogTableUpdateCompanionBuilder =
+    NotificationLogCompanion Function({
+      Value<int> id,
+      Value<int> siteId,
+      Value<String> channel,
+      Value<String> dedupeKey,
+      Value<DateTime> sentAt,
+    });
+
+class $$NotificationLogTableFilterComposer
+    extends Composer<_$AppDatabase, $NotificationLogTable> {
+  $$NotificationLogTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get siteId => $composableBuilder(
+    column: $table.siteId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get channel => $composableBuilder(
+    column: $table.channel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dedupeKey => $composableBuilder(
+    column: $table.dedupeKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get sentAt => $composableBuilder(
+    column: $table.sentAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$NotificationLogTableOrderingComposer
+    extends Composer<_$AppDatabase, $NotificationLogTable> {
+  $$NotificationLogTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get siteId => $composableBuilder(
+    column: $table.siteId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get channel => $composableBuilder(
+    column: $table.channel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get dedupeKey => $composableBuilder(
+    column: $table.dedupeKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get sentAt => $composableBuilder(
+    column: $table.sentAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$NotificationLogTableAnnotationComposer
+    extends Composer<_$AppDatabase, $NotificationLogTable> {
+  $$NotificationLogTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get siteId =>
+      $composableBuilder(column: $table.siteId, builder: (column) => column);
+
+  GeneratedColumn<String> get channel =>
+      $composableBuilder(column: $table.channel, builder: (column) => column);
+
+  GeneratedColumn<String> get dedupeKey =>
+      $composableBuilder(column: $table.dedupeKey, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get sentAt =>
+      $composableBuilder(column: $table.sentAt, builder: (column) => column);
+}
+
+class $$NotificationLogTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $NotificationLogTable,
+          NotificationLogData,
+          $$NotificationLogTableFilterComposer,
+          $$NotificationLogTableOrderingComposer,
+          $$NotificationLogTableAnnotationComposer,
+          $$NotificationLogTableCreateCompanionBuilder,
+          $$NotificationLogTableUpdateCompanionBuilder,
+          (
+            NotificationLogData,
+            BaseReferences<
+              _$AppDatabase,
+              $NotificationLogTable,
+              NotificationLogData
+            >,
+          ),
+          NotificationLogData,
+          PrefetchHooks Function()
+        > {
+  $$NotificationLogTableTableManager(
+    _$AppDatabase db,
+    $NotificationLogTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$NotificationLogTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$NotificationLogTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$NotificationLogTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> siteId = const Value.absent(),
+                Value<String> channel = const Value.absent(),
+                Value<String> dedupeKey = const Value.absent(),
+                Value<DateTime> sentAt = const Value.absent(),
+              }) => NotificationLogCompanion(
+                id: id,
+                siteId: siteId,
+                channel: channel,
+                dedupeKey: dedupeKey,
+                sentAt: sentAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int siteId,
+                required String channel,
+                required String dedupeKey,
+                required DateTime sentAt,
+              }) => NotificationLogCompanion.insert(
+                id: id,
+                siteId: siteId,
+                channel: channel,
+                dedupeKey: dedupeKey,
+                sentAt: sentAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$NotificationLogTable, NotificationLogData>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $NotificationLogTable,
+                    NotificationLogData
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$NotificationLogTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $NotificationLogTable,
+      NotificationLogData,
+      $$NotificationLogTableFilterComposer,
+      $$NotificationLogTableOrderingComposer,
+      $$NotificationLogTableAnnotationComposer,
+      $$NotificationLogTableCreateCompanionBuilder,
+      $$NotificationLogTableUpdateCompanionBuilder,
+      (
+        NotificationLogData,
+        BaseReferences<
+          _$AppDatabase,
+          $NotificationLogTable,
+          NotificationLogData
+        >,
+      ),
+      NotificationLogData,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -8329,4 +8987,6 @@ class $AppDatabaseManager {
       $$VehiclesTableTableManager(_db, _db.vehicles);
   $$RegionSyncsTableTableManager get regionSyncs =>
       $$RegionSyncsTableTableManager(_db, _db.regionSyncs);
+  $$NotificationLogTableTableManager get notificationLog =>
+      $$NotificationLogTableTableManager(_db, _db.notificationLog);
 }

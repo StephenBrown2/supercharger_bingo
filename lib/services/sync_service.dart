@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 
 import '../database/database.dart';
 import '../models/supercharge_info.dart';
+import 'alert_rules.dart';
 import 'api_service.dart';
 import 'checkin_form.dart';
 import 'checkin_rules.dart';
@@ -755,10 +756,7 @@ class SyncService {
     final newSuperchargers = <AllChanges>[];
 
     for (final change in page.results) {
-      if (change.changeType != ChangeType.ADD ||
-          change.siteStatus != Status.OPEN) {
-        continue;
-      }
+      if (!isOpeningChange(change)) continue;
       final distance = TimezoneService.instance.calculateDistanceKm(
         userLat,
         userLng,
@@ -769,6 +767,45 @@ class SyncService {
     }
 
     return newSuperchargers;
+  }
+
+  /// Changes newer than [cursor]. A null cursor is the first poll: return the
+  /// newest id and no rows, so alerts do not replay history.
+  Future<({List<AllChanges> changes, int? nextCursor})> changesNewerThan({
+    required double userLat,
+    required double userLng,
+    required int? cursor,
+  }) async {
+    final regionId = SuperchargeRegion.forCoordinates(userLat, userLng);
+    if (cursor == null) {
+      final newest = await _apiService.fetchNewestChangeId(regionId);
+      return (changes: <AllChanges>[], nextCursor: newest);
+    }
+
+    final collected = <AllChanges>[];
+    var start = 0;
+    var next = cursor;
+    while (true) {
+      final page = await _apiService.fetchChangesPage(
+        regionId: regionId,
+        start: start,
+        length: ApiService.changePageLength,
+      );
+      if (page.results.isEmpty) break;
+      var reached = false;
+      for (final change in page.results) {
+        if (change.id > next) next = change.id;
+        if (change.id <= cursor) {
+          reached = true;
+          continue;
+        }
+        collected.add(change);
+      }
+      if (reached || page.results.length < ApiService.changePageLength) break;
+      start += page.results.length;
+      if (start >= page.recordCount) break;
+    }
+    return (changes: collected, nextCursor: next);
   }
 
   Future<CheckinDraft> _draftFor({

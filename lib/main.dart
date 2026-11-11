@@ -57,8 +57,10 @@ class _SuperchargerBingoAppState extends State<SuperchargerBingoApp> {
     // and unawaited so the map renders without waiting on the fragile endpoint.
     SyncService.instance.syncCommunityData();
 
-    // Background sync only on native platforms (not web)
-    if (!kIsWeb && settings.isAuthenticated) {
+    // Site and First alerts come from supercharge.info, so a device-only
+    // sign-in still schedules them. The check-in post itself still waits
+    // for a session.
+    if (!kIsWeb && settings.lastLoginAt != null) {
       await NotificationService.instance.scheduleBackgroundSync(settings);
     }
   }

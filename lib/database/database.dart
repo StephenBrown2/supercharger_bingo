@@ -186,6 +186,22 @@ class Vehicles extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// One row per alert already shown, so a poll does not repeat it.
+class NotificationLog extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get siteId => integer()();
+  TextColumn get channel => text()();
+
+  /// Change id for a new site, or the site-local day for a First alert.
+  TextColumn get dedupeKey => text()();
+  DateTimeColumn get sentAt => dateTime()();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {siteId, channel, dedupeKey},
+  ];
+}
+
 /// User settings and authentication state
 class UserSettingsTable extends Table {
   IntColumn get id => integer().autoIncrement()();
@@ -230,6 +246,10 @@ class UserSettingsTable extends Table {
       boolean().withDefault(const Constant(true))();
   BoolColumn get notifyFirstEligible =>
       boolean().withDefault(const Constant(true))();
+
+  /// Highest allChanges id already considered for a new-site alert.
+  /// Null until the first poll, which records the cursor and does not alert.
+  IntColumn get lastNotifiedChangeId => integer().nullable()();
   RealColumn get lastLatitude => real().nullable()();
   RealColumn get lastLongitude => real().nullable()();
   DateTimeColumn get lastSitesSyncAt => dateTime().nullable()();
@@ -264,6 +284,7 @@ class RegionSyncs extends Table {
     UserSettingsTable,
     Vehicles,
     RegionSyncs,
+    NotificationLog,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -273,7 +294,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration {
@@ -421,6 +442,22 @@ class AppDatabase extends _$AppDatabase {
             );
           }
         }
+        if (from < 12) {
+          // Guards matter when a test replays this step on a database that
+          // already has the column and table from onCreate.
+          if (!await _columnExists(
+            'user_settings',
+            'last_notified_change_id',
+          )) {
+            await m.addColumn(
+              userSettingsTable,
+              userSettingsTable.lastNotifiedChangeId,
+            );
+          }
+          if (!await _tableExists('notification_log')) {
+            await m.createTable(notificationLog);
+          }
+        }
       },
     );
   }
@@ -437,6 +474,27 @@ class AppDatabase extends _$AppDatabase {
       "SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = '$name'",
     ).get();
     return rows.isNotEmpty;
+  }
+
+  /// Insert a dedupe row. Returns false when this alert was already sent.
+  Future<bool> claimNotification({
+    required int siteId,
+    required String channel,
+    required String dedupeKey,
+  }) async {
+    try {
+      await into(notificationLog).insert(
+        NotificationLogCompanion.insert(
+          siteId: siteId,
+          channel: channel,
+          dedupeKey: dedupeKey,
+          sentAt: DateTime.now(),
+        ),
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   // -------------------------------------------------------------------------

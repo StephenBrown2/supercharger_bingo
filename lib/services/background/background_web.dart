@@ -4,6 +4,10 @@
 import '../../database/database.dart';
 import '../web_background_service.dart';
 
+void setAfterSync(Future<void> Function() hook) {
+  WebBackgroundService.instance.afterSync = hook;
+}
+
 Future<void> startBackgroundSync(PollingInterval interval) async {
   await WebBackgroundService.instance.startSync(interval);
 }
