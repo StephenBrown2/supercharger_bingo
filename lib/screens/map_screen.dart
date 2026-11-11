@@ -61,7 +61,13 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   bool _isLoadingLocation = false;
   bool _isLoadingSites = false;
   String? _locationError;
+  bool _searchAll = false;
   bool _needsSignIn = false;
+  int? _selectedSiteId;
+  String _siteQuery = '';
+  List<Site> _allSites = [];
+  int _searchGeneration = 0;
+  final TextEditingController _siteSearchController = TextEditingController();
 
   @override
   void initState() {
@@ -179,6 +185,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     SyncService.instance.sessionExpiredVersion.removeListener(
       _onSessionExpired,
     );
+    _siteSearchController.dispose();
     _locationAnimController.dispose();
     _drawerAnimController.dispose();
     super.dispose();
@@ -779,7 +786,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                   Icon(Icons.near_me, color: theme.colorScheme.primary),
                   const SizedBox(width: 8),
                   Text(
-                    'Nearby Superchargers',
+                    _searchAll ? 'All Superchargers' : 'Nearby Superchargers',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -798,6 +805,42 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 ],
               ),
             ),
+
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                children: [
+                  if (!_searchAll)
+                    TextButton(
+                      onPressed: _openFullSearch,
+                      child: const Text('Search all locations'),
+                    ),
+                  if (_searchAll && _userPosition != null)
+                    TextButton(
+                      onPressed: _showClosest,
+                      child: const Text('Show closest'),
+                    ),
+                ],
+              ),
+            ),
+
+            if (_searchAll)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: TextField(
+                  controller: _siteSearchController,
+                  decoration: const InputDecoration(
+                    hintText: 'Search superchargers',
+                    prefixIcon: Icon(Icons.search),
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (value) {
+                    setState(() => _siteQuery = value);
+                    _applySiteQuery();
+                  },
+                ),
+              ),
 
             // Location error
             if (_locationError != null)
@@ -848,9 +891,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              _userPosition == null
-                                  ? 'Getting location...'
-                                  : 'No superchargers nearby',
+                              _emptyCheckinMessage(),
                               style: theme.textTheme.bodyLarge,
                             ),
                           ],
@@ -907,10 +948,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     UserSettingsTableData settings,
   ) {
     final site = siteWithDist.site;
-    final distanceStr = _formatDistance(
-      siteWithDist.distanceKm,
-      settings.unitSystem,
-    );
+    final distanceStr = _userPosition == null
+        ? null
+        : _formatDistance(siteWithDist.distanceKm, settings.unitSystem);
     final lastVisit = _lastVisits[site.siteId];
     final recent = lastVisit != null
         ? 'Last: ${_formatShortDate(lastVisit)}'
@@ -920,12 +960,19 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: ListTile(
+        selected: site.siteId == _selectedSiteId,
         leading: _buildCheckinLeadingIcon(theme, firstEligible),
-        title: Text(site.name),
+        title: Text(
+          checkinPickerLabel(
+            name: site.name,
+            status: site.status,
+            distance: distanceStr,
+          ),
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('$distanceStr${firstEligible ? " • FIRST eligible" : ""}'),
+            if (firstEligible) const Text('FIRST eligible'),
             Text(recent, style: theme.textTheme.bodySmall),
           ],
         ),
@@ -933,9 +980,22 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           onPressed: () => _handleCheckin(siteWithDist),
           child: const Text('Check In'),
         ),
-        onTap: () => _zoomToSite(site),
+        onTap: () {
+          setState(() => _selectedSiteId = site.siteId);
+          _zoomToSite(site);
+        },
       ),
     );
+  }
+
+  String _emptyCheckinMessage() {
+    if (_searchAll) {
+      return _siteQuery.trim().isEmpty
+          ? 'No superchargers saved yet'
+          : 'No matching superchargers';
+    }
+    if (_userPosition == null) return 'Getting location...';
+    return 'No superchargers nearby';
   }
 
   /// Format distance based on unit system
@@ -992,7 +1052,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         setState(() {
           _isLoadingLocation = false;
           _locationError = 'Could not determine location';
+          _searchAll = true;
         });
+        await _loadSearchSites();
         return;
       }
 
@@ -1011,8 +1073,82 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       setState(() {
         _isLoadingLocation = false;
         _locationError = 'Location error: ${e.toString().split('\n').first}';
+        _searchAll = true;
       });
+      await _loadSearchSites();
     }
+  }
+
+  Future<void> _openFullSearch() async {
+    setState(() => _searchAll = true);
+    await _loadSearchSites();
+  }
+
+  Future<void> _showClosest() async {
+    _searchGeneration++;
+    _siteSearchController.clear();
+    _siteQuery = '';
+    await _loadNearbySites();
+  }
+
+  List<Site> _matchingSites() {
+    final query = _siteQuery.trim().toLowerCase();
+    final matched = query.isEmpty
+        ? _allSites
+        : _allSites.where((site) => site.name.toLowerCase().contains(query));
+    return matched.take(40).toList();
+  }
+
+  List<SiteWithDistance> _withDistance(List<Site> sites) {
+    final position = _userPosition;
+    return [
+      for (final site in sites)
+        SiteWithDistance(
+          site: site,
+          distanceKm: position == null
+              ? 0
+              : TimezoneService.instance.calculateDistanceKm(
+                  position.latitude,
+                  position.longitude,
+                  site.latitude,
+                  site.longitude,
+                ),
+        ),
+    ];
+  }
+
+  Future<void> _loadSearchSites() async {
+    setState(() => _isLoadingSites = true);
+    try {
+      if (_allSites.isEmpty) {
+        final sites = await DatabaseService.getSites();
+        sites.sort(
+          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+        );
+        _allSites = sites;
+      }
+      await _applySiteQuery();
+    } catch (e) {
+      debugPrint('Failed to load sites for search: $e');
+      if (mounted) setState(() => _isLoadingSites = false);
+    }
+  }
+
+  Future<void> _applySiteQuery() async {
+    final generation = ++_searchGeneration;
+    final visible = _matchingSites();
+    final ids = visible.map((site) => site.siteId).toList();
+    final lastVisits = await DatabaseService.getLastVisitDates(ids);
+    final firstDates = await DatabaseService.getEarliestCheckinDates(ids);
+    if (!mounted || generation != _searchGeneration) return;
+    setState(() {
+      _searchAll = true;
+      _nearbySites = _withDistance(visible);
+      _lastVisits = lastVisits;
+      _nearbyFirstDates = firstDates;
+      _isLoadingSites = false;
+      _selectedSiteId = null;
+    });
   }
 
   Future<void> _loadNearbySites() async {
@@ -1038,10 +1174,12 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       final firstDates = await DatabaseService.getEarliestCheckinDates(siteIds);
 
       setState(() {
+        _searchAll = false;
         _nearbySites = sites;
         _lastVisits = lastVisits;
         _nearbyFirstDates = firstDates;
         _isLoadingSites = false;
+        _selectedSiteId = sites.isEmpty ? null : sites.first.site.siteId;
       });
     } catch (e) {
       debugPrint('Failed to load nearby sites: $e');

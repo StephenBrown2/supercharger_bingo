@@ -27,10 +27,7 @@ void main() {
 
     test('first date before today => passed', () {
       expect(
-        computeFirstState(
-          firstDate: DateTime(2026, 6, 17),
-          siteLocalNow: now,
-        ),
+        computeFirstState(firstDate: DateTime(2026, 6, 17), siteLocalNow: now),
         FirstState.passed,
       );
     });
@@ -121,5 +118,20 @@ void main() {
 
   test('MapFilter now includes a visited value (Show Visited restored)', () {
     expect(MapFilter.values.contains(MapFilter.visited), isTrue);
+  });
+
+  test('check-in row label matches name (status) (distance)', () {
+    expect(
+      checkinPickerLabel(
+        name: 'Upper Sandusky, OH',
+        status: SiteStatus.open,
+        distance: '12.0 mi',
+      ),
+      'Upper Sandusky, OH (OPEN) (12.0 mi)',
+    );
+    expect(
+      checkinPickerLabel(name: 'Upper Sandusky, OH', status: SiteStatus.open),
+      'Upper Sandusky, OH (OPEN)',
+    );
   });
 }

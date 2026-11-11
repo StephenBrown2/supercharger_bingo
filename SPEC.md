@@ -153,6 +153,8 @@ Because the green/yellow/red boundary moves purely with the passage of time, it 
 
 ## 6. Check-in Flow
 
+Status: Complete. Location denial opens an alphabetical full-site search. The closest of the ten nearby sites starts selected. Each row reads name (status) (distance), keeps the most recent check-in line, and has a Check In button. Search all locations is available from the nearby list. The post-save go-to menu stays deferred.
+
 Modeled on the live supercharging.life check-in form, with two deliberate changes: add a most-recent-check-in indicator, and omit the "Save and then go to..." navigation dropdown for now.
 
 1. Request location. On denial, fall back to a manual, alphabetical full-site search (mirrors the site's `?gps=n` mode).

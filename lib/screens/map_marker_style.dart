@@ -53,6 +53,39 @@ Color glyphForeground(Color background) =>
 bool isOperational(SiteStatus status) =>
     status == SiteStatus.open || status == SiteStatus.expanding;
 
+/// Wire spelling used on supercharging.life, for the check-in picker row.
+String siteStatusWireName(SiteStatus status) {
+  switch (status) {
+    case SiteStatus.open:
+      return 'OPEN';
+    case SiteStatus.expanding:
+      return 'EXPANDING';
+    case SiteStatus.construction:
+      return 'CONSTRUCTION';
+    case SiteStatus.permit:
+      return 'PERMIT';
+    case SiteStatus.plan:
+      return 'PLAN';
+    case SiteStatus.voting:
+      return 'VOTING';
+    case SiteStatus.closedTemp:
+      return 'CLOSED_TEMP';
+    case SiteStatus.closedPerm:
+      return 'CLOSED_PERM';
+  }
+}
+
+/// `name (status) (distance)`. Distance is omitted when location is unknown.
+String checkinPickerLabel({
+  required String name,
+  required SiteStatus status,
+  String? distance,
+}) {
+  final statusName = siteStatusWireName(status);
+  if (distance == null || distance.isEmpty) return '$name ($statusName)';
+  return '$name ($statusName) ($distance)';
+}
+
 /// Compute the First state for an operational site from its earliest qualifying
 /// check-in date ([firstDate], null if none) and the current site-local time
 /// ([siteLocalNow]). Pure: compares calendar dates only.
@@ -83,7 +116,11 @@ MarkerStyle markerStyleFor({
   final base = _baseStyle(status, firstState);
   if (visited) {
     // Keep the underlying colour, swap in a check glyph as the overlay.
-    return MarkerStyle(base.color, Icons.check_circle, 'Visited: ${base.label}');
+    return MarkerStyle(
+      base.color,
+      Icons.check_circle,
+      'Visited: ${base.label}',
+    );
   }
   return base;
 }
@@ -125,11 +162,7 @@ MarkerStyle _baseStyle(SiteStatus status, FirstState firstState) {
         'Permit',
       );
     case SiteStatus.plan:
-      return const MarkerStyle(
-        OkabeIto.reddishPurple,
-        Icons.schedule,
-        'Plan',
-      );
+      return const MarkerStyle(OkabeIto.reddishPurple, Icons.schedule, 'Plan');
     case SiteStatus.voting:
       return const MarkerStyle(
         OkabeIto.reddishPurple,
