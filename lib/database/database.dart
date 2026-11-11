@@ -224,6 +224,12 @@ class UserSettingsTable extends Table {
   /// and trim to the private note. The VIN is never included.
   BoolColumn get includeVehicleInPrivateNote =>
       boolean().withDefault(const Constant(false))();
+
+  /// New-site and First-eligible alerts. Both default on.
+  BoolColumn get notifyNewSites =>
+      boolean().withDefault(const Constant(true))();
+  BoolColumn get notifyFirstEligible =>
+      boolean().withDefault(const Constant(true))();
   RealColumn get lastLatitude => real().nullable()();
   RealColumn get lastLongitude => real().nullable()();
   DateTimeColumn get lastSitesSyncAt => dateTime().nullable()();
@@ -267,7 +273,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration {
@@ -397,6 +403,22 @@ class AppDatabase extends _$AppDatabase {
           // and fills the flag. Visited state is not part of that payload.
           if (await _tableExists('region_syncs')) {
             await customStatement('DELETE FROM region_syncs');
+          }
+        }
+        if (from < 11) {
+          // Guards matter when a test replays this step on a database that
+          // already has the columns from onCreate.
+          if (!await _columnExists('user_settings', 'notify_new_sites')) {
+            await m.addColumn(
+              userSettingsTable,
+              userSettingsTable.notifyNewSites,
+            );
+          }
+          if (!await _columnExists('user_settings', 'notify_first_eligible')) {
+            await m.addColumn(
+              userSettingsTable,
+              userSettingsTable.notifyFirstEligible,
+            );
           }
         }
       },

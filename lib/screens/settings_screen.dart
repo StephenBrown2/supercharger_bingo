@@ -23,6 +23,8 @@ class MutableSettings {
   UnitSystem unitSystem;
   bool includeVisitedNearby;
   bool includeVehicleInPrivateNote;
+  bool notifyNewSites;
+  bool notifyFirstEligible;
   AuthProvider? authProvider;
   DateTime? lastSitesSyncAt;
   DateTime? lastCheckinHistorySyncAt;
@@ -40,6 +42,8 @@ class MutableSettings {
     this.unitSystem = UnitSystem.imperial,
     this.includeVisitedNearby = false,
     this.includeVehicleInPrivateNote = false,
+    this.notifyNewSites = true,
+    this.notifyFirstEligible = true,
     this.authProvider,
     this.lastSitesSyncAt,
     this.lastCheckinHistorySyncAt,
@@ -59,6 +63,8 @@ class MutableSettings {
       unitSystem: data.unitSystem,
       includeVisitedNearby: data.includeVisitedNearby,
       includeVehicleInPrivateNote: data.includeVehicleInPrivateNote,
+      notifyNewSites: data.notifyNewSites,
+      notifyFirstEligible: data.notifyFirstEligible,
       authProvider: data.authProvider,
       lastSitesSyncAt: data.lastSitesSyncAt,
       lastCheckinHistorySyncAt: data.lastCheckinHistorySyncAt,
@@ -79,6 +85,8 @@ class MutableSettings {
       unitSystem: Value(unitSystem),
       includeVisitedNearby: Value(includeVisitedNearby),
       includeVehicleInPrivateNote: Value(includeVehicleInPrivateNote),
+      notifyNewSites: Value(notifyNewSites),
+      notifyFirstEligible: Value(notifyFirstEligible),
       authProvider: Value(authProvider),
     );
   }
@@ -156,19 +164,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                 // Notifications section
                 _buildSectionHeader(theme, 'Notifications'),
-                ListTile(
-                  leading: const Icon(Icons.notifications_active),
+                SwitchListTile(
+                  secondary: const Icon(Icons.notifications_active),
                   title: const Text('New Superchargers'),
-                  subtitle: const Text('High priority by default'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _openNotificationSettings('new_superchargers'),
+                  subtitle: const Text(
+                    'A site opening inside the notification radius',
+                  ),
+                  value: _settings?.notifyNewSites ?? true,
+                  onChanged: (value) {
+                    setState(() => _settings?.notifyNewSites = value);
+                    _saveSettings();
+                  },
                 ),
-                ListTile(
-                  leading: const Icon(Icons.star),
+                SwitchListTile(
+                  secondary: const Icon(Icons.star),
                   title: const Text('First-Eligible Alerts'),
-                  subtitle: const Text('High priority by default'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _openNotificationSettings('first_eligible'),
+                  subtitle: const Text(
+                    'A nearby site inside today\'s First window',
+                  ),
+                  value: _settings?.notifyFirstEligible ?? true,
+                  onChanged: (value) {
+                    setState(() => _settings?.notifyFirstEligible = value);
+                    _saveSettings();
+                  },
                 ),
                 const Divider(),
 
@@ -474,13 +492,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  void _openNotificationSettings(String channel) {
-    // TODO: Open system notification settings for the channel
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Opening $channel notification settings...')),
     );
   }
 

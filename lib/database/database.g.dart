@@ -3698,6 +3698,35 @@ class $UserSettingsTableTable extends UserSettingsTable
         ),
         defaultValue: const Constant(false),
       );
+  static const VerificationMeta _notifyNewSitesMeta = const VerificationMeta(
+    'notifyNewSites',
+  );
+  @override
+  late final GeneratedColumn<bool> notifyNewSites = GeneratedColumn<bool>(
+    'notify_new_sites',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("notify_new_sites" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _notifyFirstEligibleMeta =
+      const VerificationMeta('notifyFirstEligible');
+  @override
+  late final GeneratedColumn<bool> notifyFirstEligible = GeneratedColumn<bool>(
+    'notify_first_eligible',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("notify_first_eligible" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _lastLatitudeMeta = const VerificationMeta(
     'lastLatitude',
   );
@@ -3762,6 +3791,8 @@ class $UserSettingsTableTable extends UserSettingsTable
     unitSystem,
     includeVisitedNearby,
     includeVehicleInPrivateNote,
+    notifyNewSites,
+    notifyFirstEligible,
     lastLatitude,
     lastLongitude,
     lastSitesSyncAt,
@@ -3881,6 +3912,24 @@ class $UserSettingsTableTable extends UserSettingsTable
         includeVehicleInPrivateNote.isAcceptableOrUnknown(
           data['include_vehicle_in_private_note']!,
           _includeVehicleInPrivateNoteMeta,
+        ),
+      );
+    }
+    if (data.containsKey('notify_new_sites')) {
+      context.handle(
+        _notifyNewSitesMeta,
+        notifyNewSites.isAcceptableOrUnknown(
+          data['notify_new_sites']!,
+          _notifyNewSitesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('notify_first_eligible')) {
+      context.handle(
+        _notifyFirstEligibleMeta,
+        notifyFirstEligible.isAcceptableOrUnknown(
+          data['notify_first_eligible']!,
+          _notifyFirstEligibleMeta,
         ),
       );
     }
@@ -4006,6 +4055,14 @@ class $UserSettingsTableTable extends UserSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}include_vehicle_in_private_note'],
       )!,
+      notifyNewSites: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}notify_new_sites'],
+      )!,
+      notifyFirstEligible: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}notify_first_eligible'],
+      )!,
       lastLatitude: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}last_latitude'],
@@ -4075,6 +4132,10 @@ class UserSettingsTableData extends DataClass
   /// When true, a check-in that names a vehicle appends year, make, model,
   /// and trim to the private note. The VIN is never included.
   final bool includeVehicleInPrivateNote;
+
+  /// New-site and First-eligible alerts. Both default on.
+  final bool notifyNewSites;
+  final bool notifyFirstEligible;
   final double? lastLatitude;
   final double? lastLongitude;
   final DateTime? lastSitesSyncAt;
@@ -4097,6 +4158,8 @@ class UserSettingsTableData extends DataClass
     required this.unitSystem,
     required this.includeVisitedNearby,
     required this.includeVehicleInPrivateNote,
+    required this.notifyNewSites,
+    required this.notifyFirstEligible,
     this.lastLatitude,
     this.lastLongitude,
     this.lastSitesSyncAt,
@@ -4154,6 +4217,8 @@ class UserSettingsTableData extends DataClass
     map['include_vehicle_in_private_note'] = Variable<bool>(
       includeVehicleInPrivateNote,
     );
+    map['notify_new_sites'] = Variable<bool>(notifyNewSites);
+    map['notify_first_eligible'] = Variable<bool>(notifyFirstEligible);
     if (!nullToAbsent || lastLatitude != null) {
       map['last_latitude'] = Variable<double>(lastLatitude);
     }
@@ -4204,6 +4269,8 @@ class UserSettingsTableData extends DataClass
       unitSystem: Value(unitSystem),
       includeVisitedNearby: Value(includeVisitedNearby),
       includeVehicleInPrivateNote: Value(includeVehicleInPrivateNote),
+      notifyNewSites: Value(notifyNewSites),
+      notifyFirstEligible: Value(notifyFirstEligible),
       lastLatitude: lastLatitude == null && nullToAbsent
           ? const Value.absent()
           : Value(lastLatitude),
@@ -4255,6 +4322,10 @@ class UserSettingsTableData extends DataClass
       includeVehicleInPrivateNote: serializer.fromJson<bool>(
         json['includeVehicleInPrivateNote'],
       ),
+      notifyNewSites: serializer.fromJson<bool>(json['notifyNewSites']),
+      notifyFirstEligible: serializer.fromJson<bool>(
+        json['notifyFirstEligible'],
+      ),
       lastLatitude: serializer.fromJson<double?>(json['lastLatitude']),
       lastLongitude: serializer.fromJson<double?>(json['lastLongitude']),
       lastSitesSyncAt: serializer.fromJson<DateTime?>(json['lastSitesSyncAt']),
@@ -4296,6 +4367,8 @@ class UserSettingsTableData extends DataClass
       'includeVehicleInPrivateNote': serializer.toJson<bool>(
         includeVehicleInPrivateNote,
       ),
+      'notifyNewSites': serializer.toJson<bool>(notifyNewSites),
+      'notifyFirstEligible': serializer.toJson<bool>(notifyFirstEligible),
       'lastLatitude': serializer.toJson<double?>(lastLatitude),
       'lastLongitude': serializer.toJson<double?>(lastLongitude),
       'lastSitesSyncAt': serializer.toJson<DateTime?>(lastSitesSyncAt),
@@ -4323,6 +4396,8 @@ class UserSettingsTableData extends DataClass
     UnitSystem? unitSystem,
     bool? includeVisitedNearby,
     bool? includeVehicleInPrivateNote,
+    bool? notifyNewSites,
+    bool? notifyFirstEligible,
     Value<double?> lastLatitude = const Value.absent(),
     Value<double?> lastLongitude = const Value.absent(),
     Value<DateTime?> lastSitesSyncAt = const Value.absent(),
@@ -4348,6 +4423,8 @@ class UserSettingsTableData extends DataClass
     includeVisitedNearby: includeVisitedNearby ?? this.includeVisitedNearby,
     includeVehicleInPrivateNote:
         includeVehicleInPrivateNote ?? this.includeVehicleInPrivateNote,
+    notifyNewSites: notifyNewSites ?? this.notifyNewSites,
+    notifyFirstEligible: notifyFirstEligible ?? this.notifyFirstEligible,
     lastLatitude: lastLatitude.present ? lastLatitude.value : this.lastLatitude,
     lastLongitude: lastLongitude.present
         ? lastLongitude.value
@@ -4404,6 +4481,12 @@ class UserSettingsTableData extends DataClass
       includeVehicleInPrivateNote: data.includeVehicleInPrivateNote.present
           ? data.includeVehicleInPrivateNote.value
           : this.includeVehicleInPrivateNote,
+      notifyNewSites: data.notifyNewSites.present
+          ? data.notifyNewSites.value
+          : this.notifyNewSites,
+      notifyFirstEligible: data.notifyFirstEligible.present
+          ? data.notifyFirstEligible.value
+          : this.notifyFirstEligible,
       lastLatitude: data.lastLatitude.present
           ? data.lastLatitude.value
           : this.lastLatitude,
@@ -4439,6 +4522,8 @@ class UserSettingsTableData extends DataClass
           ..write('unitSystem: $unitSystem, ')
           ..write('includeVisitedNearby: $includeVisitedNearby, ')
           ..write('includeVehicleInPrivateNote: $includeVehicleInPrivateNote, ')
+          ..write('notifyNewSites: $notifyNewSites, ')
+          ..write('notifyFirstEligible: $notifyFirstEligible, ')
           ..write('lastLatitude: $lastLatitude, ')
           ..write('lastLongitude: $lastLongitude, ')
           ..write('lastSitesSyncAt: $lastSitesSyncAt, ')
@@ -4466,6 +4551,8 @@ class UserSettingsTableData extends DataClass
     unitSystem,
     includeVisitedNearby,
     includeVehicleInPrivateNote,
+    notifyNewSites,
+    notifyFirstEligible,
     lastLatitude,
     lastLongitude,
     lastSitesSyncAt,
@@ -4493,6 +4580,8 @@ class UserSettingsTableData extends DataClass
           other.includeVisitedNearby == this.includeVisitedNearby &&
           other.includeVehicleInPrivateNote ==
               this.includeVehicleInPrivateNote &&
+          other.notifyNewSites == this.notifyNewSites &&
+          other.notifyFirstEligible == this.notifyFirstEligible &&
           other.lastLatitude == this.lastLatitude &&
           other.lastLongitude == this.lastLongitude &&
           other.lastSitesSyncAt == this.lastSitesSyncAt &&
@@ -4518,6 +4607,8 @@ class UserSettingsTableCompanion
   final Value<UnitSystem> unitSystem;
   final Value<bool> includeVisitedNearby;
   final Value<bool> includeVehicleInPrivateNote;
+  final Value<bool> notifyNewSites;
+  final Value<bool> notifyFirstEligible;
   final Value<double?> lastLatitude;
   final Value<double?> lastLongitude;
   final Value<DateTime?> lastSitesSyncAt;
@@ -4540,6 +4631,8 @@ class UserSettingsTableCompanion
     this.unitSystem = const Value.absent(),
     this.includeVisitedNearby = const Value.absent(),
     this.includeVehicleInPrivateNote = const Value.absent(),
+    this.notifyNewSites = const Value.absent(),
+    this.notifyFirstEligible = const Value.absent(),
     this.lastLatitude = const Value.absent(),
     this.lastLongitude = const Value.absent(),
     this.lastSitesSyncAt = const Value.absent(),
@@ -4563,6 +4656,8 @@ class UserSettingsTableCompanion
     this.unitSystem = const Value.absent(),
     this.includeVisitedNearby = const Value.absent(),
     this.includeVehicleInPrivateNote = const Value.absent(),
+    this.notifyNewSites = const Value.absent(),
+    this.notifyFirstEligible = const Value.absent(),
     this.lastLatitude = const Value.absent(),
     this.lastLongitude = const Value.absent(),
     this.lastSitesSyncAt = const Value.absent(),
@@ -4586,6 +4681,8 @@ class UserSettingsTableCompanion
     Expression<String>? unitSystem,
     Expression<bool>? includeVisitedNearby,
     Expression<bool>? includeVehicleInPrivateNote,
+    Expression<bool>? notifyNewSites,
+    Expression<bool>? notifyFirstEligible,
     Expression<double>? lastLatitude,
     Expression<double>? lastLongitude,
     Expression<DateTime>? lastSitesSyncAt,
@@ -4612,6 +4709,9 @@ class UserSettingsTableCompanion
         'include_visited_nearby': includeVisitedNearby,
       if (includeVehicleInPrivateNote != null)
         'include_vehicle_in_private_note': includeVehicleInPrivateNote,
+      if (notifyNewSites != null) 'notify_new_sites': notifyNewSites,
+      if (notifyFirstEligible != null)
+        'notify_first_eligible': notifyFirstEligible,
       if (lastLatitude != null) 'last_latitude': lastLatitude,
       if (lastLongitude != null) 'last_longitude': lastLongitude,
       if (lastSitesSyncAt != null) 'last_sites_sync_at': lastSitesSyncAt,
@@ -4638,6 +4738,8 @@ class UserSettingsTableCompanion
     Value<UnitSystem>? unitSystem,
     Value<bool>? includeVisitedNearby,
     Value<bool>? includeVehicleInPrivateNote,
+    Value<bool>? notifyNewSites,
+    Value<bool>? notifyFirstEligible,
     Value<double?>? lastLatitude,
     Value<double?>? lastLongitude,
     Value<DateTime?>? lastSitesSyncAt,
@@ -4662,6 +4764,8 @@ class UserSettingsTableCompanion
       includeVisitedNearby: includeVisitedNearby ?? this.includeVisitedNearby,
       includeVehicleInPrivateNote:
           includeVehicleInPrivateNote ?? this.includeVehicleInPrivateNote,
+      notifyNewSites: notifyNewSites ?? this.notifyNewSites,
+      notifyFirstEligible: notifyFirstEligible ?? this.notifyFirstEligible,
       lastLatitude: lastLatitude ?? this.lastLatitude,
       lastLongitude: lastLongitude ?? this.lastLongitude,
       lastSitesSyncAt: lastSitesSyncAt ?? this.lastSitesSyncAt,
@@ -4742,6 +4846,12 @@ class UserSettingsTableCompanion
         includeVehicleInPrivateNote.value,
       );
     }
+    if (notifyNewSites.present) {
+      map['notify_new_sites'] = Variable<bool>(notifyNewSites.value);
+    }
+    if (notifyFirstEligible.present) {
+      map['notify_first_eligible'] = Variable<bool>(notifyFirstEligible.value);
+    }
     if (lastLatitude.present) {
       map['last_latitude'] = Variable<double>(lastLatitude.value);
     }
@@ -4779,6 +4889,8 @@ class UserSettingsTableCompanion
           ..write('unitSystem: $unitSystem, ')
           ..write('includeVisitedNearby: $includeVisitedNearby, ')
           ..write('includeVehicleInPrivateNote: $includeVehicleInPrivateNote, ')
+          ..write('notifyNewSites: $notifyNewSites, ')
+          ..write('notifyFirstEligible: $notifyFirstEligible, ')
           ..write('lastLatitude: $lastLatitude, ')
           ..write('lastLongitude: $lastLongitude, ')
           ..write('lastSitesSyncAt: $lastSitesSyncAt, ')
@@ -7184,6 +7296,8 @@ typedef $$UserSettingsTableTableCreateCompanionBuilder =
       Value<UnitSystem> unitSystem,
       Value<bool> includeVisitedNearby,
       Value<bool> includeVehicleInPrivateNote,
+      Value<bool> notifyNewSites,
+      Value<bool> notifyFirstEligible,
       Value<double?> lastLatitude,
       Value<double?> lastLongitude,
       Value<DateTime?> lastSitesSyncAt,
@@ -7208,6 +7322,8 @@ typedef $$UserSettingsTableTableUpdateCompanionBuilder =
       Value<UnitSystem> unitSystem,
       Value<bool> includeVisitedNearby,
       Value<bool> includeVehicleInPrivateNote,
+      Value<bool> notifyNewSites,
+      Value<bool> notifyFirstEligible,
       Value<double?> lastLatitude,
       Value<double?> lastLongitude,
       Value<DateTime?> lastSitesSyncAt,
@@ -7309,6 +7425,16 @@ class $$UserSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get includeVehicleInPrivateNote => $composableBuilder(
     column: $table.includeVehicleInPrivateNote,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get notifyNewSites => $composableBuilder(
+    column: $table.notifyNewSites,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get notifyFirstEligible => $composableBuilder(
+    column: $table.notifyFirstEligible,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7427,6 +7553,16 @@ class $$UserSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get notifyNewSites => $composableBuilder(
+    column: $table.notifyNewSites,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get notifyFirstEligible => $composableBuilder(
+    column: $table.notifyFirstEligible,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get lastLatitude => $composableBuilder(
     column: $table.lastLatitude,
     builder: (column) => ColumnOrderings(column),
@@ -7537,6 +7673,16 @@ class $$UserSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get notifyNewSites => $composableBuilder(
+    column: $table.notifyNewSites,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get notifyFirstEligible => $composableBuilder(
+    column: $table.notifyFirstEligible,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<double> get lastLatitude => $composableBuilder(
     column: $table.lastLatitude,
     builder: (column) => column,
@@ -7615,6 +7761,8 @@ class $$UserSettingsTableTableTableManager
                 Value<UnitSystem> unitSystem = const Value.absent(),
                 Value<bool> includeVisitedNearby = const Value.absent(),
                 Value<bool> includeVehicleInPrivateNote = const Value.absent(),
+                Value<bool> notifyNewSites = const Value.absent(),
+                Value<bool> notifyFirstEligible = const Value.absent(),
                 Value<double?> lastLatitude = const Value.absent(),
                 Value<double?> lastLongitude = const Value.absent(),
                 Value<DateTime?> lastSitesSyncAt = const Value.absent(),
@@ -7638,6 +7786,8 @@ class $$UserSettingsTableTableTableManager
                 unitSystem: unitSystem,
                 includeVisitedNearby: includeVisitedNearby,
                 includeVehicleInPrivateNote: includeVehicleInPrivateNote,
+                notifyNewSites: notifyNewSites,
+                notifyFirstEligible: notifyFirstEligible,
                 lastLatitude: lastLatitude,
                 lastLongitude: lastLongitude,
                 lastSitesSyncAt: lastSitesSyncAt,
@@ -7662,6 +7812,8 @@ class $$UserSettingsTableTableTableManager
                 Value<UnitSystem> unitSystem = const Value.absent(),
                 Value<bool> includeVisitedNearby = const Value.absent(),
                 Value<bool> includeVehicleInPrivateNote = const Value.absent(),
+                Value<bool> notifyNewSites = const Value.absent(),
+                Value<bool> notifyFirstEligible = const Value.absent(),
                 Value<double?> lastLatitude = const Value.absent(),
                 Value<double?> lastLongitude = const Value.absent(),
                 Value<DateTime?> lastSitesSyncAt = const Value.absent(),
@@ -7685,6 +7837,8 @@ class $$UserSettingsTableTableTableManager
                 unitSystem: unitSystem,
                 includeVisitedNearby: includeVisitedNearby,
                 includeVehicleInPrivateNote: includeVehicleInPrivateNote,
+                notifyNewSites: notifyNewSites,
+                notifyFirstEligible: notifyFirstEligible,
                 lastLatitude: lastLatitude,
                 lastLongitude: lastLongitude,
                 lastSitesSyncAt: lastSitesSyncAt,

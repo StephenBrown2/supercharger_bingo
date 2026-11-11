@@ -16,5 +16,7 @@ void main() {
     expect(settings.unitSystem, UnitSystem.imperial);
     expect(settings.includeVisitedNearby, isFalse);
     expect(settings.includeVehicleInPrivateNote, isFalse);
+    expect(settings.notifyNewSites, isTrue);
+    expect(settings.notifyFirstEligible, isTrue);
   });
 }

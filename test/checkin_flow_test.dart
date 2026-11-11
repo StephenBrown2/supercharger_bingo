@@ -597,6 +597,12 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: SettingsScreen()));
     await tester.pumpAndSettle();
     expect((await db.getUserSettings()).includeVisitedNearby, isFalse);
+    expect((await db.getUserSettings()).notifyNewSites, isTrue);
+    expect((await db.getUserSettings()).notifyFirstEligible, isTrue);
+
+    await tester.tap(find.text('New Superchargers'));
+    await tester.pumpAndSettle();
+    expect((await db.getUserSettings()).notifyNewSites, isFalse);
 
     final tile = find.text('Include visited sites');
     await tester.scrollUntilVisible(tile, 200);

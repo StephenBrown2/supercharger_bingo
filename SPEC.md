@@ -173,6 +173,8 @@ Fields carried over from the live form: Supercharger picker, link to search all 
 
 ## 7. Settings
 
+Status: Complete. The two notification rows are persisted switches, on by default.
+
 - **Distance units:** metric or imperial. Default imperial.
 - **Check-in search radius:** how far out the nearest-site list reaches. Separate from notification radius.
 - **Include visited sites:** nearby check-in list hides already visited sites unless this is on.
