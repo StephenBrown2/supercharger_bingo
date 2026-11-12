@@ -48,4 +48,25 @@ void main() {
       'abc123',
     );
   });
+
+  test('the webview user agent loses its embedded-browser markers', () {
+    expect(
+      browserUserAgent(
+        'Mozilla/5.0 (Linux; Android 15; Pixel 8; wv) AppleWebKit/537.36 '
+        '(KHTML, like Gecko) Version/4.0 Chrome/146.0.7680.0 Mobile '
+        'Safari/537.36',
+      ),
+      'Mozilla/5.0 (Linux; Android 15; Pixel 8) AppleWebKit/537.36 '
+      '(KHTML, like Gecko) Chrome/146.0.7680.0 Mobile Safari/537.36',
+    );
+    expect(
+      browserUserAgent(
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) '
+        'AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+      ),
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) '
+      'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Mobile/15E148 '
+      'Safari/604.1',
+    );
+  });
 }

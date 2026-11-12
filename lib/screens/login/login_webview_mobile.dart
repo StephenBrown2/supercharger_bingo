@@ -57,8 +57,8 @@ class _NativeWebViewState extends State<_NativeWebView> {
   late final WebViewController _controller;
   bool _isLoading = true;
 
-  // Use a standard Chrome user agent to avoid Google blocking embedded webviews
-  static const String _userAgent =
+  // Linux has no mobile browser to match, so it keeps a desktop Chrome agent.
+  static const String _desktopUserAgent =
       'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
   @override
@@ -67,10 +67,9 @@ class _NativeWebViewState extends State<_NativeWebView> {
     _initWebView();
   }
 
-  void _initWebView() {
+  Future<void> _initWebView() async {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setUserAgent(_userAgent)
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (url) {
@@ -85,8 +84,15 @@ class _NativeWebViewState extends State<_NativeWebView> {
             return NavigationDecision.navigate;
           },
         ),
-      )
-      ..loadRequest(Uri.parse(widget.initialUrl));
+      );
+    // Google refuses sign-in when it sees an embedded webview.
+    var userAgent = _desktopUserAgent;
+    if (Platform.isAndroid || Platform.isIOS) {
+      final own = await _controller.getUserAgent();
+      if (own != null && own.isNotEmpty) userAgent = browserUserAgent(own);
+    }
+    await _controller.setUserAgent(userAgent);
+    await _controller.loadRequest(Uri.parse(widget.initialUrl));
   }
 
   Future<void> _extractCookies() async {

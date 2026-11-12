@@ -84,6 +84,26 @@ String? readSessionCookie(String cookieHeader) {
 
 const lifeSessionCookieName = 'SCLSESSION';
 
+/// The webview's own user agent with the embedded-browser markers removed,
+/// so Google's sign-in sees the system browser it matches. Android WebView
+/// adds `; wv` and `Version/4.0`. iOS WKWebView leaves out the Safari tokens.
+/// ponytail: Google can tighten its check at any time. The real fix is an app
+/// callback from supercharging.life that opens the system browser.
+String browserUserAgent(String webViewUserAgent) {
+  var ua = webViewUserAgent
+      .replaceAll('; wv)', ')')
+      .replaceAll(RegExp(r' Version/4\.0'), '');
+  final ios = RegExp(r'OS (\d+)_(\d+)').firstMatch(ua);
+  if (ua.contains('iPhone') && ios != null && !ua.contains('Safari/')) {
+    ua = ua.replaceFirst(
+      'Mobile/',
+      'Version/${ios.group(1)}.${ios.group(2)} Mobile/',
+    );
+    ua = '$ua Safari/604.1';
+  }
+  return ua;
+}
+
 /// Runs in the webview after each page load. Returns JSON.
 const lifePageProbeScript = r'''
 (function() {
