@@ -251,14 +251,25 @@ class NotificationService {
         );
       }
       for (final change in plan.toAlert) {
-        await _notifyOpening(change, lat, lng, settings.notificationRadiusKm);
+        await _notifyOpening(
+          change,
+          lat,
+          lng,
+          settings.notificationRadiusKm,
+          settings.unitSystem,
+        );
       }
     } catch (_) {
       // Leave the cursor where it is so the next poll can try again.
     }
 
     if (!settings.notifyFirstEligible) return;
-    await _notifyFirstWindow(lat, lng, settings.notificationRadiusKm);
+    await _notifyFirstWindow(
+      lat,
+      lng,
+      settings.notificationRadiusKm,
+      settings.unitSystem,
+    );
   }
 
   /// Debug builds only, for testing on a device: start the cursor just
@@ -292,6 +303,7 @@ class NotificationService {
     double lat,
     double lng,
     double radiusKm,
+    UnitSystem units,
   ) async {
     final distance = TimezoneService.instance.calculateDistanceKm(
       lat,
@@ -312,13 +324,14 @@ class NotificationService {
       site = await DatabaseService.getSiteBySiteId(change.siteId);
     }
     if (site == null) return;
-    await showNewSuperchargerNotification(site, distance);
+    await showNewSuperchargerNotification(site, distance, units);
   }
 
   Future<void> _notifyFirstWindow(
     double lat,
     double lng,
     double radiusKm,
+    UnitSystem units,
   ) async {
     final openSites = await DatabaseService.getSites(status: SiteStatus.open);
     final nearby = <Site>[];
@@ -356,7 +369,7 @@ class NotificationService {
         dedupeKey: day,
       );
       if (!claimed) continue;
-      await showFirstEligibleNotification(site, distances[site.siteId]!);
+      await showFirstEligibleNotification(site, distances[site.siteId]!, units);
     }
   }
 
@@ -364,11 +377,13 @@ class NotificationService {
   Future<void> showNewSuperchargerNotification(
     Site site,
     double distanceKm,
+    UnitSystem units,
   ) async {
     await _notifications.show(
       id: site.siteId,
       title: 'New Supercharger Nearby!',
-      body: '${site.name} just opened ${distanceKm.toStringAsFixed(1)} km away',
+      body:
+          '${site.name} just opened ${formatDistance(distanceKm, units)} away',
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           newSuperchargersChannelId,
@@ -411,12 +426,13 @@ class NotificationService {
   Future<void> showFirstEligibleNotification(
     Site site,
     double distanceKm,
+    UnitSystem units,
   ) async {
     await _notifications.show(
       id: site.siteId + 100000, // Offset to avoid ID collision
       title: 'First Eligible Nearby!',
       body:
-          '${site.name} (${distanceKm.toStringAsFixed(1)} km) is ready for a First!',
+          '${site.name} (${formatDistance(distanceKm, units)}) is ready for a First!',
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           firstEligibleChannelId,

@@ -43,6 +43,14 @@ enum MapFilter {
 
 enum UnitSystem { metric, imperial }
 
+/// One decimal, in the user's units, for lists and notifications.
+String formatDistance(double distanceKm, UnitSystem units) {
+  if (units == UnitSystem.imperial) {
+    return '${(distanceKm * 0.621371).toStringAsFixed(1)} mi';
+  }
+  return '${distanceKm.toStringAsFixed(1)} km';
+}
+
 /// Settings > Appearance > Theme. [materialYou] uses the device wallpaper
 /// colors and still follows the system light and dark setting.
 enum AppAppearance { light, dark, system, materialYou }

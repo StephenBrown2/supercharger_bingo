@@ -933,7 +933,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     final site = siteWithDist.site;
     final distanceStr = _userPosition == null
         ? null
-        : _formatDistance(siteWithDist.distanceKm, settings.unitSystem);
+        : formatDistance(siteWithDist.distanceKm, settings.unitSystem);
     final lastVisit = _lastVisits[site.siteId];
     final recent = lastVisit != null
         ? 'Last: ${_formatShortDate(lastVisit)}'
@@ -979,15 +979,6 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     }
     if (_userPosition == null) return 'Getting location...';
     return 'No superchargers nearby';
-  }
-
-  /// Format distance based on unit system
-  String _formatDistance(double distanceKm, UnitSystem unitSystem) {
-    if (unitSystem == UnitSystem.imperial) {
-      final distanceMiles = distanceKm * 0.621371;
-      return '${distanceMiles.toStringAsFixed(1)} mi';
-    }
-    return '${distanceKm.toStringAsFixed(1)} km';
   }
 
   String _formatShortDate(DateTime d) =>
