@@ -269,14 +269,12 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         _mapController.move(LatLng(widget.initialLat!, widget.initialLng!), 14);
       });
     }
-    // Open/close drawer based on prop change
+    // Reload the list on every open. The map stays alive behind the tabs, so
+    // radius and visited-site settings, and the user's position, change
+    // between opens.
     if (widget.showCheckinDrawer != oldWidget.showCheckinDrawer) {
-      setState(() {
-        _showCheckinDrawer = widget.showCheckinDrawer;
-        if (_showCheckinDrawer && _userPosition == null) {
-          _fetchLocationForCheckin();
-        }
-      });
+      setState(() => _showCheckinDrawer = widget.showCheckinDrawer);
+      if (_showCheckinDrawer) _fetchLocationForCheckin();
     }
   }
 
