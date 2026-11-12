@@ -1,6 +1,6 @@
 {
-    "name": "checkin",
-    "short_name": "checkin",
+    "name": "Supercharger Bingo",
+    "short_name": "Supercharger Bingo",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

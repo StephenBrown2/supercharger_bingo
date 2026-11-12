@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "bingo.supercharger" "\0"
-            VALUE "FileDescription", "checkin" "\0"
+            VALUE "FileDescription", "Supercharger Bingo" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "checkin" "\0"
+            VALUE "InternalName", "supercharger-bingo" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2025 bingo.supercharger. All rights reserved." "\0"
-            VALUE "OriginalFilename", "checkin.exe" "\0"
-            VALUE "ProductName", "checkin" "\0"
+            VALUE "OriginalFilename", "supercharger-bingo.exe" "\0"
+            VALUE "ProductName", "Supercharger Bingo" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
