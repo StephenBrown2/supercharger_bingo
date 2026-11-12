@@ -15,6 +15,7 @@ import 'background/background_stub.dart'
     as background;
 import 'database_service.dart';
 import 'location_service.dart';
+import 'supercharge_region.dart';
 import 'sync_service.dart';
 import 'timezone_service.dart';
 
@@ -240,7 +241,12 @@ class NotificationService {
       );
       // The first poll returns no rows on purpose. Its cursor is the newest
       // change id from the fetch, not from the empty plan.
-      final nextCursor = window.nextCursor;
+      var nextCursor = window.nextCursor;
+      if (kDebugMode && settings.lastNotifiedChangeId == null) {
+        nextCursor =
+            await _debugReplayCursor(lat, lng, settings.notificationRadiusKm) ??
+            nextCursor;
+      }
       if (nextCursor != null && nextCursor != settings.lastNotifiedChangeId) {
         await DatabaseService.updateUserSettings(
           UserSettingsTableCompanion(lastNotifiedChangeId: Value(nextCursor)),
@@ -255,6 +261,32 @@ class NotificationService {
 
     if (!settings.notifyFirstEligible) return;
     await _notifyFirstWindow(lat, lng, settings.notificationRadiusKm);
+  }
+
+  /// Debug builds only, for testing on a device: start the cursor just
+  /// below the newest opening inside the radius, so the next poll treats it
+  /// as new and sends a real notification. Null when none is in the latest
+  /// page of changes.
+  Future<int?> _debugReplayCursor(
+    double lat,
+    double lng,
+    double radiusKm,
+  ) async {
+    final page = await ApiService.instance.fetchChangesPage(
+      regionId: SuperchargeRegion.forCoordinates(lat, lng),
+      start: 0,
+    );
+    for (final change in page.results) {
+      if (!isOpeningChange(change)) continue;
+      final distance = TimezoneService.instance.calculateDistanceKm(
+        lat,
+        lng,
+        change.site.gps.latitude,
+        change.site.gps.longitude,
+      );
+      if (distance <= radiusKm) return change.id - 1;
+    }
+    return null;
   }
 
   Future<void> _notifyOpening(
