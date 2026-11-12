@@ -335,7 +335,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration {
@@ -516,6 +516,11 @@ class AppDatabase extends _$AppDatabase {
               userSettingsTable.setupCompletedAt,
             );
           }
+        }
+        if (from < 15 && to >= 15) {
+          // The old Mark Visited button set the flag with no check-in behind
+          // it. Visited now always means a visit row exists.
+          await clearVisitedWithoutVisits();
         }
       },
     );
@@ -710,6 +715,20 @@ class AppDatabase extends _$AppDatabase {
   // -------------------------------------------------------------------------
 
   Future<List<Visit>> getAllVisits() => select(visits).get();
+
+  Future<void> clearVisitedWithoutVisits() => customStatement(
+    'UPDATE sites SET visited = 0 WHERE visited = 1 AND NOT EXISTS '
+    '(SELECT 1 FROM visits v WHERE v.site_id = sites.site_id)',
+  );
+
+  /// Drop a check-in that has not reached supercharging.life, and its queued
+  /// post. The site stays visited only if another visit remains.
+  Future<void> deleteUnsyncedVisit(Visit visit) => transaction(() async {
+    await (delete(visits)..where((t) => t.id.equals(visit.id))).go();
+    final pendingId = visit.pendingId;
+    if (pendingId != null) await deletePendingCheckin(pendingId);
+    await clearVisitedWithoutVisits();
+  });
 
   Future<List<Visit>> getVisitsBySiteId(int siteId) {
     return (select(visits)..where((t) => t.siteId.equals(siteId))).get();

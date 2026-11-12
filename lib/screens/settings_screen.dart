@@ -15,7 +15,6 @@ import '../services/sync_service.dart';
 import '../theme/app_theme.dart';
 import 'login_screen.dart';
 import 'vehicles_screen.dart';
-import 'visits_screen.dart';
 
 /// Mutable settings wrapper for the UI
 class MutableSettings {
@@ -399,17 +398,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                   // Advanced section
                   _buildSectionHeader(theme, 'Advanced'),
-                  ListTile(
-                    leading: const Icon(Icons.place),
-                    title: const Text('Visits'),
-                    subtitle: const Text(
-                      'Local check-ins, including ones still pending',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const VisitsScreen()),
-                    ),
-                  ),
                   ListTile(
                     leading: const Icon(Icons.history),
                     title: const Text('Sync Visit History'),

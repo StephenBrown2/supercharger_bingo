@@ -235,6 +235,11 @@ class DatabaseService {
   }
 
   /// Delete a pending check-in
+  static Future<void> deleteUnsyncedVisit(Visit visit) async {
+    await db.deleteUnsyncedVisit(visit);
+    bootstrapSites = null;
+  }
+
   static Future<void> deletePendingCheckin(int id) async {
     await db.deletePendingCheckin(id);
   }

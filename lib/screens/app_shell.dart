@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'map_screen.dart';
 import 'settings_screen.dart';
+import 'visits_screen.dart';
 
 /// Main app shell with Material 3 bottom navigation
 class AppShell extends StatefulWidget {
@@ -14,6 +15,8 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _selectedIndex = 0;
   bool _showCheckinDrawer = false;
+  // Bumped on each visit to the tab, so the list reloads.
+  int _visitsOpens = 0;
   final GlobalKey<State<MapScreen>> _mapKey = GlobalKey();
 
   void _onDrawerClosed() {
@@ -29,8 +32,9 @@ class _AppShellState extends State<AppShell> {
         _showCheckinDrawer = !_showCheckinDrawer;
         _selectedIndex = 0; // Stay on map screen
       } else {
-        _selectedIndex =
-            index - 1; // Map or Settings (offset by 1 since checkin is removed)
+        // Map, Visits, or Settings. Check-in is the drawer, not a page.
+        _selectedIndex = index - 1;
+        if (index == 2) _visitsOpens++;
         _showCheckinDrawer = false; // Close drawer when switching away
       }
     });
@@ -47,6 +51,7 @@ class _AppShellState extends State<AppShell> {
             showCheckinDrawer: _showCheckinDrawer,
             onDrawerClosed: _onDrawerClosed,
           ),
+          VisitsScreen(key: ValueKey(_visitsOpens)),
           const SettingsScreen(),
         ],
       ),
@@ -63,6 +68,11 @@ class _AppShellState extends State<AppShell> {
             icon: Icon(Icons.map_outlined),
             selectedIcon: Icon(Icons.map),
             label: 'Map',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.place_outlined),
+            selectedIcon: Icon(Icons.place),
+            label: 'Visits',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),

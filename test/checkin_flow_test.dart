@@ -792,14 +792,6 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
 
-    await tapTile('Visits');
-    expect(
-      find.text('Local check-ins, including ones still pending'),
-      findsNothing,
-    );
-    await tester.pageBack();
-    await tester.pumpAndSettle();
-
     await tapTile('Sync Visit History');
     await cancelDialog();
     await tapTile('Clear Local Data');

@@ -655,19 +655,15 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                   child: const Text('Close'),
                 ),
                 const SizedBox(width: 8),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    await DatabaseService.markSiteVisited(
-                      site.siteId,
-                      !site.visited,
-                    );
-                    if (context.mounted) Navigator.pop(context);
-                    _loadSites(); // Refresh markers
+                // Like the site's Check-in Manually link. A real check-in is
+                // the only way a site becomes visited.
+                FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _checkInFromSheet(site);
                   },
-                  icon: Icon(
-                    site.visited ? Icons.visibility_off : Icons.check_circle,
-                  ),
-                  label: Text(site.visited ? 'Mark Unvisited' : 'Mark Visited'),
+                  icon: const Icon(Icons.bolt),
+                  label: const Text('Check In'),
                 ),
               ],
             ),
@@ -1237,6 +1233,19 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     _mapController.fitCamera(
       CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(20)),
     );
+  }
+
+  Future<void> _checkInFromSheet(Site site) async {
+    final position = _userPosition ?? LocationService.instance.cachedPosition;
+    final distanceKm = position == null
+        ? 0.0
+        : TimezoneService.instance.calculateDistanceKm(
+            position.latitude,
+            position.longitude,
+            site.latitude,
+            site.longitude,
+          );
+    await _handleCheckin(SiteWithDistance(site: site, distanceKm: distanceKm));
   }
 
   Future<void> _handleCheckin(SiteWithDistance siteWithDist) async {

@@ -175,6 +175,32 @@ void main() {
       await db.migration.onUpgrade(Migrator(db), 12, 13);
     });
 
+    test(
+      'v15 upgrade clears visited flags with no visit behind them',
+      () async {
+        for (final id in [1, 2]) {
+          await db.upsertSite(
+            SitesCompanion.insert(
+              siteId: id,
+              name: 'Site $id',
+              visited: const Value(true),
+            ),
+          );
+        }
+        await db.addVisit(
+          VisitsCompanion.insert(
+            siteId: 2,
+            checkinDate: DateTime(2026, 11, 1),
+            checkinTime: DateTime(2026, 11, 1, 12),
+            importedAt: DateTime(2026, 11, 1),
+          ),
+        );
+        await db.migration.onUpgrade(Migrator(db), 14, 15);
+        expect((await db.getSiteBySiteId(1))!.visited, isFalse);
+        expect((await db.getSiteBySiteId(2))!.visited, isTrue);
+      },
+    );
+
     test('v14 upgrade adds the setup marker once', () async {
       await db.customStatement(
         'ALTER TABLE user_settings DROP COLUMN setup_completed_at',

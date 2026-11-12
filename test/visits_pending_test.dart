@@ -49,6 +49,39 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('a pending check-in can be deleted, unmarking the site', (
+    tester,
+  ) async {
+    await db.upsertSite(
+      SitesCompanion.insert(
+        siteId: 7,
+        name: 'Upper Sandusky',
+        visited: const Value(true),
+      ),
+    );
+    await db.addVisit(
+      VisitsCompanion(
+        siteId: const Value(7),
+        checkinDate: Value(DateTime(2026, 11, 10, 15)),
+        checkinTime: Value(DateTime(2026, 11, 10, 15)),
+        syncStatus: const Value(VisitSyncStatus.pending),
+        importedAt: Value(DateTime(2026, 11, 10, 15)),
+      ),
+    );
+
+    await tester.pumpWidget(const MaterialApp(home: VisitsScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Delete check-in'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    expect(await db.getAllVisits(), isEmpty);
+    expect((await db.getSiteBySiteId(7))!.visited, isFalse);
+    expect(find.text('No visits yet'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets(
     'GitHub sign-in stays on this device when the webview is unavailable',
     (tester) async {
