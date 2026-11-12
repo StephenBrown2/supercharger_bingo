@@ -83,6 +83,7 @@ void main() {
       final s = style(SiteStatus.open, FirstState.upForGrabs, true);
       expect(s.glyph, Icons.check_circle);
       expect(s.color, LifePin.grey);
+      expect(glyphForeground(s.color), Colors.white);
     });
   });
 

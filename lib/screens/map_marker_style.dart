@@ -49,8 +49,11 @@ class MarkerStyle {
 
 /// Readable glyph colour on a filled [background]: black on light fills (e.g.
 /// the construction pin), white on dark ones.
-Color glyphForeground(Color background) =>
-    background.computeLuminance() > 0.179 ? Colors.black : Colors.white;
+Color glyphForeground(Color background) => background == LifePin.grey
+    ? Colors.white
+    : background.computeLuminance() > 0.179
+    ? Colors.black
+    : Colors.white;
 
 /// Whether a status is operational (chargeable, First applies): OPEN/EXPANDING.
 bool isOperational(SiteStatus status) =>
