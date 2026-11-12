@@ -443,9 +443,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             // Legend at bottom
             Positioned(bottom: 16, left: 16, child: _buildLegend(theme)),
 
-            // Zoom controls for desktop (positioned above legend)
+            // Zoom and recenter, bottom edge level with the legend
             Positioned(
-              bottom: _showCheckinDrawer ? 240 : 80,
+              bottom: _showCheckinDrawer ? 240 : 16,
               right: 16,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -553,25 +553,29 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           children: [
             _legendItem(
               Icons.circle_outlined,
-              OkabeIto.green,
+              LifePin.green,
               'First up for grabs',
             ),
             const SizedBox(height: 4),
-            _legendItem(Icons.schedule, OkabeIto.yellow, 'First today'),
+            _legendItem(Icons.schedule, LifePin.gold, 'First today'),
             const SizedBox(height: 4),
-            _legendItem(Icons.circle, OkabeIto.vermillion, 'Open'),
+            _legendItem(Icons.circle, LifePin.red, 'Open'),
             const SizedBox(height: 4),
-            _legendItem(Icons.construction, OkabeIto.blue, 'Construction'),
+            _legendItem(Icons.construction, LifePin.yellow, 'Construction'),
+            const SizedBox(height: 4),
+            _legendItem(Icons.description, LifePin.blue, 'Permit'),
+            const SizedBox(height: 4),
+            _legendItem(Icons.event_note, LifePin.orange, 'Plan / voting'),
             const SizedBox(height: 4),
             _legendItem(
-              Icons.description,
-              OkabeIto.reddishPurple,
-              'Permit / plan / voting',
+              Icons.pause_circle_outline,
+              LifePin.violet,
+              'Closed for now',
             ),
             const SizedBox(height: 4),
-            _legendItem(Icons.block, OkabeIto.grey, 'Closed'),
+            _legendItem(Icons.block, LifePin.black, 'Closed'),
             const SizedBox(height: 4),
-            _legendItem(Icons.check_circle, OkabeIto.grey, 'Visited'),
+            _legendItem(Icons.check_circle, LifePin.grey, 'Visited'),
           ],
         ),
       ),

@@ -4,21 +4,19 @@ import '../database/database.dart';
 
 /// Marker styling for the map (SPEC Section 5).
 ///
-/// Color is always paired with a distinct shape/glyph so state survives full
-/// colour blindness (WCAG 1.4.1). All colours are from the Okabe-Ito
-/// colourblind-safe palette.
-
-/// Okabe-Ito colourblind-safe palette.
-class OkabeIto {
-  static const Color black = Color(0xFF000000);
-  static const Color orange = Color(0xFFE69F00);
-  static const Color skyBlue = Color(0xFF56B4E9);
-  static const Color green = Color(0xFF009E73);
-  static const Color yellow = Color(0xFFF0E442);
-  static const Color blue = Color(0xFF0072B2);
-  static const Color vermillion = Color(0xFFD55E00);
-  static const Color reddishPurple = Color(0xFFCC79A7);
-  static const Color grey = Color(0xFF999999);
+/// Colours follow the supercharging.life map, which uses the
+/// leaflet-color-markers set. Each colour also gets its own glyph so state
+/// survives colour blindness (WCAG 1.4.1).
+class LifePin {
+  static const Color green = Color(0xFF2AAD27);
+  static const Color red = Color(0xFFCB2B3E);
+  static const Color gold = Color(0xFFFFD326);
+  static const Color yellow = Color(0xFFCAC428);
+  static const Color blue = Color(0xFF2A81CB);
+  static const Color orange = Color(0xFFCB8427);
+  static const Color violet = Color(0xFF9C2BCB);
+  static const Color black = Color(0xFF3D3D3D);
+  static const Color grey = Color(0xFF7B7B7B);
 }
 
 /// Three-state First colouring for operational sites. The boundary moves with
@@ -47,7 +45,7 @@ class MarkerStyle {
 }
 
 /// Readable glyph colour on a filled [background]: black on light fills (e.g.
-/// the yellow First-today pin), white on dark ones.
+/// the gold First-today pin), white on dark ones.
 Color glyphForeground(Color background) =>
     background.computeLuminance() > 0.5 ? Colors.black : Colors.white;
 
@@ -108,8 +106,8 @@ FirstState computeFirstState({
 }
 
 /// Resolve the marker style for a site. Operational sites use [firstState];
-/// non-operational sites use status-based styling. Visited sites carry a check
-/// overlay regardless of colour.
+/// non-operational sites use status-based styling. Visited sites are a grey
+/// check, as on supercharging.life.
 MarkerStyle markerStyleFor({
   required SiteStatus status,
   required FirstState firstState,
@@ -117,9 +115,8 @@ MarkerStyle markerStyleFor({
 }) {
   final base = _baseStyle(status, firstState);
   if (visited) {
-    // Keep the underlying colour, swap in a check glyph as the overlay.
     return MarkerStyle(
-      base.color,
+      LifePin.grey,
       Icons.check_circle,
       'Visited: ${base.label}',
     );
@@ -132,53 +129,41 @@ MarkerStyle _baseStyle(SiteStatus status, FirstState firstState) {
     switch (firstState) {
       case FirstState.upForGrabs:
         return const MarkerStyle(
-          OkabeIto.green,
+          LifePin.green,
           Icons.circle_outlined,
           'First up for grabs',
         );
       case FirstState.today:
-        return const MarkerStyle(
-          OkabeIto.yellow,
-          Icons.schedule,
-          'First today',
-        );
+        return const MarkerStyle(LifePin.gold, Icons.schedule, 'First today');
       case FirstState.passed:
         // The common case, so it stays plain.
-        return const MarkerStyle(OkabeIto.vermillion, null, 'Open');
+        return const MarkerStyle(LifePin.red, null, 'Open');
     }
   }
   switch (status) {
     case SiteStatus.construction:
       return const MarkerStyle(
-        OkabeIto.blue,
+        LifePin.yellow,
         Icons.construction,
         'Construction',
       );
     case SiteStatus.permit:
-      return const MarkerStyle(
-        OkabeIto.reddishPurple,
-        Icons.description,
-        'Permit',
-      );
+      return const MarkerStyle(LifePin.blue, Icons.description, 'Permit');
     case SiteStatus.plan:
-      return const MarkerStyle(OkabeIto.reddishPurple, Icons.schedule, 'Plan');
+      return const MarkerStyle(LifePin.orange, Icons.event_note, 'Plan');
     case SiteStatus.voting:
-      return const MarkerStyle(
-        OkabeIto.reddishPurple,
-        Icons.how_to_vote,
-        'Voting',
-      );
+      return const MarkerStyle(LifePin.orange, Icons.how_to_vote, 'Voting');
     case SiteStatus.closedTemp:
       return const MarkerStyle(
-        OkabeIto.grey,
+        LifePin.violet,
         Icons.pause_circle_outline,
         'Closed (temporary)',
       );
     case SiteStatus.closedPerm:
-      return const MarkerStyle(OkabeIto.grey, Icons.block, 'Closed');
+      return const MarkerStyle(LifePin.black, Icons.block, 'Closed');
     case SiteStatus.open:
     case SiteStatus.expanding:
       // Handled by the operational branch above; unreachable.
-      return const MarkerStyle(OkabeIto.green, Icons.circle_outlined, 'Open');
+      return const MarkerStyle(LifePin.green, Icons.circle_outlined, 'Open');
   }
 }

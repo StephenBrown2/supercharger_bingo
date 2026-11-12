@@ -143,17 +143,17 @@ Four top-level filters. The original "Show Visited" option is restored, since th
 
 ### Pin color and shape
 
-Status: Complete. Okabe-Ito colors, redundant glyphs, and green, yellow, and red First state are computed at render.
+Status: Complete. Pins use the supercharging.life map colors (its leaflet-color-markers set), each with its own glyph, and First state is computed at render.
 
-The prototype's status-based colors are kept in spirit but remapped to the Okabe-Ito colorblind-safe palette, and the First-state coloring from the original brief is layered on top. Color is always paired with a distinct shape/glyph so the state survives full color blindness (WCAG 1.4.1).
+Colors follow the supercharging.life map so the app reads like the site. Color is always paired with a distinct shape/glyph so the state survives full color blindness (WCAG 1.4.1).
 
 First-state coloring (applies to operational sites):
 
-- **Green (`#009E73`), open-circle glyph:** no First recorded yet. Up for grabs.
-- **Yellow (`#F0E442`), clock glyph:** a First exists and first_date equals today in the site's local timezone. Still inside the shared-First window.
-- **Red (`#D55E00`), filled-check glyph:** a First exists and its date has passed (site-local).
+- **Green (`#2AAD27`), open-circle glyph:** no First recorded yet. Up for grabs.
+- **Gold (`#FFD326`), clock glyph:** a First exists and first_date equals today in the site's local timezone. Still inside the shared-First window.
+- **Red (`#CB2B3E`), plain marker, labeled Open:** a First exists and its date has passed (site-local). This is the common case, so it carries no glyph.
 
-Status coloring (for non-operational sites, where First does not apply): use distinct Okabe-Ito hues paired with their own glyphs, for example blue (`#0072B2`) for construction, purple/violet for permit/plan/voting, and grey for closed. Visited sites carry a check overlay regardless of color.
+Status coloring (for non-operational sites, where First does not apply), as on supercharging.life: yellow (`#CAC428`) construction, blue (`#2A81CB`) permit, orange (`#CB8427`) plan and voting, violet (`#9C2BCB`) temporarily closed, and black (`#3D3D3D`) permanently closed. Visited sites are a grey (`#7B7B7B`) check, whatever their First state.
 
 Because the green/yellow/red boundary moves purely with the passage of time, it is recomputed at render time from stored dates, not pushed as an event.
 
@@ -265,7 +265,7 @@ Status: Complete. City, state, and stallCount stay for the map sheet. Schema ver
 
 **Phase 2, filters and pins.** `MapFilter` has `openUnvisited, openUnvisitedConstruction, all`; add a fourth `visited` value (Section 5's "Show Visited" was dropped in the prototype and needs restoring). Rewrite the marker logic in `map_screen.dart`, which currently colors by status using plain Material colors (red/orange/blue/purple) plus a separate green star for First-eligible, to use the Okabe-Ito palette with shape redundancy and the three-state green/yellow/red First coloring from Section 5, computed at render time from each site's earliest check-in date and timezone, not from `date_opened`.
 
-Status: Complete. Visited is restored, and the live My Map filters replace the four-filter list. Pins use the Okabe-Ito First colors.
+Status: Complete. Visited is restored, and the live My Map filters replace the four-filter list. Pins use the supercharging.life map colors.
 
 **Phase 3, check-in flow.** Add a `notesPrivate` column to `Visits` and `PendingCheckins` (currently public-only); add the most-recent-check-in lookup and display in the nearby-sites list, which the prototype sorts by distance but doesn't currently annotate; add a `Vehicles` table and the optional vehicle selector, with VIN encrypted via `flutter_secure_storage` (already a dependency, currently used for the session cookie) and the one-time vPIC enrichment call.
 

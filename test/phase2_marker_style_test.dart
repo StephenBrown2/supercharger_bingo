@@ -33,88 +33,55 @@ void main() {
     });
   });
 
-  group('markerStyleFor (Okabe-Ito + glyph redundancy)', () {
-    test('operational up-for-grabs is green open-circle', () {
-      final s = markerStyleFor(
-        status: SiteStatus.open,
-        firstState: FirstState.upForGrabs,
-        visited: false,
-      );
-      expect(s.color, OkabeIto.green);
-      expect(s.glyph, Icons.circle_outlined);
-    });
-
-    test('operational first-today is yellow clock', () {
-      final s = markerStyleFor(
-        status: SiteStatus.expanding,
-        firstState: FirstState.today,
-        visited: false,
-      );
-      expect(s.color, OkabeIto.yellow);
-      expect(s.glyph, Icons.schedule);
-    });
-
-    test('operational first-passed is a plain red Open marker', () {
-      final s = markerStyleFor(
-        status: SiteStatus.open,
-        firstState: FirstState.passed,
-        visited: false,
-      );
-      expect(s.color, OkabeIto.vermillion);
-      expect(s.glyph, isNull);
-      expect(s.label, 'Open');
-    });
-
-    test('construction is blue, ignores first state', () {
-      final s = markerStyleFor(
-        status: SiteStatus.construction,
-        firstState: FirstState.upForGrabs,
-        visited: false,
-      );
-      expect(s.color, OkabeIto.blue);
-      expect(s.glyph, Icons.construction);
-    });
-
-    test('permit/plan/voting are reddish-purple', () {
-      for (final status in [
-        SiteStatus.permit,
-        SiteStatus.plan,
-        SiteStatus.voting,
-      ]) {
-        final s = markerStyleFor(
+  group('markerStyleFor (supercharging.life colours + glyphs)', () {
+    MarkerStyle style(SiteStatus status, [FirstState? first, bool v = false]) =>
+        markerStyleFor(
           status: status,
-          firstState: FirstState.upForGrabs,
-          visited: false,
+          firstState: first ?? FirstState.upForGrabs,
+          visited: v,
         );
-        expect(s.color, OkabeIto.reddishPurple, reason: '$status');
-      }
+
+    test('First states are green, gold, and a plain red Open', () {
+      expect(style(SiteStatus.open).color, LifePin.green);
+      expect(style(SiteStatus.open).glyph, Icons.circle_outlined);
+      final today = style(SiteStatus.expanding, FirstState.today);
+      expect(today.color, LifePin.gold);
+      expect(today.glyph, Icons.schedule);
+      final open = style(SiteStatus.open, FirstState.passed);
+      expect(open.color, LifePin.red);
+      expect(open.glyph, isNull);
+      expect(open.label, 'Open');
     });
 
-    test('closed temp and perm are grey with distinct glyphs', () {
-      final temp = markerStyleFor(
-        status: SiteStatus.closedTemp,
-        firstState: FirstState.upForGrabs,
-        visited: false,
-      );
-      final perm = markerStyleFor(
-        status: SiteStatus.closedPerm,
-        firstState: FirstState.upForGrabs,
-        visited: false,
-      );
-      expect(temp.color, OkabeIto.grey);
-      expect(perm.color, OkabeIto.grey);
-      expect(temp.glyph, isNot(perm.glyph));
+    test('statuses match the supercharging.life map', () {
+      expect(style(SiteStatus.construction).color, LifePin.yellow);
+      expect(style(SiteStatus.permit).color, LifePin.blue);
+      expect(style(SiteStatus.plan).color, LifePin.orange);
+      expect(style(SiteStatus.voting).color, LifePin.orange);
+      expect(style(SiteStatus.closedTemp).color, LifePin.violet);
+      expect(style(SiteStatus.closedPerm).color, LifePin.black);
     });
 
-    test('visited carries a check overlay regardless of colour', () {
-      final s = markerStyleFor(
-        status: SiteStatus.open,
-        firstState: FirstState.upForGrabs,
-        visited: true,
-      );
+    test('every state has its own glyph', () {
+      final glyphs = [
+        style(SiteStatus.open).glyph,
+        style(SiteStatus.open, FirstState.today).glyph,
+        style(SiteStatus.open, FirstState.passed).glyph,
+        style(SiteStatus.construction).glyph,
+        style(SiteStatus.permit).glyph,
+        style(SiteStatus.plan).glyph,
+        style(SiteStatus.voting).glyph,
+        style(SiteStatus.closedTemp).glyph,
+        style(SiteStatus.closedPerm).glyph,
+        style(SiteStatus.open, null, true).glyph,
+      ];
+      expect(glyphs.toSet(), hasLength(glyphs.length));
+    });
+
+    test('visited is a grey check whatever the First state', () {
+      final s = style(SiteStatus.open, FirstState.upForGrabs, true);
       expect(s.glyph, Icons.check_circle);
-      // Underlying colour preserved.
-      expect(s.color, OkabeIto.green);
+      expect(s.color, LifePin.grey);
     });
   });
 
