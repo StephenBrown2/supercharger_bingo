@@ -43,6 +43,10 @@ enum MapFilter {
 
 enum UnitSystem { metric, imperial }
 
+/// Settings > Appearance > Theme. [materialYou] uses the device wallpaper
+/// colors and still follows the system light and dark setting.
+enum AppAppearance { light, dark, system, materialYou }
+
 /// How much of a check-in the supercharging.life detail actually carries.
 /// DATE_ONLY is a calendar date. TIMESTAMP also has a clock time.
 enum CheckinPrecision { dateOnly, timestamp }
@@ -230,6 +234,9 @@ class UserSettingsTable extends Table {
       real().withDefault(const Constant(5000.0))();
   TextColumn get unitSystem =>
       textEnum<UnitSystem>().withDefault(Constant(UnitSystem.imperial.name))();
+  TextColumn get appAppearance => textEnum<AppAppearance>().withDefault(
+    Constant(AppAppearance.system.name),
+  )();
 
   /// When false, the nearby check-in list hides sites the user has already
   /// visited. Turn on to show those sites with their last visit date.
@@ -294,7 +301,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration {
@@ -456,6 +463,16 @@ class AppDatabase extends _$AppDatabase {
           }
           if (!await _tableExists('notification_log')) {
             await m.createTable(notificationLog);
+          }
+        }
+        if (from < 13) {
+          // Guards matter when a test replays this step on a database that
+          // already has the column from onCreate.
+          if (!await _columnExists('user_settings', 'app_appearance')) {
+            await m.addColumn(
+              userSettingsTable,
+              userSettingsTable.appAppearance,
+            );
           }
         }
       },

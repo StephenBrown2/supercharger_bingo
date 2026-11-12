@@ -18,5 +18,6 @@ void main() {
     expect(settings.includeVehicleInPrivateNote, isFalse);
     expect(settings.notifyNewSites, isTrue);
     expect(settings.notifyFirstEligible, isTrue);
+    expect(settings.appAppearance, AppAppearance.system);
   });
 }

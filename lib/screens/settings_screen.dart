@@ -6,6 +6,7 @@ import '../services/api_service.dart';
 import '../services/database_service.dart';
 import '../services/life_auth.dart';
 import '../services/sync_service.dart';
+import '../theme/app_theme.dart';
 import 'login_screen.dart';
 import 'vehicles_screen.dart';
 import 'visits_screen.dart';
@@ -23,6 +24,7 @@ class MutableSettings {
   UnitSystem unitSystem;
   bool includeVisitedNearby;
   bool includeVehicleInPrivateNote;
+  AppAppearance appAppearance;
   bool notifyNewSites;
   bool notifyFirstEligible;
   AuthProvider? authProvider;
@@ -42,6 +44,7 @@ class MutableSettings {
     this.unitSystem = UnitSystem.imperial,
     this.includeVisitedNearby = false,
     this.includeVehicleInPrivateNote = false,
+    this.appAppearance = AppAppearance.system,
     this.notifyNewSites = true,
     this.notifyFirstEligible = true,
     this.authProvider,
@@ -63,6 +66,7 @@ class MutableSettings {
       unitSystem: data.unitSystem,
       includeVisitedNearby: data.includeVisitedNearby,
       includeVehicleInPrivateNote: data.includeVehicleInPrivateNote,
+      appAppearance: data.appAppearance,
       notifyNewSites: data.notifyNewSites,
       notifyFirstEligible: data.notifyFirstEligible,
       authProvider: data.authProvider,
@@ -85,6 +89,7 @@ class MutableSettings {
       unitSystem: Value(unitSystem),
       includeVisitedNearby: Value(includeVisitedNearby),
       includeVehicleInPrivateNote: Value(includeVehicleInPrivateNote),
+      appAppearance: Value(appAppearance),
       notifyNewSites: Value(notifyNewSites),
       notifyFirstEligible: Value(notifyFirstEligible),
       authProvider: Value(authProvider),
@@ -159,6 +164,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onTap: _settings?.isAuthenticated != true
                       ? _handleLogin
                       : null,
+                ),
+                const Divider(),
+
+                _buildSectionHeader(theme, 'Appearance'),
+                ListTile(
+                  leading: const Icon(Icons.palette_outlined),
+                  title: const Text('Theme'),
+                  subtitle: Text(
+                    appearanceLabel(
+                      _settings?.appAppearance ?? AppAppearance.system,
+                    ),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: _showThemePicker,
                 ),
                 const Divider(),
 
@@ -483,8 +502,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               await ApiService.instance.clearSessionCookie();
               if (mounted) {
                 setState(() {});
-                ScaffoldMessenger.of(context)
-                    .showSnackBar(const SnackBar(content: Text('Logged out')));
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('Logged out')));
               }
             },
             child: const Text('Log out'),
@@ -585,6 +605,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (saved == null || !mounted) return;
     setState(() => applyKm(isImperial ? saved / 0.621371 : saved));
     await _saveSettings();
+  }
+
+  void _showThemePicker() {
+    final current = _settings?.appAppearance ?? AppAppearance.system;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Theme'),
+        content: RadioGroup<AppAppearance>(
+          groupValue: current,
+          onChanged: (value) {
+            if (value == null) return;
+            Navigator.pop(dialogContext);
+            setState(() => _settings?.appAppearance = value);
+            AppearanceScope.of(context).update(value);
+            _saveSettings();
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final appearance in AppAppearance.values)
+                RadioListTile<AppAppearance>(
+                  title: Text(appearanceLabel(appearance)),
+                  subtitle: switch (appearanceDetail(appearance)) {
+                    final detail? => Text(detail),
+                    null => null,
+                  },
+                  value: appearance,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _showUnitSystemPicker() {

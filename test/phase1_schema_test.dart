@@ -159,6 +159,22 @@ void main() {
       await db.migration.onUpgrade(Migrator(db), 11, 12);
     });
 
+    test('v13 upgrade adds the appearance theme once', () async {
+      await db.customStatement(
+        'ALTER TABLE user_settings DROP COLUMN app_appearance',
+      );
+      await db.migration.onUpgrade(Migrator(db), 12, 13);
+      final columns = await db
+          .customSelect("SELECT name FROM pragma_table_info('user_settings')")
+          .get();
+      expect(
+        columns.map((row) => row.read<String>('name')),
+        contains('app_appearance'),
+      );
+      expect((await db.getUserSettings()).appAppearance, AppAppearance.system);
+      await db.migration.onUpgrade(Migrator(db), 12, 13);
+    });
+
     test('site persists new enum value and derived timezone column', () async {
       await db.upsertSite(
         SitesCompanion.insert(

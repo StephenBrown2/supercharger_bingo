@@ -3669,6 +3669,19 @@ class $UserSettingsTableTable extends UserSettingsTable
         requiredDuringInsert: false,
         defaultValue: Constant(UnitSystem.imperial.name),
       ).withConverter<UnitSystem>($UserSettingsTableTable.$converterunitSystem);
+  @override
+  late final GeneratedColumnWithTypeConverter<AppAppearance, String>
+  appAppearance =
+      GeneratedColumn<String>(
+        'app_appearance',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: Constant(AppAppearance.system.name),
+      ).withConverter<AppAppearance>(
+        $UserSettingsTableTable.$converterappAppearance,
+      );
   static const VerificationMeta _includeVisitedNearbyMeta =
       const VerificationMeta('includeVisitedNearby');
   @override
@@ -3799,6 +3812,7 @@ class $UserSettingsTableTable extends UserSettingsTable
     showVisitedOnMap,
     checkinRadiusKm,
     unitSystem,
+    appAppearance,
     includeVisitedNearby,
     includeVehicleInPrivateNote,
     notifyNewSites,
@@ -4067,6 +4081,12 @@ class $UserSettingsTableTable extends UserSettingsTable
           data['${effectivePrefix}unit_system'],
         )!,
       ),
+      appAppearance: $UserSettingsTableTable.$converterappAppearance.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}app_appearance'],
+        )!,
+      ),
       includeVisitedNearby: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}include_visited_nearby'],
@@ -4127,6 +4147,10 @@ class $UserSettingsTableTable extends UserSettingsTable
       const EnumNameConverter<MapFilter>(MapFilter.values);
   static JsonTypeConverter2<UnitSystem, String, String> $converterunitSystem =
       const EnumNameConverter<UnitSystem>(UnitSystem.values);
+  static JsonTypeConverter2<AppAppearance, String, String>
+  $converterappAppearance = const EnumNameConverter<AppAppearance>(
+    AppAppearance.values,
+  );
 }
 
 class UserSettingsTableData extends DataClass
@@ -4148,6 +4172,7 @@ class UserSettingsTableData extends DataClass
   final bool showVisitedOnMap;
   final double checkinRadiusKm;
   final UnitSystem unitSystem;
+  final AppAppearance appAppearance;
 
   /// When false, the nearby check-in list hides sites the user has already
   /// visited. Turn on to show those sites with their last visit date.
@@ -4184,6 +4209,7 @@ class UserSettingsTableData extends DataClass
     required this.showVisitedOnMap,
     required this.checkinRadiusKm,
     required this.unitSystem,
+    required this.appAppearance,
     required this.includeVisitedNearby,
     required this.includeVehicleInPrivateNote,
     required this.notifyNewSites,
@@ -4240,6 +4266,11 @@ class UserSettingsTableData extends DataClass
     {
       map['unit_system'] = Variable<String>(
         $UserSettingsTableTable.$converterunitSystem.toSql(unitSystem),
+      );
+    }
+    {
+      map['app_appearance'] = Variable<String>(
+        $UserSettingsTableTable.$converterappAppearance.toSql(appAppearance),
       );
     }
     map['include_visited_nearby'] = Variable<bool>(includeVisitedNearby);
@@ -4299,6 +4330,7 @@ class UserSettingsTableData extends DataClass
       showVisitedOnMap: Value(showVisitedOnMap),
       checkinRadiusKm: Value(checkinRadiusKm),
       unitSystem: Value(unitSystem),
+      appAppearance: Value(appAppearance),
       includeVisitedNearby: Value(includeVisitedNearby),
       includeVehicleInPrivateNote: Value(includeVehicleInPrivateNote),
       notifyNewSites: Value(notifyNewSites),
@@ -4351,6 +4383,9 @@ class UserSettingsTableData extends DataClass
       unitSystem: $UserSettingsTableTable.$converterunitSystem.fromJson(
         serializer.fromJson<String>(json['unitSystem']),
       ),
+      appAppearance: $UserSettingsTableTable.$converterappAppearance.fromJson(
+        serializer.fromJson<String>(json['appAppearance']),
+      ),
       includeVisitedNearby: serializer.fromJson<bool>(
         json['includeVisitedNearby'],
       ),
@@ -4401,6 +4436,9 @@ class UserSettingsTableData extends DataClass
       'unitSystem': serializer.toJson<String>(
         $UserSettingsTableTable.$converterunitSystem.toJson(unitSystem),
       ),
+      'appAppearance': serializer.toJson<String>(
+        $UserSettingsTableTable.$converterappAppearance.toJson(appAppearance),
+      ),
       'includeVisitedNearby': serializer.toJson<bool>(includeVisitedNearby),
       'includeVehicleInPrivateNote': serializer.toJson<bool>(
         includeVehicleInPrivateNote,
@@ -4433,6 +4471,7 @@ class UserSettingsTableData extends DataClass
     bool? showVisitedOnMap,
     double? checkinRadiusKm,
     UnitSystem? unitSystem,
+    AppAppearance? appAppearance,
     bool? includeVisitedNearby,
     bool? includeVehicleInPrivateNote,
     bool? notifyNewSites,
@@ -4460,6 +4499,7 @@ class UserSettingsTableData extends DataClass
     showVisitedOnMap: showVisitedOnMap ?? this.showVisitedOnMap,
     checkinRadiusKm: checkinRadiusKm ?? this.checkinRadiusKm,
     unitSystem: unitSystem ?? this.unitSystem,
+    appAppearance: appAppearance ?? this.appAppearance,
     includeVisitedNearby: includeVisitedNearby ?? this.includeVisitedNearby,
     includeVehicleInPrivateNote:
         includeVehicleInPrivateNote ?? this.includeVehicleInPrivateNote,
@@ -4518,6 +4558,9 @@ class UserSettingsTableData extends DataClass
       unitSystem: data.unitSystem.present
           ? data.unitSystem.value
           : this.unitSystem,
+      appAppearance: data.appAppearance.present
+          ? data.appAppearance.value
+          : this.appAppearance,
       includeVisitedNearby: data.includeVisitedNearby.present
           ? data.includeVisitedNearby.value
           : this.includeVisitedNearby,
@@ -4566,6 +4609,7 @@ class UserSettingsTableData extends DataClass
           ..write('showVisitedOnMap: $showVisitedOnMap, ')
           ..write('checkinRadiusKm: $checkinRadiusKm, ')
           ..write('unitSystem: $unitSystem, ')
+          ..write('appAppearance: $appAppearance, ')
           ..write('includeVisitedNearby: $includeVisitedNearby, ')
           ..write('includeVehicleInPrivateNote: $includeVehicleInPrivateNote, ')
           ..write('notifyNewSites: $notifyNewSites, ')
@@ -4596,6 +4640,7 @@ class UserSettingsTableData extends DataClass
     showVisitedOnMap,
     checkinRadiusKm,
     unitSystem,
+    appAppearance,
     includeVisitedNearby,
     includeVehicleInPrivateNote,
     notifyNewSites,
@@ -4625,6 +4670,7 @@ class UserSettingsTableData extends DataClass
           other.showVisitedOnMap == this.showVisitedOnMap &&
           other.checkinRadiusKm == this.checkinRadiusKm &&
           other.unitSystem == this.unitSystem &&
+          other.appAppearance == this.appAppearance &&
           other.includeVisitedNearby == this.includeVisitedNearby &&
           other.includeVehicleInPrivateNote ==
               this.includeVehicleInPrivateNote &&
@@ -4654,6 +4700,7 @@ class UserSettingsTableCompanion
   final Value<bool> showVisitedOnMap;
   final Value<double> checkinRadiusKm;
   final Value<UnitSystem> unitSystem;
+  final Value<AppAppearance> appAppearance;
   final Value<bool> includeVisitedNearby;
   final Value<bool> includeVehicleInPrivateNote;
   final Value<bool> notifyNewSites;
@@ -4679,6 +4726,7 @@ class UserSettingsTableCompanion
     this.showVisitedOnMap = const Value.absent(),
     this.checkinRadiusKm = const Value.absent(),
     this.unitSystem = const Value.absent(),
+    this.appAppearance = const Value.absent(),
     this.includeVisitedNearby = const Value.absent(),
     this.includeVehicleInPrivateNote = const Value.absent(),
     this.notifyNewSites = const Value.absent(),
@@ -4705,6 +4753,7 @@ class UserSettingsTableCompanion
     this.showVisitedOnMap = const Value.absent(),
     this.checkinRadiusKm = const Value.absent(),
     this.unitSystem = const Value.absent(),
+    this.appAppearance = const Value.absent(),
     this.includeVisitedNearby = const Value.absent(),
     this.includeVehicleInPrivateNote = const Value.absent(),
     this.notifyNewSites = const Value.absent(),
@@ -4731,6 +4780,7 @@ class UserSettingsTableCompanion
     Expression<bool>? showVisitedOnMap,
     Expression<double>? checkinRadiusKm,
     Expression<String>? unitSystem,
+    Expression<String>? appAppearance,
     Expression<bool>? includeVisitedNearby,
     Expression<bool>? includeVehicleInPrivateNote,
     Expression<bool>? notifyNewSites,
@@ -4758,6 +4808,7 @@ class UserSettingsTableCompanion
       if (showVisitedOnMap != null) 'show_visited_on_map': showVisitedOnMap,
       if (checkinRadiusKm != null) 'checkin_radius_km': checkinRadiusKm,
       if (unitSystem != null) 'unit_system': unitSystem,
+      if (appAppearance != null) 'app_appearance': appAppearance,
       if (includeVisitedNearby != null)
         'include_visited_nearby': includeVisitedNearby,
       if (includeVehicleInPrivateNote != null)
@@ -4791,6 +4842,7 @@ class UserSettingsTableCompanion
     Value<bool>? showVisitedOnMap,
     Value<double>? checkinRadiusKm,
     Value<UnitSystem>? unitSystem,
+    Value<AppAppearance>? appAppearance,
     Value<bool>? includeVisitedNearby,
     Value<bool>? includeVehicleInPrivateNote,
     Value<bool>? notifyNewSites,
@@ -4817,6 +4869,7 @@ class UserSettingsTableCompanion
       showVisitedOnMap: showVisitedOnMap ?? this.showVisitedOnMap,
       checkinRadiusKm: checkinRadiusKm ?? this.checkinRadiusKm,
       unitSystem: unitSystem ?? this.unitSystem,
+      appAppearance: appAppearance ?? this.appAppearance,
       includeVisitedNearby: includeVisitedNearby ?? this.includeVisitedNearby,
       includeVehicleInPrivateNote:
           includeVehicleInPrivateNote ?? this.includeVehicleInPrivateNote,
@@ -4893,6 +4946,13 @@ class UserSettingsTableCompanion
         $UserSettingsTableTable.$converterunitSystem.toSql(unitSystem.value),
       );
     }
+    if (appAppearance.present) {
+      map['app_appearance'] = Variable<String>(
+        $UserSettingsTableTable.$converterappAppearance.toSql(
+          appAppearance.value,
+        ),
+      );
+    }
     if (includeVisitedNearby.present) {
       map['include_visited_nearby'] = Variable<bool>(
         includeVisitedNearby.value,
@@ -4949,6 +5009,7 @@ class UserSettingsTableCompanion
           ..write('showVisitedOnMap: $showVisitedOnMap, ')
           ..write('checkinRadiusKm: $checkinRadiusKm, ')
           ..write('unitSystem: $unitSystem, ')
+          ..write('appAppearance: $appAppearance, ')
           ..write('includeVisitedNearby: $includeVisitedNearby, ')
           ..write('includeVehicleInPrivateNote: $includeVehicleInPrivateNote, ')
           ..write('notifyNewSites: $notifyNewSites, ')
@@ -7716,6 +7777,7 @@ typedef $$UserSettingsTableTableCreateCompanionBuilder =
       Value<bool> showVisitedOnMap,
       Value<double> checkinRadiusKm,
       Value<UnitSystem> unitSystem,
+      Value<AppAppearance> appAppearance,
       Value<bool> includeVisitedNearby,
       Value<bool> includeVehicleInPrivateNote,
       Value<bool> notifyNewSites,
@@ -7743,6 +7805,7 @@ typedef $$UserSettingsTableTableUpdateCompanionBuilder =
       Value<bool> showVisitedOnMap,
       Value<double> checkinRadiusKm,
       Value<UnitSystem> unitSystem,
+      Value<AppAppearance> appAppearance,
       Value<bool> includeVisitedNearby,
       Value<bool> includeVehicleInPrivateNote,
       Value<bool> notifyNewSites,
@@ -7839,6 +7902,12 @@ class $$UserSettingsTableTableFilterComposer
   ColumnWithTypeConverterFilters<UnitSystem, UnitSystem, String>
   get unitSystem => $composableBuilder(
     column: $table.unitSystem,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<AppAppearance, AppAppearance, String>
+  get appAppearance => $composableBuilder(
+    column: $table.appAppearance,
     builder: (column) => ColumnWithTypeConverterFilters(column),
   );
 
@@ -7972,6 +8041,11 @@ class $$UserSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get appAppearance => $composableBuilder(
+    column: $table.appAppearance,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get includeVisitedNearby => $composableBuilder(
     column: $table.includeVisitedNearby,
     builder: (column) => ColumnOrderings(column),
@@ -8097,6 +8171,12 @@ class $$UserSettingsTableTableAnnotationComposer
         builder: (column) => column,
       );
 
+  GeneratedColumnWithTypeConverter<AppAppearance, String> get appAppearance =>
+      $composableBuilder(
+        column: $table.appAppearance,
+        builder: (column) => column,
+      );
+
   GeneratedColumn<bool> get includeVisitedNearby => $composableBuilder(
     column: $table.includeVisitedNearby,
     builder: (column) => column,
@@ -8198,6 +8278,7 @@ class $$UserSettingsTableTableTableManager
                 Value<bool> showVisitedOnMap = const Value.absent(),
                 Value<double> checkinRadiusKm = const Value.absent(),
                 Value<UnitSystem> unitSystem = const Value.absent(),
+                Value<AppAppearance> appAppearance = const Value.absent(),
                 Value<bool> includeVisitedNearby = const Value.absent(),
                 Value<bool> includeVehicleInPrivateNote = const Value.absent(),
                 Value<bool> notifyNewSites = const Value.absent(),
@@ -8224,6 +8305,7 @@ class $$UserSettingsTableTableTableManager
                 showVisitedOnMap: showVisitedOnMap,
                 checkinRadiusKm: checkinRadiusKm,
                 unitSystem: unitSystem,
+                appAppearance: appAppearance,
                 includeVisitedNearby: includeVisitedNearby,
                 includeVehicleInPrivateNote: includeVehicleInPrivateNote,
                 notifyNewSites: notifyNewSites,
@@ -8251,6 +8333,7 @@ class $$UserSettingsTableTableTableManager
                 Value<bool> showVisitedOnMap = const Value.absent(),
                 Value<double> checkinRadiusKm = const Value.absent(),
                 Value<UnitSystem> unitSystem = const Value.absent(),
+                Value<AppAppearance> appAppearance = const Value.absent(),
                 Value<bool> includeVisitedNearby = const Value.absent(),
                 Value<bool> includeVehicleInPrivateNote = const Value.absent(),
                 Value<bool> notifyNewSites = const Value.absent(),
@@ -8277,6 +8360,7 @@ class $$UserSettingsTableTableTableManager
                 showVisitedOnMap: showVisitedOnMap,
                 checkinRadiusKm: checkinRadiusKm,
                 unitSystem: unitSystem,
+                appAppearance: appAppearance,
                 includeVisitedNearby: includeVisitedNearby,
                 includeVehicleInPrivateNote: includeVehicleInPrivateNote,
                 notifyNewSites: notifyNewSites,

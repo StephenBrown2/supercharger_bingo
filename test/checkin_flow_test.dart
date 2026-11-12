@@ -11,6 +11,7 @@ import 'package:supercharger_bingo/screens/vehicles_screen.dart';
 import 'package:supercharger_bingo/services/api_service.dart';
 import 'package:supercharger_bingo/services/database_service.dart';
 import 'package:supercharger_bingo/services/sync_service.dart';
+import 'package:supercharger_bingo/theme/app_theme.dart';
 
 import 'support/test_sqlite3.dart';
 
@@ -622,7 +623,15 @@ void main() {
   testWidgets('every settings control saves without crashing', (tester) async {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.binding.setSurfaceSize(const Size(800, 1600));
-    await tester.pumpWidget(const MaterialApp(home: SettingsScreen()));
+    final appearance = AppearanceController(AppAppearance.system);
+    addTearDown(appearance.dispose);
+
+    await tester.pumpWidget(
+      AppearanceScope(
+        controller: appearance,
+        child: const MaterialApp(home: SettingsScreen()),
+      ),
+    );
     await tester.pumpAndSettle();
 
     Future<void> tapTile(String label) async {
@@ -643,6 +652,21 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     }
+
+    await tapTile('Theme');
+    await tester.tap(find.text('Dark'));
+    await tester.pumpAndSettle();
+    expect((await db.getUserSettings()).appAppearance, AppAppearance.dark);
+    expect(appearance.appearance, AppAppearance.dark);
+    await tapTile('Theme');
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('System'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect((await db.getUserSettings()).appAppearance, AppAppearance.system);
 
     await tapTile('New Superchargers');
     expect((await db.getUserSettings()).notifyNewSites, isFalse);

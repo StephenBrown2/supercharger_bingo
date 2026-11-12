@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
+import 'database/database.dart';
 import 'screens/app_shell.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
@@ -8,6 +9,7 @@ import 'services/database_service.dart';
 import 'services/notification_service.dart';
 import 'services/sync_service.dart';
 import 'services/timezone_service.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,11 +20,14 @@ void main() async {
   await NotificationService.instance.initialize();
   SyncService.instance.initialize();
 
-  runApp(const SuperchargerBingoApp());
+  final settings = await DatabaseService.getUserSettings();
+  runApp(SuperchargerBingoApp(initialAppearance: settings.appAppearance));
 }
 
 class SuperchargerBingoApp extends StatefulWidget {
-  const SuperchargerBingoApp({super.key});
+  const SuperchargerBingoApp({super.key, required this.initialAppearance});
+
+  final AppAppearance initialAppearance;
 
   @override
   State<SuperchargerBingoApp> createState() => _SuperchargerBingoAppState();
@@ -31,11 +36,19 @@ class SuperchargerBingoApp extends StatefulWidget {
 class _SuperchargerBingoAppState extends State<SuperchargerBingoApp> {
   bool _hasCompletedSetup = false;
   bool _isLoading = true;
+  late final AppearanceController _appearance;
 
   @override
   void initState() {
     super.initState();
+    _appearance = AppearanceController(widget.initialAppearance);
     _checkAuthStatus();
+  }
+
+  @override
+  void dispose() {
+    _appearance.dispose();
+    super.dispose();
   }
 
   Future<void> _checkAuthStatus() async {
@@ -72,41 +85,32 @@ class _SuperchargerBingoAppState extends State<SuperchargerBingoApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Supercharger Bingo',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFE82127), // Tesla red
-          brightness: Brightness.light,
+    return AppThemeBuilder(
+      controller: _appearance,
+      builder: (light, dark, mode) => MaterialApp(
+        title: 'Supercharger Bingo',
+        debugShowCheckedModeBanner: false,
+        theme: light,
+        darkTheme: dark,
+        themeMode: mode,
+        home: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 400),
+          switchInCurve: Curves.easeOut,
+          switchOutCurve: Curves.easeIn,
+          transitionBuilder: (child, anim) =>
+              FadeTransition(opacity: anim, child: child),
+          child: _isLoading
+              ? SplashScreen(
+                  key: const ValueKey('splash'),
+                  onReady: () => setState(() => _isLoading = false),
+                )
+              : (_hasCompletedSetup
+                    ? const AppShell(key: ValueKey('appShell'))
+                    : LoginScreen(
+                        key: const ValueKey('login'),
+                        onLoginSuccess: _onLoginSuccess,
+                      )),
         ),
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFE82127), // Tesla red
-          brightness: Brightness.dark,
-        ),
-      ),
-      themeMode: ThemeMode.system,
-      home: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 400),
-        switchInCurve: Curves.easeOut,
-        switchOutCurve: Curves.easeIn,
-        transitionBuilder: (child, anim) =>
-            FadeTransition(opacity: anim, child: child),
-        child: _isLoading
-            ? SplashScreen(
-                key: const ValueKey('splash'),
-                onReady: () => setState(() => _isLoading = false),
-              )
-            : (_hasCompletedSetup
-                  ? const AppShell(key: ValueKey('appShell'))
-                  : LoginScreen(
-                      key: const ValueKey('login'),
-                      onLoginSuccess: _onLoginSuccess,
-                    )),
       ),
     );
   }
