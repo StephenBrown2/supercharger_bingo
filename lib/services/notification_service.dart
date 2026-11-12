@@ -36,6 +36,10 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
   bool _initialized = false;
 
+  /// Site id from a tapped notification, waiting for the map to show it.
+  /// AppShell takes it and sets it back to null.
+  final ValueNotifier<int?> openSiteRequest = ValueNotifier(null);
+
   NotificationService._();
 
   /// Initialize notification channels and workmanager
@@ -73,6 +77,12 @@ class NotificationService {
       settings: initSettings,
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
+    // A tap that launched the app arrives here, not in the callback.
+    final launch = await _notifications.getNotificationAppLaunchDetails();
+    if (launch?.didNotificationLaunchApp ?? false) {
+      final response = launch!.notificationResponse;
+      if (response != null) _onNotificationTapped(response);
+    }
 
     // Create notification channels (Android only)
     if (Platform.isAndroid) {
@@ -124,9 +134,11 @@ class NotificationService {
   }
 
   /// Handle notification tap
+  /// Alerts carry `site:<id>` as their payload.
   void _onNotificationTapped(NotificationResponse response) {
-    // TODO: Navigate to the relevant site on the map
-    // This requires passing data through the notification payload
+    final payload = response.payload ?? '';
+    if (!payload.startsWith('site:')) return;
+    openSiteRequest.value = int.tryParse(payload.substring(5));
   }
 
   /// Request notification permissions (iOS)

@@ -33,10 +33,10 @@ class MapScreen extends StatefulWidget {
   });
 
   @override
-  State<MapScreen> createState() => _MapScreenState();
+  State<MapScreen> createState() => MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
+class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   MapFilter _currentFilter = MapFilter.openUnvisited;
   List<Site> _sites = [];
@@ -276,7 +276,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     // between opens.
     if (widget.showCheckinDrawer != oldWidget.showCheckinDrawer) {
       setState(() => _showCheckinDrawer = widget.showCheckinDrawer);
-      if (_showCheckinDrawer) _fetchLocationForCheckin();
+      if (_showCheckinDrawer) {
+        _siteFocused = false;
+        _fetchLocationForCheckin();
+      }
     }
   }
 
@@ -625,6 +628,19 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         ),
       );
     }).toList();
+  }
+
+  // Set by showSite, so the startup location fix does not pull the camera
+  // away. Opening the drawer clears it.
+  bool _siteFocused = false;
+
+  /// Zoom to a site and open its sheet, for a tapped notification.
+  Future<void> showSite(int siteId) async {
+    final site = await DatabaseService.getSiteBySiteId(siteId);
+    if (site == null || !mounted) return;
+    _siteFocused = true;
+    _mapController.move(LatLng(site.latitude, site.longitude), 14);
+    _showSiteInfo(site);
   }
 
   void _showSiteInfo(Site site) {
@@ -1192,7 +1208,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   }
 
   void _autoZoomMapToCheckin() {
-    if (_userPosition == null) return;
+    if (_userPosition == null || _siteFocused) return;
 
     final userLatLng = LatLng(
       _userPosition!.latitude,

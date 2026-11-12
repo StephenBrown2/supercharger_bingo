@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/notification_service.dart';
 import 'map_screen.dart';
 import 'settings_screen.dart';
 import 'visits_screen.dart';
@@ -17,7 +18,38 @@ class _AppShellState extends State<AppShell> {
   bool _showCheckinDrawer = false;
   // Bumped on each visit to the tab, so the list reloads.
   int _visitsOpens = 0;
-  final GlobalKey<State<MapScreen>> _mapKey = GlobalKey();
+  final GlobalKey<MapScreenState> _mapKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    final request = NotificationService.instance.openSiteRequest;
+    request.addListener(_openRequestedSite);
+    // A tap that launched the app is already waiting.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _openRequestedSite());
+  }
+
+  @override
+  void dispose() {
+    NotificationService.instance.openSiteRequest.removeListener(
+      _openRequestedSite,
+    );
+    super.dispose();
+  }
+
+  void _openRequestedSite() {
+    final request = NotificationService.instance.openSiteRequest;
+    final siteId = request.value;
+    if (siteId == null || !mounted) return;
+    request.value = null;
+    setState(() {
+      _selectedIndex = 0;
+      _showCheckinDrawer = false;
+    });
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _mapKey.currentState?.showSite(siteId),
+    );
+  }
 
   void _onDrawerClosed() {
     setState(() {
