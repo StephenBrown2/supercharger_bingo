@@ -1,10 +1,15 @@
 import 'package:drift/drift.dart' hide Column;
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../database/database.dart';
 import '../services/api_service.dart';
 import '../services/database_service.dart';
 import '../services/life_auth.dart';
+import '../services/location_service.dart';
 import '../services/notification_service.dart';
 import '../services/sync_service.dart';
 import '../theme/app_theme.dart';
@@ -117,6 +122,63 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _loadSettings();
     _loadSiteCount();
+    _loadLocationAccess();
+  }
+
+  /// Null hides the row. Only phones run background alerts.
+  LocationPermission? _locationAccess;
+
+  bool get _isPhone => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+
+  Future<void> _loadLocationAccess() async {
+    if (!_isPhone) return;
+    final access = await Geolocator.checkPermission();
+    if (mounted) setState(() => _locationAccess = access);
+  }
+
+  /// Alerts need notifications, and location all the time to follow the
+  /// phone while the app is closed. Without it they use the last spot the
+  /// app saw.
+  Future<void> _ensureAlertPermissions() async {
+    if (!_isPhone) return;
+    final notificationsAllowed = await NotificationService.instance
+        .requestPermissions();
+    if (!mounted) return;
+    if (!notificationsAllowed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Notifications are off for Supercharger Bingo'),
+        ),
+      );
+    }
+    if (await Geolocator.checkPermission() == LocationPermission.always ||
+        !mounted) {
+      return;
+    }
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Allow location all the time?'),
+        content: const Text(
+          'Alerts check for nearby Superchargers while the app is closed. '
+          'Choose "Allow all the time" so they follow where you are. '
+          'Otherwise they use the last place the app was open.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+    if (proceed != true) return;
+    final access = await LocationService.instance.requestBackgroundAccess();
+    if (mounted) setState(() => _locationAccess = access);
   }
 
   Future<void> _loadSettings() async {
@@ -194,6 +256,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: (value) {
                     setState(() => _settings?.notifyNewSites = value);
                     _saveSettings();
+                    if (value) _ensureAlertPermissions();
                   },
                 ),
                 SwitchListTile(
@@ -206,8 +269,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: (value) {
                     setState(() => _settings?.notifyFirstEligible = value);
                     _saveSettings();
+                    if (value) _ensureAlertPermissions();
                   },
                 ),
+                if (_locationAccess != null)
+                  ListTile(
+                    leading: const Icon(Icons.my_location),
+                    title: const Text('Location for alerts'),
+                    subtitle: Text(
+                      _locationAccess == LocationPermission.always
+                          ? 'All the time'
+                          : 'Only while the app is open. Tap to allow all the time',
+                    ),
+                    onTap: _locationAccess == LocationPermission.always
+                        ? null
+                        : _ensureAlertPermissions,
+                  ),
                 ListTile(
                   leading: const Icon(Icons.notification_add_outlined),
                   title: const Text('Send test notification'),

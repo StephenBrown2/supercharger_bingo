@@ -14,6 +14,7 @@ import 'background/background_stub.dart'
     if (dart.library.html) 'background/background_web.dart'
     as background;
 import 'database_service.dart';
+import 'location_service.dart';
 import 'sync_service.dart';
 import 'timezone_service.dart';
 
@@ -419,7 +420,15 @@ void backgroundSyncCallback() {
 
         // Sync sites from supercharge.info. Alerts do not need a session.
         // The check-in flush still skips the post when the cookie is missing.
-        await SyncService.instance.syncSites();
+        // Without background location, reuse the spot saved while the app
+        // was open rather than letting syncSites fall back to IP lookup.
+        // With neither, syncSites looks one up itself, IP lookup included.
+        final fix = await LocationService.instance.backgroundPosition();
+        final saved = await DatabaseService.getUserSettings();
+        await SyncService.instance.syncSites(
+          latitude: fix?.latitude ?? saved.lastLatitude,
+          longitude: fix?.longitude ?? saved.lastLongitude,
+        );
         await SyncService.instance.syncCommunityData();
         await SyncService.instance.syncPendingCheckins();
         await NotificationService.instance.deliverBackgroundAlerts();

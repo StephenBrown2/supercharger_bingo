@@ -44,6 +44,37 @@ class LocationService {
     _cacheTimestamp = null;
   }
 
+  /// Background alerts need location "all the time". Android 11+ sends the
+  /// user to the system settings page for that second step.
+  Future<LocationPermission> requestBackgroundAccess() async {
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.whileInUse) {
+      permission = await Geolocator.requestPermission();
+    }
+    return permission;
+  }
+
+  /// A GPS fix for the background task, or null. Never falls back to IP
+  /// geolocation, which can be hundreds of km off on mobile data.
+  Future<Position?> backgroundPosition() async {
+    try {
+      if (await Geolocator.checkPermission() != LocationPermission.always) {
+        return null;
+      }
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 20),
+        ),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Check and request location permissions
   Future<bool> checkPermission() async {
     // On Linux, skip permission checks - they don't work reliably
