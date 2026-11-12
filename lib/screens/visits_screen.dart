@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../database/database.dart';
 import '../services/database_service.dart';
+import '../services/api_service.dart';
+import '../services/write_result.dart';
+import '../services/sync_service.dart';
 
-/// Personal visits, including check-ins that have not synced yet. A check-in
-/// that has not reached supercharging.life can be deleted here.
+/// Personal visits, including check-ins that have not synced yet.
 class VisitsScreen extends StatefulWidget {
-  const VisitsScreen({super.key});
+  final ApiService? api;
+
+  const VisitsScreen({super.key, this.api});
 
   @override
   State<VisitsScreen> createState() => _VisitsScreenState();
@@ -16,6 +20,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
   List<Visit>? _visits;
   Map<int, String> _siteNames = {};
   Map<int, PendingCheckin> _pending = {};
+  bool _deleting = false;
 
   @override
   void initState() {
@@ -48,13 +53,18 @@ class _VisitsScreenState extends State<VisitsScreen> {
   }
 
   Future<void> _delete(Visit visit, String name) async {
+    if (_deleting) return;
+    final synced = visit.syncStatus == VisitSyncStatus.synced;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete check-in?'),
         content: Text(
-          '$name has not synced to supercharging.life, so this removes it '
-          'from the app only.',
+          synced
+              ? 'Delete this check-in at $name from supercharging.life and '
+                    'this app? This cannot be undone.'
+              : '$name has not synced to supercharging.life, so this removes it '
+                    'from the app only.',
         ),
         actions: [
           TextButton(
@@ -68,9 +78,65 @@ class _VisitsScreenState extends State<VisitsScreen> {
         ],
       ),
     );
-    if (confirmed != true) return;
-    await DatabaseService.deleteUnsyncedVisit(visit);
-    await _load();
+    if (confirmed != true || !mounted || _deleting) return;
+    setState(() => _deleting = true);
+    try {
+      if (synced) {
+        if (visit.checkinId == null) {
+          final settings = await DatabaseService.getUserSettings();
+          final username = settings.username;
+          if (username != null && username.isNotEmpty) {
+            await SyncService(
+              apiService: widget.api,
+            ).syncUserByUsername(username);
+            final refreshed = await DatabaseService.getVisits();
+            visit = refreshed.firstWhere(
+              (v) => v.id == visit.id,
+              orElse: () => visit,
+            );
+          }
+        }
+        final id = visit.checkinId;
+        if (id == null || id <= 0) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Could not uniquely match this check-in on supercharging.life. Nothing was deleted.',
+                ),
+              ),
+            );
+          }
+          await _load();
+          return;
+        }
+        final result = await (widget.api ?? ApiService.instance).deleteCheckin(
+          id,
+        );
+        if (result.outcome != WriteOutcome.accepted) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(result.message ?? 'Could not delete check-in.'),
+              ),
+            );
+          }
+          return;
+        }
+      }
+      await DatabaseService.deleteVisit(visit);
+      await _load();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not finish deletion. Refresh your visits.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
   }
 
   String _formatDate(DateTime date) {
@@ -109,30 +175,31 @@ class _VisitsScreenState extends State<VisitsScreen> {
                       _siteNames[visit.siteId] ?? 'Site ${visit.siteId}',
                     ),
                     subtitle: Text(_formatDate(visit.checkinDate)),
-                    trailing: label == null
-                        ? null
-                        : Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                label,
-                                style: TextStyle(
-                                  color: failed
-                                      ? Theme.of(context).colorScheme.error
-                                      : Theme.of(context).colorScheme.tertiary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline),
-                                tooltip: 'Delete check-in',
-                                onPressed: () => _delete(
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (label != null)
+                          Text(
+                            label,
+                            style: TextStyle(
+                              color: failed
+                                  ? Theme.of(context).colorScheme.error
+                                  : Theme.of(context).colorScheme.tertiary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          tooltip: 'Delete check-in',
+                          onPressed: _deleting
+                              ? null
+                              : () => _delete(
                                   visit,
                                   _siteNames[visit.siteId] ?? 'This site',
                                 ),
-                              ),
-                            ],
-                          ),
+                        ),
+                      ],
+                    ),
                   );
                 },
               ),

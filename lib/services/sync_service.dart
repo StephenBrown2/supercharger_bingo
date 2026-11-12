@@ -353,6 +353,7 @@ class SyncService {
 
       final visits = await _parseUserXlsx(xlsxBytes);
       debugPrint('syncUserByUsername: Parsed ${visits.length} visits');
+      await DatabaseService.db.reconcileVisitIds(visits);
 
       // Mark sites as visited by user
       for (final visit in visits) {
@@ -558,7 +559,7 @@ class SyncService {
             VisitsCompanion(
               siteId: Value(siteId),
               checkinDate: Value(date),
-              checkinTime: Value(DateTime.now()),
+              checkinTime: Value(date),
               checkinPrecision: Value(precision),
               isFirst: const Value(false),
               method: Value(

@@ -343,6 +343,48 @@ class ApiService {
     }
   }
 
+  Future<WriteResult> deleteCheckin(int checkinId) async {
+    if (checkinId <= 0) return WriteResult.rejected;
+    final session = await getSessionCookie();
+    if (session == null || session.isEmpty) return WriteResult.needsSignIn;
+    await restoreSessionCookie();
+    try {
+      final response = await _dio.get(
+        '$superchargingLifeBaseUrl/supercharging/misc.php',
+        queryParameters: {'action': 'delete_checkin', 'checkin_id': checkinId},
+        options: Options(followRedirects: false, validateStatus: (_) => true),
+      );
+      final location = response.headers.value('location');
+      final result = writeResultFromHttp(
+        statusCode: response.statusCode,
+        body: response.data?.toString(),
+        finalUri: location,
+      );
+      if (result.outcome != WriteOutcome.accepted) return result;
+      final destination = location == null
+          ? null
+          : response.realUri.resolve(location);
+      // shortcut: require a return-page redirect; add other success responses
+      // only after verifying the live site's deletion response.
+      if ([302, 303].contains(response.statusCode) &&
+          destination?.origin == Uri.parse(superchargingLifeBaseUrl).origin &&
+          destination!.path.startsWith('/supercharging/') &&
+          !destination.path.endsWith('/misc.php') &&
+          !destination.path.endsWith('/checkin_detail.php')) {
+        return WriteResult.accepted;
+      }
+      return const WriteResult(
+        WriteOutcome.rejected,
+        'Could not confirm deletion. Refresh your visits before trying again.',
+      );
+    } on DioException {
+      return const WriteResult(
+        WriteOutcome.retry,
+        'Could not confirm deletion. Check your connection and refresh visits.',
+      );
+    }
+  }
+
   /// Download user's XLSX export
   Future<List<int>> downloadUserXlsx(int userId) async {
     final response = await _dio.get(

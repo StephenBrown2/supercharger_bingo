@@ -721,12 +721,17 @@ class AppDatabase extends _$AppDatabase {
     '(SELECT 1 FROM visits v WHERE v.site_id = sites.site_id)',
   );
 
-  /// Drop a check-in that has not reached supercharging.life, and its queued
-  /// post. The site stays visited only if another visit remains.
-  Future<void> deleteUnsyncedVisit(Visit visit) => transaction(() async {
+  /// Drop a local visit and its queued post after any server deletion succeeds.
+  /// The site stays visited only if another visit remains.
+  Future<void> deleteVisit(Visit visit) => transaction(() async {
     await (delete(visits)..where((t) => t.id.equals(visit.id))).go();
     final pendingId = visit.pendingId;
     if (pendingId != null) await deletePendingCheckin(pendingId);
+    if (visit.checkinId != null) {
+      await (delete(
+        siteCheckins,
+      )..where((t) => t.checkinId.equals(visit.checkinId!))).go();
+    }
     await clearVisitedWithoutVisits();
   });
 
@@ -762,6 +767,49 @@ class AppDatabase extends _$AppDatabase {
     dates.sort();
     return dates.last;
   }
+
+  /// Attach IDs only for unique matches in both the local and server history.
+  Future<void> reconcileVisitIds(List<VisitsCompanion> imported) => transaction(
+    () async {
+      final local = await getAllVisits();
+      final knownIds = local.map((v) => v.checkinId).whereType<int>().toSet();
+      (int, int) key(int siteId, DateTime time) =>
+          (siteId, time.millisecondsSinceEpoch ~/ 1000);
+      // Date-only rows cannot distinguish visits on the same day safely.
+      final unmatched = local
+          .where(
+            (v) =>
+                v.checkinId == null &&
+                v.syncStatus == VisitSyncStatus.synced &&
+                v.checkinPrecision == CheckinPrecision.timestamp,
+          )
+          .toList();
+      for (final row in unmatched) {
+        // App-created rows preserve the submitted instant in checkinDate.
+        final rowKey = key(row.siteId, row.checkinDate);
+        final candidates = imported
+            .where(
+              (v) =>
+                  v.checkinId.present &&
+                  (v.checkinId.value ?? 0) > 0 &&
+                  (!v.checkinPrecision.present ||
+                      v.checkinPrecision.value == CheckinPrecision.timestamp) &&
+                  key(v.siteId.value, v.checkinTime.value) == rowKey,
+            )
+            .toList();
+        final localMatches = unmatched.where(
+          (v) => key(v.siteId, v.checkinDate) == rowKey,
+        );
+        if (candidates.length == 1 &&
+            localMatches.length == 1 &&
+            !knownIds.contains(candidates.single.checkinId.value)) {
+          await (update(visits)..where((t) => t.id.equals(row.id))).write(
+            VisitsCompanion(checkinId: candidates.single.checkinId),
+          );
+        }
+      }
+    },
+  );
 
   Future<void> addVisit(VisitsCompanion visit) async {
     // Upsert on the supercharging.life check-in id so re-importing the XLSX

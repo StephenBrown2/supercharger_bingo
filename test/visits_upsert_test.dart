@@ -24,13 +24,100 @@ void main() {
     );
   }
 
-  test('re-importing a visit upserts instead of failing on checkin_id', () async {
-    await db.addVisit(visit(checkinId: 90105, isFirst: false));
-    // Same supercharging.life check-in id imported again (XLSX re-sync).
-    await db.addVisit(visit(checkinId: 90105, isFirst: true));
+  test(
+    're-importing a visit upserts instead of failing on checkin_id',
+    () async {
+      await db.addVisit(visit(checkinId: 90105, isFirst: false));
+      // Same supercharging.life check-in id imported again (XLSX re-sync).
+      await db.addVisit(visit(checkinId: 90105, isFirst: true));
 
-    final all = await db.getAllVisits();
-    expect(all, hasLength(1));
-    expect(all.first.isFirst, isTrue);
+      final all = await db.getAllVisits();
+      expect(all, hasLength(1));
+      expect(all.first.isFirst, isTrue);
+    },
+  );
+
+  test(
+    'import reconciles a unique synced local visit without losing its row',
+    () async {
+      final imported = visit(checkinId: 90105, isFirst: false);
+      await db.addVisit(
+        imported.copyWith(
+          checkinId: const Value(null),
+          checkinDate: imported.checkinTime,
+        ),
+      );
+      final localId = (await db.getAllVisits()).single.id;
+      await db.reconcileVisitIds([imported]);
+      await db.addVisit(imported);
+      final all = await db.getAllVisits();
+      expect(all, hasLength(1));
+      expect(all.single.id, localId);
+      expect(all.single.checkinId, 90105);
+    },
+  );
+
+  test(
+    'import does not guess IDs for ambiguous local or server visits',
+    () async {
+      final imported = visit(checkinId: 90105, isFirst: false);
+      await db.addVisit(
+        imported.copyWith(
+          checkinId: const Value(null),
+          checkinDate: imported.checkinTime,
+        ),
+      );
+      await db.reconcileVisitIds([
+        imported,
+        visit(checkinId: 90106, isFirst: false),
+      ]);
+      expect((await db.getAllVisits()).single.checkinId, isNull);
+      await db.addVisit(
+        imported.copyWith(
+          checkinId: const Value(null),
+          checkinDate: imported.checkinTime,
+        ),
+      );
+      await db.reconcileVisitIds([imported]);
+      expect(
+        (await db.getAllVisits()).every((v) => v.checkinId == null),
+        isTrue,
+      );
+    },
+  );
+
+  test('date-only visits cannot acquire an ID by date alone', () async {
+    final imported = visit(
+      checkinId: 90105,
+      isFirst: false,
+    ).copyWith(checkinPrecision: const Value(CheckinPrecision.dateOnly));
+    await db.addVisit(imported.copyWith(checkinId: const Value(null)));
+    await db.reconcileVisitIds([imported]);
+    expect((await db.getAllVisits()).single.checkinId, isNull);
   });
+
+  test(
+    'legacy direct visits match submitted time rather than response time',
+    () async {
+      final imported = visit(checkinId: 90105, isFirst: false);
+      await db.addVisit(
+        imported.copyWith(
+          checkinId: const Value(null),
+          checkinDate: imported.checkinTime,
+          checkinTime: Value(
+            imported.checkinTime.value.add(const Duration(seconds: 3)),
+          ),
+        ),
+      );
+      final localId = (await db.getAllVisits()).single.id;
+      await db.reconcileVisitIds([imported]);
+      await db.addVisit(imported);
+      final all = await db.getAllVisits();
+      expect(all, hasLength(1));
+      expect(all.single.id, localId);
+      expect(all.single.checkinId, 90105);
+      await db.deleteVisit(all.single);
+      expect(await db.getAllVisits(), isEmpty);
+    },
+  );
 }
