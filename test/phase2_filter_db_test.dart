@@ -63,6 +63,26 @@ void main() {
     },
   );
 
+  test(
+    'a site with community check-ins but no First history is taken',
+    () async {
+      await db.upsertSite(
+        SitesCompanion.insert(
+          siteId: 11,
+          name: 'Older site',
+          dateOpened: Value(DateTime(2026, 10, 26)),
+        ),
+      );
+      await seedSite(12);
+      expect(await db.getEarliestCheckinDates([11, 12]), isEmpty);
+
+      await db.markSitesHaveCheckins([11]);
+      expect(await db.getEarliestCheckinDates([11, 12]), {
+        11: DateTime(2026, 10, 26),
+      });
+    },
+  );
+
   test('getEarliestCheckinDates is empty when no ids given', () async {
     expect(await db.getEarliestCheckinDates([]), isEmpty);
   });

@@ -80,8 +80,7 @@ class Sites extends Table {
   DateTimeColumn get dateOpened => dateTime().nullable()();
 
   /// Cache of "community check-in count > 0" from the counts endpoint.
-  /// First eligibility comes from getEarliestCheckinDates (the earliest
-  /// qualifying community check-in). This flag is only the counts cache.
+  /// getEarliestCheckinDates uses it when the First history has no date.
   BoolColumn get hasCheckins => boolean().withDefault(const Constant(false))();
 
   /// Whether the current user has visited this site
@@ -602,6 +601,20 @@ class AppDatabase extends _$AppDatabase {
       final id = row.read(siteCheckins.siteId);
       final date = row.read(minDate);
       if (id != null && date != null) result[id] = date;
+    }
+    // The First history feed only lists recent Firsts. A site the counts feed
+    // says has check-ins already has its First, so fall back to the opening
+    // day: passed for an older site, today for one that opened today.
+    final missing = siteIds.where((id) => !result.containsKey(id)).toList();
+    if (missing.isNotEmpty) {
+      final taken =
+          await (select(sites)..where(
+                (t) => t.siteId.isIn(missing) & t.hasCheckins.equals(true),
+              ))
+              .get();
+      for (final site in taken) {
+        result[site.siteId] = site.dateOpened ?? DateTime(2000);
+      }
     }
     return result;
   }

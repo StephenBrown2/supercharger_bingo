@@ -56,7 +56,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   List<SiteWithDistance> _nearbySites = [];
   Map<int, DateTime> _lastVisits = {};
   // Earliest qualifying community check-in for the nearby rows. Absence means
-  // the First is still open. Independent of the hasCheckins counts cache.
+  // the First is still open.
   Map<int, DateTime> _nearbyFirstDates = {};
   bool _isLoadingLocation = false;
   bool _isLoadingSites = false;
