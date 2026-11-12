@@ -58,6 +58,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   // Earliest qualifying community check-in for the nearby rows. Absence means
   // the First is still open.
   Map<int, DateTime> _nearbyFirstDates = {};
+  // Check-in radius in the user's units, for the empty-list message.
+  String? _checkinRadiusLabel;
   bool _isLoadingLocation = false;
   bool _isLoadingSites = false;
   String? _locationError;
@@ -331,6 +333,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             options: MapOptions(
               initialCenter: _getInitialCenter(),
               initialZoom: _getInitialZoom(),
+              // North stays up: no two-finger rotate.
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+              ),
             ),
             children: [
               TileLayer(
@@ -976,7 +982,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           : 'No matching superchargers';
     }
     if (_userPosition == null) return 'Getting location...';
-    return 'No superchargers nearby';
+    final radius = _checkinRadiusLabel;
+    return radius == null
+        ? 'No superchargers nearby'
+        : 'No superchargers within $radius';
   }
 
   String _formatShortDate(DateTime d) =>
@@ -1145,7 +1154,11 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       final lastVisits = await DatabaseService.getLastVisitDates(siteIds);
       final firstDates = await DatabaseService.getEarliestCheckinDates(siteIds);
 
+      final radius = settings.unitSystem == UnitSystem.imperial
+          ? '${(settings.checkinRadiusKm * 0.621371).round()} mi'
+          : '${settings.checkinRadiusKm.round()} km';
       setState(() {
+        _checkinRadiusLabel = radius;
         _searchAll = false;
         _nearbySites = sites;
         _lastVisits = lastVisits;
