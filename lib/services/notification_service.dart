@@ -107,13 +107,14 @@ class NotificationService {
         ),
       );
 
-      // First Eligible channel
+      // First countdown channel. The id stays first_eligible so existing
+      // installs keep the user's channel settings.
       await androidPlugin.createNotificationChannel(
         const AndroidNotificationChannel(
           firstEligibleChannelId,
-          'First Eligible',
+          'First Countdown',
           description:
-              'Notifications when a nearby Supercharger becomes First-eligible',
+              'Someone claimed the First at a nearby site, so the share window is open until local midnight there',
           importance: Importance.high,
           enableVibration: true,
           playSound: true,
@@ -422,7 +423,7 @@ class NotificationService {
     );
   }
 
-  /// Show notification for First-eligible site
+  /// Someone claimed the First nearby and the share window is open
   Future<void> showFirstEligibleNotification(
     Site site,
     double distanceKm,
@@ -430,15 +431,16 @@ class NotificationService {
   ) async {
     await _notifications.show(
       id: site.siteId + 100000, // Offset to avoid ID collision
-      title: 'First Eligible Nearby!',
+      title: 'First Countdown Started',
       body:
-          '${site.name} (${formatDistance(distanceKm, units)}) is ready for a First!',
+          '${site.name} (${formatDistance(distanceKm, units)}): check in before '
+          'local midnight to share the First',
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           firstEligibleChannelId,
-          'First Eligible',
+          'First Countdown',
           channelDescription:
-              'Notifications when a nearby Supercharger becomes First-eligible',
+              'Someone claimed the First at a nearby site, so the share window is open until local midnight there',
           importance: Importance.high,
           priority: Priority.high,
           icon: 'ic_stat_bolt',

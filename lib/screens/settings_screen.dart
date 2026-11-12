@@ -261,9 +261,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 SwitchListTile(
                   secondary: const Icon(Icons.star),
-                  title: const Text('First-Eligible Alerts'),
+                  title: const Text('First Countdown Started'),
                   subtitle: const Text(
-                    'A nearby site inside today\'s First window',
+                    'Someone claimed a nearby First. Check in there before local midnight to share it',
                   ),
                   value: _settings?.notifyFirstEligible ?? true,
                   onChanged: (value) {

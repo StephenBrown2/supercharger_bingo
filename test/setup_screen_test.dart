@@ -60,7 +60,7 @@ void main() {
     await next(); // Units
     expect(find.text('Check-in search radius: 40 km'), findsOneWidget);
     await next(); // Distances
-    await tester.tap(find.text('First-Eligible Alerts'));
+    await tester.tap(find.text('First Countdown Started'));
     await tester.pumpAndSettle();
     await next(); // Alerts
     await tester.tap(find.text('Done'));

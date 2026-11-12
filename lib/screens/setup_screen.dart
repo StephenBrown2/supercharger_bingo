@@ -378,8 +378,10 @@ class _SetupScreenState extends State<SetupScreen> {
     ),
     SwitchListTile(
       contentPadding: EdgeInsets.zero,
-      title: const Text('First-Eligible Alerts'),
-      subtitle: const Text('A nearby site inside today\'s First window'),
+      title: const Text('First Countdown Started'),
+      subtitle: const Text(
+        'Someone claimed a nearby First. Check in there before local midnight to share it',
+      ),
       value: _notifyFirstEligible,
       onChanged: (value) => setState(() => _notifyFirstEligible = value),
     ),

@@ -673,9 +673,9 @@ void main() {
     await tapTile('New Superchargers');
     expect((await db.getUserSettings()).notifyNewSites, isTrue);
 
-    await tapTile('First-Eligible Alerts');
+    await tapTile('First Countdown Started');
     expect((await db.getUserSettings()).notifyFirstEligible, isFalse);
-    await tapTile('First-Eligible Alerts');
+    await tapTile('First Countdown Started');
     expect((await db.getUserSettings()).notifyFirstEligible, isTrue);
 
     await tapTile('Polling Interval');
