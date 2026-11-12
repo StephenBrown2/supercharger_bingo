@@ -423,6 +423,28 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               child: _buildFilterChips(theme),
             ),
 
+            // OpenStreetMap's tile policy requires a visible credit.
+            Positioned(
+              top: 60,
+              left: 8,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface.withValues(alpha: 0.8),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  child: Text(
+                    '© OpenStreetMap contributors',
+                    style: theme.textTheme.labelSmall,
+                  ),
+                ),
+              ),
+            ),
+
             if (_needsSignIn)
               Positioned(
                 top: 52,
