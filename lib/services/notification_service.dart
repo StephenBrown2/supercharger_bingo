@@ -53,9 +53,7 @@ class NotificationService {
     }
 
     // Initialize local notifications
-    const androidSettings = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
-    );
+    const androidSettings = AndroidInitializationSettings('ic_stat_bolt');
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -379,7 +377,7 @@ class NotificationService {
               'Notifications for new Superchargers opening nearby',
           importance: Importance.high,
           priority: Priority.high,
-          icon: '@mipmap/ic_launcher',
+          icon: 'ic_stat_bolt',
         ),
         iOS: const DarwinNotificationDetails(
           presentAlert: true,
@@ -427,7 +425,7 @@ class NotificationService {
               'Notifications when a nearby Supercharger becomes First-eligible',
           importance: Importance.high,
           priority: Priority.high,
-          icon: '@mipmap/ic_launcher',
+          icon: 'ic_stat_bolt',
         ),
         iOS: const DarwinNotificationDetails(
           presentAlert: true,

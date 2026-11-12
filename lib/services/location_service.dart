@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:geolocator/geolocator.dart';
 
 /// Service for handling device location
@@ -21,6 +22,9 @@ class LocationService {
   Position? _cachedPosition;
   DateTime? _cacheTimestamp;
   static const _cacheValidDuration = Duration(minutes: 5);
+
+  /// MainActivity asks for background location on its own. See there.
+  static const _androidLocation = MethodChannel('supercharger_bingo/location');
 
   LocationService._();
 
@@ -52,7 +56,12 @@ class LocationService {
       permission = await Geolocator.requestPermission();
     }
     if (permission == LocationPermission.whileInUse) {
-      permission = await Geolocator.requestPermission();
+      if (Platform.isAndroid) {
+        await _androidLocation.invokeMethod<bool>('requestBackgroundLocation');
+        permission = await Geolocator.checkPermission();
+      } else {
+        permission = await Geolocator.requestPermission();
+      }
     }
     return permission;
   }
