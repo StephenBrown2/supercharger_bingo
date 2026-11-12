@@ -74,6 +74,8 @@ class _SuperchargerBingoAppState extends State<SuperchargerBingoApp> {
     // sign-in still schedules them. The check-in post itself still waits
     // for a session.
     if (!kIsWeb && settings.lastLoginAt != null) {
+      // Android 13+ and iOS drop alerts until the user allows them.
+      await NotificationService.instance.requestPermissions();
       await NotificationService.instance.scheduleBackgroundSync(settings);
     }
   }

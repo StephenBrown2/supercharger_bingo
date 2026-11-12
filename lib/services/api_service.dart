@@ -323,11 +323,15 @@ class ApiService {
       final response = await _dio.post(
         '$superchargingLifeBaseUrl/supercharging/checkin.php',
         data: FormData.fromMap(unofficialCheckinFields(draft)),
+        // The form answers with a 302. Dio does not follow it for a POST and
+        // would throw, so read the Location header instead.
+        options: Options(followRedirects: false, validateStatus: (_) => true),
       );
       return writeResultFromHttp(
         statusCode: response.statusCode,
         body: response.data?.toString(),
-        finalUri: response.realUri.toString(),
+        finalUri:
+            response.headers.value('location') ?? response.realUri.toString(),
       );
     } on DioException catch (e) {
       return writeResultFromHttp(

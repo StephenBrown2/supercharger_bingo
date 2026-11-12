@@ -17,6 +17,20 @@ void main() {
       WriteOutcome.needsSignIn,
     );
     expect(writeResultFromHttp(statusCode: 200).outcome, WriteOutcome.accepted);
+    expect(
+      writeResultFromHttp(
+        statusCode: 302,
+        finalUri: 'https://supercharging.life//login.php?required=1',
+      ).outcome,
+      WriteOutcome.needsSignIn,
+    );
+    expect(
+      writeResultFromHttp(
+        statusCode: 302,
+        finalUri: 'https://supercharging.life/supercharging/',
+      ).outcome,
+      WriteOutcome.accepted,
+    );
 
     final now = DateTime(2026, 11, 10, 12);
     expect(pendingReadyToRetry(now, 1, now), isFalse);

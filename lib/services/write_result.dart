@@ -80,6 +80,7 @@ WriteResult writeResultFromHttp({
       statusCode >= 500) {
     return WriteResult.retry;
   }
-  if (statusCode != 200) return WriteResult.rejected;
+  // A redirect that is not to login.php is the form's post-save redirect.
+  if (statusCode < 200 || statusCode >= 400) return WriteResult.rejected;
   return WriteResult.accepted;
 }

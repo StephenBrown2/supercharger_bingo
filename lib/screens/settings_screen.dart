@@ -5,6 +5,7 @@ import '../database/database.dart';
 import '../services/api_service.dart';
 import '../services/database_service.dart';
 import '../services/life_auth.dart';
+import '../services/notification_service.dart';
 import '../services/sync_service.dart';
 import '../theme/app_theme.dart';
 import 'login_screen.dart';
@@ -206,6 +207,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     setState(() => _settings?.notifyFirstEligible = value);
                     _saveSettings();
                   },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.notification_add_outlined),
+                  title: const Text('Send test notification'),
+                  onTap: _sendTestNotification,
                 ),
                 const Divider(),
 
@@ -510,6 +516,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const Text('Log out'),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _sendTestNotification() async {
+    final allowed = await NotificationService.instance.requestPermissions();
+    if (allowed) await NotificationService.instance.showTestNotification();
+    if (!mounted || allowed) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Notifications are off for Supercharger Bingo'),
       ),
     );
   }

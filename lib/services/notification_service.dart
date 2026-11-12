@@ -358,6 +358,24 @@ class NotificationService {
     );
   }
 
+  /// Settings button: proves the permission and channel work on a device.
+  Future<void> showTestNotification() async {
+    await _notifications.show(
+      id: 0,
+      title: 'Supercharger Bingo',
+      body: 'Notifications are working',
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          newSuperchargersChannelId,
+          'New Superchargers',
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+        iOS: DarwinNotificationDetails(presentAlert: true, presentSound: true),
+      ),
+    );
+  }
+
   /// Show notification for First-eligible site
   Future<void> showFirstEligibleNotification(
     Site site,
