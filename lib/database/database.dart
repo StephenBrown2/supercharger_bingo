@@ -264,6 +264,8 @@ class UserSettingsTable extends Table {
   )();
   BoolColumn get showVisitedOnMap =>
       boolean().withDefault(const Constant(false))();
+  BoolColumn get clusterMarkers =>
+      boolean().withDefault(const Constant(true))();
   RealColumn get checkinRadiusKm =>
       real().withDefault(const Constant(5000.0))();
   TextColumn get unitSystem =>
@@ -335,7 +337,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
 
   @override
   MigrationStrategy get migration {
@@ -521,6 +523,14 @@ class AppDatabase extends _$AppDatabase {
           // The old Mark Visited button set the flag with no check-in behind
           // it. Visited now always means a visit row exists.
           await clearVisitedWithoutVisits();
+        }
+        if (from < 16 &&
+            to >= 16 &&
+            !await _columnExists('user_settings', 'cluster_markers')) {
+          await m.addColumn(
+            userSettingsTable,
+            userSettingsTable.clusterMarkers,
+          );
         }
       },
     );

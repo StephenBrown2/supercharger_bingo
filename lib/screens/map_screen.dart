@@ -43,6 +43,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   // Earliest community check-in date per site, used to derive First state.
   Map<int, DateTime> _firstDates = {};
   bool _isLoading = true;
+  bool _clusterMarkers = true;
   bool _isLocating = false;
   late AnimationController _locationAnimController;
   late AnimationController _drawerAnimController;
@@ -74,6 +75,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    _loadClusteringSetting();
     // Build unified location marker stream for plugin
     final unified = LocationService.instance.unifiedPositionStream();
     _locationMarkerStream = unified.map(
@@ -252,6 +254,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   @override
   void didUpdateWidget(MapScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _loadClusteringSetting();
     // Handle drawer animation when toggled from parent
     if (widget.showCheckinDrawer != oldWidget.showCheckinDrawer) {
       if (widget.showCheckinDrawer) {
@@ -280,6 +283,14 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         _siteFocused = false;
         _fetchLocationForCheckin();
       }
+    }
+  }
+
+  /// Reload on tab changes because the map stays mounted behind settings.
+  Future<void> _loadClusteringSetting() async {
+    final settings = await DatabaseService.getUserSettings();
+    if (mounted && _clusterMarkers != settings.clusterMarkers) {
+      setState(() => _clusterMarkers = settings.clusterMarkers);
     }
   }
 
@@ -333,23 +344,15 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                   userAgentPackageName: 'bingo.supercharger.checkin',
                 ),
                 // Site markers with clustering
-                if (!_isLoading)
+                if (!_isLoading && !_clusterMarkers)
+                  MarkerLayer(markers: _buildMarkers()),
+                if (!_isLoading && _clusterMarkers)
                   MarkerClusterLayerWidget(
                     options: MarkerClusterLayerOptions(
                       maxClusterRadius: 80,
                       size: const Size(40, 40),
                       disableClusteringAtZoom: 10,
                       markers: _buildMarkers(),
-                      computeSize: (markers) {
-                        // Don't cluster if only 3 markers
-                        if (markers.length <= 3) {
-                          return const Size(
-                            0,
-                            0,
-                          ); // Return invalid size to prevent clustering
-                        }
-                        return const Size(40, 40);
-                      },
                       builder: (context, markers) {
                         return Container(
                           decoration: BoxDecoration(

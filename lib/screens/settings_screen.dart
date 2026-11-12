@@ -25,6 +25,7 @@ class MutableSettings {
   double notificationRadiusKm;
   MapFilter mapFilter;
   bool showVisitedOnMap;
+  bool clusterMarkers;
   double checkinRadiusKm;
   UnitSystem unitSystem;
   bool includeVisitedNearby;
@@ -45,6 +46,7 @@ class MutableSettings {
     this.notificationRadiusKm = 100.0,
     this.mapFilter = MapFilter.openUnvisited,
     this.showVisitedOnMap = false,
+    this.clusterMarkers = true,
     this.checkinRadiusKm = 5000.0,
     this.unitSystem = UnitSystem.imperial,
     this.includeVisitedNearby = false,
@@ -67,6 +69,7 @@ class MutableSettings {
       notificationRadiusKm: data.notificationRadiusKm,
       mapFilter: data.mapFilter,
       showVisitedOnMap: data.showVisitedOnMap,
+      clusterMarkers: data.clusterMarkers,
       checkinRadiusKm: data.checkinRadiusKm,
       unitSystem: data.unitSystem,
       includeVisitedNearby: data.includeVisitedNearby,
@@ -90,6 +93,7 @@ class MutableSettings {
       notificationRadiusKm: Value(notificationRadiusKm),
       mapFilter: Value(mapFilter),
       showVisitedOnMap: Value(showVisitedOnMap),
+      clusterMarkers: Value(clusterMarkers),
       checkinRadiusKm: Value(checkinRadiusKm),
       unitSystem: Value(unitSystem),
       includeVisitedNearby: Value(includeVisitedNearby),
@@ -398,6 +402,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                   // Advanced section
                   _buildSectionHeader(theme, 'Advanced'),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.bubble_chart),
+                    title: const Text('Cluster map markers'),
+                    subtitle: const Text('Group nearby sites when zoomed out'),
+                    value: _settings?.clusterMarkers ?? true,
+                    onChanged: (value) {
+                      setState(() => _settings?.clusterMarkers = value);
+                      _saveSettings();
+                    },
+                  ),
                   ListTile(
                     leading: const Icon(Icons.history),
                     title: const Text('Sync Visit History'),

@@ -697,6 +697,11 @@ void main() {
       PollingInterval.hours24,
     );
 
+    await tapTile('Cluster map markers');
+    expect((await db.getUserSettings()).clusterMarkers, isFalse);
+    await tapTile('Cluster map markers');
+    expect((await db.getUserSettings()).clusterMarkers, isTrue);
+
     await tapTile('Distance Units');
     await tester.tap(find.text('Metric (kilometers)'));
     await tester.pumpAndSettle();

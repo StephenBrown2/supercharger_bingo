@@ -3658,6 +3658,21 @@ class $UserSettingsTableTable extends UserSettingsTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _clusterMarkersMeta = const VerificationMeta(
+    'clusterMarkers',
+  );
+  @override
+  late final GeneratedColumn<bool> clusterMarkers = GeneratedColumn<bool>(
+    'cluster_markers',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("cluster_markers" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _checkinRadiusKmMeta = const VerificationMeta(
     'checkinRadiusKm',
   );
@@ -3822,6 +3837,7 @@ class $UserSettingsTableTable extends UserSettingsTable
     notificationRadiusKm,
     mapFilter,
     showVisitedOnMap,
+    clusterMarkers,
     checkinRadiusKm,
     unitSystem,
     appAppearance,
@@ -3931,6 +3947,15 @@ class $UserSettingsTableTable extends UserSettingsTable
         showVisitedOnMap.isAcceptableOrUnknown(
           data['show_visited_on_map']!,
           _showVisitedOnMapMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cluster_markers')) {
+      context.handle(
+        _clusterMarkersMeta,
+        clusterMarkers.isAcceptableOrUnknown(
+          data['cluster_markers']!,
+          _clusterMarkersMeta,
         ),
       );
     }
@@ -4096,6 +4121,10 @@ class $UserSettingsTableTable extends UserSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}show_visited_on_map'],
       )!,
+      clusterMarkers: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}cluster_markers'],
+      )!,
       checkinRadiusKm: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}checkin_radius_km'],
@@ -4198,6 +4227,7 @@ class UserSettingsTableData extends DataClass
   final double notificationRadiusKm;
   final MapFilter mapFilter;
   final bool showVisitedOnMap;
+  final bool clusterMarkers;
   final double checkinRadiusKm;
   final UnitSystem unitSystem;
   final AppAppearance appAppearance;
@@ -4236,6 +4266,7 @@ class UserSettingsTableData extends DataClass
     required this.notificationRadiusKm,
     required this.mapFilter,
     required this.showVisitedOnMap,
+    required this.clusterMarkers,
     required this.checkinRadiusKm,
     required this.unitSystem,
     required this.appAppearance,
@@ -4294,6 +4325,7 @@ class UserSettingsTableData extends DataClass
       );
     }
     map['show_visited_on_map'] = Variable<bool>(showVisitedOnMap);
+    map['cluster_markers'] = Variable<bool>(clusterMarkers);
     map['checkin_radius_km'] = Variable<double>(checkinRadiusKm);
     {
       map['unit_system'] = Variable<String>(
@@ -4363,6 +4395,7 @@ class UserSettingsTableData extends DataClass
       notificationRadiusKm: Value(notificationRadiusKm),
       mapFilter: Value(mapFilter),
       showVisitedOnMap: Value(showVisitedOnMap),
+      clusterMarkers: Value(clusterMarkers),
       checkinRadiusKm: Value(checkinRadiusKm),
       unitSystem: Value(unitSystem),
       appAppearance: Value(appAppearance),
@@ -4417,6 +4450,7 @@ class UserSettingsTableData extends DataClass
         serializer.fromJson<String>(json['mapFilter']),
       ),
       showVisitedOnMap: serializer.fromJson<bool>(json['showVisitedOnMap']),
+      clusterMarkers: serializer.fromJson<bool>(json['clusterMarkers']),
       checkinRadiusKm: serializer.fromJson<double>(json['checkinRadiusKm']),
       unitSystem: $UserSettingsTableTable.$converterunitSystem.fromJson(
         serializer.fromJson<String>(json['unitSystem']),
@@ -4471,6 +4505,7 @@ class UserSettingsTableData extends DataClass
         $UserSettingsTableTable.$convertermapFilter.toJson(mapFilter),
       ),
       'showVisitedOnMap': serializer.toJson<bool>(showVisitedOnMap),
+      'clusterMarkers': serializer.toJson<bool>(clusterMarkers),
       'checkinRadiusKm': serializer.toJson<double>(checkinRadiusKm),
       'unitSystem': serializer.toJson<String>(
         $UserSettingsTableTable.$converterunitSystem.toJson(unitSystem),
@@ -4509,6 +4544,7 @@ class UserSettingsTableData extends DataClass
     double? notificationRadiusKm,
     MapFilter? mapFilter,
     bool? showVisitedOnMap,
+    bool? clusterMarkers,
     double? checkinRadiusKm,
     UnitSystem? unitSystem,
     AppAppearance? appAppearance,
@@ -4540,6 +4576,7 @@ class UserSettingsTableData extends DataClass
     notificationRadiusKm: notificationRadiusKm ?? this.notificationRadiusKm,
     mapFilter: mapFilter ?? this.mapFilter,
     showVisitedOnMap: showVisitedOnMap ?? this.showVisitedOnMap,
+    clusterMarkers: clusterMarkers ?? this.clusterMarkers,
     checkinRadiusKm: checkinRadiusKm ?? this.checkinRadiusKm,
     unitSystem: unitSystem ?? this.unitSystem,
     appAppearance: appAppearance ?? this.appAppearance,
@@ -4598,6 +4635,9 @@ class UserSettingsTableData extends DataClass
       showVisitedOnMap: data.showVisitedOnMap.present
           ? data.showVisitedOnMap.value
           : this.showVisitedOnMap,
+      clusterMarkers: data.clusterMarkers.present
+          ? data.clusterMarkers.value
+          : this.clusterMarkers,
       checkinRadiusKm: data.checkinRadiusKm.present
           ? data.checkinRadiusKm.value
           : this.checkinRadiusKm,
@@ -4654,6 +4694,7 @@ class UserSettingsTableData extends DataClass
           ..write('notificationRadiusKm: $notificationRadiusKm, ')
           ..write('mapFilter: $mapFilter, ')
           ..write('showVisitedOnMap: $showVisitedOnMap, ')
+          ..write('clusterMarkers: $clusterMarkers, ')
           ..write('checkinRadiusKm: $checkinRadiusKm, ')
           ..write('unitSystem: $unitSystem, ')
           ..write('appAppearance: $appAppearance, ')
@@ -4686,6 +4727,7 @@ class UserSettingsTableData extends DataClass
     notificationRadiusKm,
     mapFilter,
     showVisitedOnMap,
+    clusterMarkers,
     checkinRadiusKm,
     unitSystem,
     appAppearance,
@@ -4717,6 +4759,7 @@ class UserSettingsTableData extends DataClass
           other.notificationRadiusKm == this.notificationRadiusKm &&
           other.mapFilter == this.mapFilter &&
           other.showVisitedOnMap == this.showVisitedOnMap &&
+          other.clusterMarkers == this.clusterMarkers &&
           other.checkinRadiusKm == this.checkinRadiusKm &&
           other.unitSystem == this.unitSystem &&
           other.appAppearance == this.appAppearance &&
@@ -4748,6 +4791,7 @@ class UserSettingsTableCompanion
   final Value<double> notificationRadiusKm;
   final Value<MapFilter> mapFilter;
   final Value<bool> showVisitedOnMap;
+  final Value<bool> clusterMarkers;
   final Value<double> checkinRadiusKm;
   final Value<UnitSystem> unitSystem;
   final Value<AppAppearance> appAppearance;
@@ -4775,6 +4819,7 @@ class UserSettingsTableCompanion
     this.notificationRadiusKm = const Value.absent(),
     this.mapFilter = const Value.absent(),
     this.showVisitedOnMap = const Value.absent(),
+    this.clusterMarkers = const Value.absent(),
     this.checkinRadiusKm = const Value.absent(),
     this.unitSystem = const Value.absent(),
     this.appAppearance = const Value.absent(),
@@ -4803,6 +4848,7 @@ class UserSettingsTableCompanion
     this.notificationRadiusKm = const Value.absent(),
     this.mapFilter = const Value.absent(),
     this.showVisitedOnMap = const Value.absent(),
+    this.clusterMarkers = const Value.absent(),
     this.checkinRadiusKm = const Value.absent(),
     this.unitSystem = const Value.absent(),
     this.appAppearance = const Value.absent(),
@@ -4831,6 +4877,7 @@ class UserSettingsTableCompanion
     Expression<double>? notificationRadiusKm,
     Expression<String>? mapFilter,
     Expression<bool>? showVisitedOnMap,
+    Expression<bool>? clusterMarkers,
     Expression<double>? checkinRadiusKm,
     Expression<String>? unitSystem,
     Expression<String>? appAppearance,
@@ -4860,6 +4907,7 @@ class UserSettingsTableCompanion
         'notification_radius_km': notificationRadiusKm,
       if (mapFilter != null) 'map_filter': mapFilter,
       if (showVisitedOnMap != null) 'show_visited_on_map': showVisitedOnMap,
+      if (clusterMarkers != null) 'cluster_markers': clusterMarkers,
       if (checkinRadiusKm != null) 'checkin_radius_km': checkinRadiusKm,
       if (unitSystem != null) 'unit_system': unitSystem,
       if (appAppearance != null) 'app_appearance': appAppearance,
@@ -4895,6 +4943,7 @@ class UserSettingsTableCompanion
     Value<double>? notificationRadiusKm,
     Value<MapFilter>? mapFilter,
     Value<bool>? showVisitedOnMap,
+    Value<bool>? clusterMarkers,
     Value<double>? checkinRadiusKm,
     Value<UnitSystem>? unitSystem,
     Value<AppAppearance>? appAppearance,
@@ -4923,6 +4972,7 @@ class UserSettingsTableCompanion
       notificationRadiusKm: notificationRadiusKm ?? this.notificationRadiusKm,
       mapFilter: mapFilter ?? this.mapFilter,
       showVisitedOnMap: showVisitedOnMap ?? this.showVisitedOnMap,
+      clusterMarkers: clusterMarkers ?? this.clusterMarkers,
       checkinRadiusKm: checkinRadiusKm ?? this.checkinRadiusKm,
       unitSystem: unitSystem ?? this.unitSystem,
       appAppearance: appAppearance ?? this.appAppearance,
@@ -4997,6 +5047,9 @@ class UserSettingsTableCompanion
     if (showVisitedOnMap.present) {
       map['show_visited_on_map'] = Variable<bool>(showVisitedOnMap.value);
     }
+    if (clusterMarkers.present) {
+      map['cluster_markers'] = Variable<bool>(clusterMarkers.value);
+    }
     if (checkinRadiusKm.present) {
       map['checkin_radius_km'] = Variable<double>(checkinRadiusKm.value);
     }
@@ -5067,6 +5120,7 @@ class UserSettingsTableCompanion
           ..write('notificationRadiusKm: $notificationRadiusKm, ')
           ..write('mapFilter: $mapFilter, ')
           ..write('showVisitedOnMap: $showVisitedOnMap, ')
+          ..write('clusterMarkers: $clusterMarkers, ')
           ..write('checkinRadiusKm: $checkinRadiusKm, ')
           ..write('unitSystem: $unitSystem, ')
           ..write('appAppearance: $appAppearance, ')
@@ -7836,6 +7890,7 @@ typedef $$UserSettingsTableTableCreateCompanionBuilder =
       Value<double> notificationRadiusKm,
       Value<MapFilter> mapFilter,
       Value<bool> showVisitedOnMap,
+      Value<bool> clusterMarkers,
       Value<double> checkinRadiusKm,
       Value<UnitSystem> unitSystem,
       Value<AppAppearance> appAppearance,
@@ -7865,6 +7920,7 @@ typedef $$UserSettingsTableTableUpdateCompanionBuilder =
       Value<double> notificationRadiusKm,
       Value<MapFilter> mapFilter,
       Value<bool> showVisitedOnMap,
+      Value<bool> clusterMarkers,
       Value<double> checkinRadiusKm,
       Value<UnitSystem> unitSystem,
       Value<AppAppearance> appAppearance,
@@ -7958,6 +8014,11 @@ class $$UserSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get showVisitedOnMap => $composableBuilder(
     column: $table.showVisitedOnMap,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get clusterMarkers => $composableBuilder(
+    column: $table.clusterMarkers,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8103,6 +8164,11 @@ class $$UserSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get clusterMarkers => $composableBuilder(
+    column: $table.clusterMarkers,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get checkinRadiusKm => $composableBuilder(
     column: $table.checkinRadiusKm,
     builder: (column) => ColumnOrderings(column),
@@ -8237,6 +8303,11 @@ class $$UserSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get clusterMarkers => $composableBuilder(
+    column: $table.clusterMarkers,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<double> get checkinRadiusKm => $composableBuilder(
     column: $table.checkinRadiusKm,
     builder: (column) => column,
@@ -8354,6 +8425,7 @@ class $$UserSettingsTableTableTableManager
                 Value<double> notificationRadiusKm = const Value.absent(),
                 Value<MapFilter> mapFilter = const Value.absent(),
                 Value<bool> showVisitedOnMap = const Value.absent(),
+                Value<bool> clusterMarkers = const Value.absent(),
                 Value<double> checkinRadiusKm = const Value.absent(),
                 Value<UnitSystem> unitSystem = const Value.absent(),
                 Value<AppAppearance> appAppearance = const Value.absent(),
@@ -8382,6 +8454,7 @@ class $$UserSettingsTableTableTableManager
                 notificationRadiusKm: notificationRadiusKm,
                 mapFilter: mapFilter,
                 showVisitedOnMap: showVisitedOnMap,
+                clusterMarkers: clusterMarkers,
                 checkinRadiusKm: checkinRadiusKm,
                 unitSystem: unitSystem,
                 appAppearance: appAppearance,
@@ -8411,6 +8484,7 @@ class $$UserSettingsTableTableTableManager
                 Value<double> notificationRadiusKm = const Value.absent(),
                 Value<MapFilter> mapFilter = const Value.absent(),
                 Value<bool> showVisitedOnMap = const Value.absent(),
+                Value<bool> clusterMarkers = const Value.absent(),
                 Value<double> checkinRadiusKm = const Value.absent(),
                 Value<UnitSystem> unitSystem = const Value.absent(),
                 Value<AppAppearance> appAppearance = const Value.absent(),
@@ -8439,6 +8513,7 @@ class $$UserSettingsTableTableTableManager
                 notificationRadiusKm: notificationRadiusKm,
                 mapFilter: mapFilter,
                 showVisitedOnMap: showVisitedOnMap,
+                clusterMarkers: clusterMarkers,
                 checkinRadiusKm: checkinRadiusKm,
                 unitSystem: unitSystem,
                 appAppearance: appAppearance,
