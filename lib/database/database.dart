@@ -52,6 +52,21 @@ enum MapFilter {
 
 enum UnitSystem { metric, imperial }
 
+/// Radius slider bounds and setup defaults, in the display unit. Alerts reach
+/// far, since an opening is worth a trip. Check-ins only list sites nearby.
+typedef RadiusRange = ({double min, double max, double initial});
+
+RadiusRange alertRadiusRange(UnitSystem units) => units == UnitSystem.imperial
+    ? (min: 5, max: 2000, initial: 1500)
+    : (min: 10, max: 3200, initial: 2400);
+
+RadiusRange checkinRadiusRange(UnitSystem units) => units == UnitSystem.imperial
+    ? (min: 1, max: 250, initial: 25)
+    : (min: 2, max: 400, initial: 40);
+
+double kmFromDisplay(double value, UnitSystem units) =>
+    units == UnitSystem.imperial ? value / 0.621371 : value;
+
 /// One decimal, in the user's units, for lists and notifications.
 String formatDistance(double distanceKm, UnitSystem units) {
   if (units == UnitSystem.imperial) {

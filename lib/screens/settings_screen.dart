@@ -634,23 +634,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showRadiusPicker() {
-    final isImperial = _settings?.unitSystem == UnitSystem.imperial;
+    final range = alertRadiusRange(
+      _settings?.unitSystem ?? UnitSystem.imperial,
+    );
     _editRadius(
       title: 'Notification Radius',
       currentKm: _settings?.notificationRadiusKm ?? 100,
-      minDisplay: isImperial ? 6 : 10,
-      maxDisplay: isImperial ? 1000 : 1609,
+      minDisplay: range.min,
+      maxDisplay: range.max,
       applyKm: (km) => _settings?.notificationRadiusKm = km,
     );
   }
 
   void _showCheckinRadiusPicker() {
-    final isImperial = _settings?.unitSystem == UnitSystem.imperial;
+    final range = checkinRadiusRange(
+      _settings?.unitSystem ?? UnitSystem.imperial,
+    );
     _editRadius(
       title: 'Check-in Search Radius',
       currentKm: _settings?.checkinRadiusKm ?? 5000,
-      minDisplay: isImperial ? 62 : 100,
-      maxDisplay: isImperial ? 6214 : 10000,
+      minDisplay: range.min,
+      maxDisplay: range.max,
       applyKm: (km) => _settings?.checkinRadiusKm = km,
     );
   }

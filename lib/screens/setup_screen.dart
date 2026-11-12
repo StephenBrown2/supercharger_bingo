@@ -13,12 +13,6 @@ import '../services/notification_service.dart';
 import '../services/timezone_service.dart';
 import '../theme/app_theme.dart';
 
-const _kmPerMile = 1 / 0.621371;
-
-/// Check-in search radius default: half the widest span of the lower 48.
-const defaultCheckinRadiusMiles = 1500.0;
-const defaultCheckinRadiusKm = 2400.0;
-
 /// Places that sign road distances in miles.
 const _imperialCountries = {'US', 'GB', 'LR', 'MM'};
 const _imperialZones = {
@@ -82,8 +76,8 @@ class _SetupScreenState extends State<SetupScreen> {
 
   LocationPermission? _location;
   UnitSystem _units = UnitSystem.imperial;
-  double _notificationRadiusKm = 100;
-  double _checkinRadiusKm = defaultCheckinRadiusMiles * _kmPerMile;
+  double _notificationRadiusKm = 0;
+  double _checkinRadiusKm = 0;
   bool _notifyNewSites = true;
   bool _notifyFirstEligible = true;
   PollingInterval _polling = PollingInterval.hours24;
@@ -104,8 +98,7 @@ class _SetupScreenState extends State<SetupScreen> {
     if (!mounted) return;
     setState(() {
       _location = location;
-      _units = settings.unitSystem;
-      _notificationRadiusKm = settings.notificationRadiusKm;
+      _applyUnits(settings.unitSystem);
       _notifyNewSites = settings.notifyNewSites;
       _notifyFirstEligible = settings.notifyFirstEligible;
       _polling = settings.pollingInterval;
@@ -143,13 +136,16 @@ class _SetupScreenState extends State<SetupScreen> {
     if (guess != null && mounted) _setUnits(guess);
   }
 
-  void _setUnits(UnitSystem units) {
-    setState(() {
-      _units = units;
-      _checkinRadiusKm = units == UnitSystem.imperial
-          ? defaultCheckinRadiusMiles * _kmPerMile
-          : defaultCheckinRadiusKm;
-    });
+  void _setUnits(UnitSystem units) => setState(() => _applyUnits(units));
+
+  /// New units reset both radiuses to that unit's round defaults.
+  void _applyUnits(UnitSystem units) {
+    _units = units;
+    _notificationRadiusKm = kmFromDisplay(
+      alertRadiusRange(units).initial,
+      units,
+    );
+    _checkinRadiusKm = kmFromDisplay(checkinRadiusRange(units).initial, units);
   }
 
   Future<void> _askNotifications() async {
@@ -313,8 +309,7 @@ class _SetupScreenState extends State<SetupScreen> {
         title: 'Alert radius',
         detail: 'Alerts cover sites this close to you.',
         km: _notificationRadiusKm,
-        minDisplay: _imperial ? 6 : 10,
-        maxDisplay: _imperial ? 1000 : 1609,
+        range: alertRadiusRange(_units),
         onChanged: (km) => setState(() => _notificationRadiusKm = km),
       ),
       const SizedBox(height: 24),
@@ -323,8 +318,7 @@ class _SetupScreenState extends State<SetupScreen> {
         title: 'Check-in search radius',
         detail: 'Sites this close show in the check-in list.',
         km: _checkinRadiusKm,
-        minDisplay: _imperial ? 62 : 100,
-        maxDisplay: _imperial ? 6214 : 10000,
+        range: checkinRadiusRange(_units),
         onChanged: (km) => setState(() => _checkinRadiusKm = km),
       ),
     ];
@@ -335,14 +329,10 @@ class _SetupScreenState extends State<SetupScreen> {
     required String title,
     required String detail,
     required double km,
-    required double minDisplay,
-    required double maxDisplay,
+    required RadiusRange range,
     required ValueChanged<double> onChanged,
   }) {
-    final shown = (_imperial ? km / _kmPerMile : km).clamp(
-      minDisplay,
-      maxDisplay,
-    );
+    final shown = (_imperial ? km * 0.621371 : km).clamp(range.min, range.max);
     final unit = _imperial ? 'mi' : 'km';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -354,10 +344,9 @@ class _SetupScreenState extends State<SetupScreen> {
         Text(detail, style: theme.textTheme.bodyMedium),
         Slider(
           value: shown,
-          min: minDisplay,
-          max: maxDisplay,
-          onChanged: (value) =>
-              onChanged(_imperial ? value * _kmPerMile : value),
+          min: range.min,
+          max: range.max,
+          onChanged: (value) => onChanged(kmFromDisplay(value, _units)),
         ),
       ],
     );

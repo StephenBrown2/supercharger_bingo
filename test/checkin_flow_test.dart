@@ -745,10 +745,10 @@ void main() {
     expect((await db.getUserSettings()).checkinRadiusKm, 250);
 
     await tapTile('Check-in Search Radius');
-    await tester.enterText(find.byType(TextField), '5000');
+    await tester.enterText(find.byType(TextField), '400');
     await tester.pump();
     await saveDialog();
-    expect((await db.getUserSettings()).checkinRadiusKm, 5000);
+    expect((await db.getUserSettings()).checkinRadiusKm, 400);
 
     await tapTile('Distance Units');
     await tester.tap(find.text('Imperial (miles)'));

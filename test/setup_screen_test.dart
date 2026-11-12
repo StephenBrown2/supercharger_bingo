@@ -58,7 +58,7 @@ void main() {
     await tester.tap(find.text('Metric (kilometers)'));
     await tester.pumpAndSettle();
     await next(); // Units
-    expect(find.text('Check-in search radius: 2400 km'), findsOneWidget);
+    expect(find.text('Check-in search radius: 40 km'), findsOneWidget);
     await next(); // Distances
     await tester.tap(find.text('First-Eligible Alerts'));
     await tester.pumpAndSettle();
@@ -70,7 +70,8 @@ void main() {
     expect(done, isTrue);
     expect(settings.setupCompletedAt, isNotNull);
     expect(settings.unitSystem, UnitSystem.metric);
-    expect(settings.checkinRadiusKm, 2400);
+    expect(settings.checkinRadiusKm, 40);
+    expect(settings.notificationRadiusKm, 2400);
     expect(settings.notifyFirstEligible, isFalse);
   });
 }
