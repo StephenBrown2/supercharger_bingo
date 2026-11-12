@@ -143,17 +143,17 @@ Four top-level filters. The original "Show Visited" option is restored, since th
 
 ### Pin color and shape
 
-Status: Complete. Pins use the supercharging.life map colors (its leaflet-color-markers set), each with its own glyph, and First state is computed at render.
+Status: Complete. Pins take the supercharging.life map colors, each swapped for its nearest Okabe-Ito color, with a glyph per state. First state is computed at render.
 
-Colors follow the supercharging.life map so the app reads like the site. Color is always paired with a distinct shape/glyph so the state survives full color blindness (WCAG 1.4.1).
+Colors follow the supercharging.life map so the app reads like the site, mapped to the Okabe-Ito colorblind-safe palette. Color is always paired with a distinct shape/glyph so the state survives full color blindness (WCAG 1.4.1). The legend draws the same pin as the map.
 
 First-state coloring (applies to operational sites):
 
-- **Green (`#2AAD27`), open-circle glyph:** no First recorded yet. Up for grabs.
-- **Gold (`#FFD326`), clock glyph:** a First exists and first_date equals today in the site's local timezone. Still inside the shared-First window.
-- **Red (`#CB2B3E`), plain marker, labeled Open:** a First exists and its date has passed (site-local). This is the common case, so it carries no glyph.
+- **Green (`#009E73`), open-circle glyph:** no First recorded yet. Up for grabs.
+- **Yellow (`#F0E442`, the site's gold), clock glyph:** a First exists and first_date equals today in the site's local timezone. Still inside the shared-First window.
+- **Vermillion (`#D55E00`, the site's red), plain marker, labeled Open:** a First exists and its date has passed (site-local). This is the common case, so it carries no glyph.
 
-Status coloring (for non-operational sites, where First does not apply), as on supercharging.life: yellow (`#CAC428`) construction, blue (`#2A81CB`) permit, orange (`#CB8427`) plan and voting, violet (`#9C2BCB`) temporarily closed, and black (`#3D3D3D`) permanently closed. Visited sites are a grey (`#7B7B7B`) check, whatever their First state.
+Status coloring (for non-operational sites, where First does not apply), site color first: yellow to yellow (`#F0E442`) construction, told from First today by its glyph; blue to blue (`#0072B2`) permit; orange to orange (`#E69F00`) plan and voting; violet to reddish purple (`#CC79A7`) temporarily closed; black (`#000000`) permanently closed. Visited sites are a grey (`#999999`) check, whatever their First state. A site is visited only when it has a visit row.
 
 Because the green/yellow/red boundary moves purely with the passage of time, it is recomputed at render time from stored dates, not pushed as an event.
 

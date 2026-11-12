@@ -552,42 +552,62 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _legendItem(
-              Icons.circle_outlined,
-              LifePin.green,
+              SiteStatus.open,
+              FirstState.upForGrabs,
               'First up for grabs',
             ),
             const SizedBox(height: 4),
-            _legendItem(Icons.schedule, LifePin.gold, 'First today'),
+            _legendItem(SiteStatus.open, FirstState.today, 'First today'),
             const SizedBox(height: 4),
-            _legendItem(Icons.circle, LifePin.red, 'Open'),
-            const SizedBox(height: 4),
-            _legendItem(Icons.construction, LifePin.yellow, 'Construction'),
-            const SizedBox(height: 4),
-            _legendItem(Icons.description, LifePin.blue, 'Permit'),
-            const SizedBox(height: 4),
-            _legendItem(Icons.event_note, LifePin.orange, 'Plan / voting'),
+            _legendItem(SiteStatus.open, FirstState.passed, 'Open'),
             const SizedBox(height: 4),
             _legendItem(
-              Icons.pause_circle_outline,
-              LifePin.violet,
+              SiteStatus.construction,
+              FirstState.passed,
+              'Construction',
+            ),
+            const SizedBox(height: 4),
+            _legendItem(SiteStatus.permit, FirstState.passed, 'Permit'),
+            const SizedBox(height: 4),
+            _legendItem(SiteStatus.plan, FirstState.passed, 'Plan / voting'),
+            const SizedBox(height: 4),
+            _legendItem(
+              SiteStatus.closedTemp,
+              FirstState.passed,
               'Closed for now',
             ),
             const SizedBox(height: 4),
-            _legendItem(Icons.block, LifePin.black, 'Closed'),
+            _legendItem(SiteStatus.closedPerm, FirstState.passed, 'Closed'),
             const SizedBox(height: 4),
-            _legendItem(Icons.check_circle, LifePin.grey, 'Visited'),
+            _legendItem(
+              SiteStatus.open,
+              FirstState.passed,
+              'Visited',
+              visited: true,
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _legendItem(IconData icon, Color color, String label) {
+  /// A small copy of the real map pin, so the legend matches it exactly.
+  Widget _legendItem(
+    SiteStatus status,
+    FirstState firstState,
+    String label, {
+    bool visited = false,
+  }) {
+    final style = markerStyleFor(
+      status: status,
+      firstState: firstState,
+      visited: visited,
+    );
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: color),
-        const SizedBox(width: 4),
+        PinDot(style, size: 18),
+        const SizedBox(width: 6),
         Text(label, style: const TextStyle(fontSize: 12)),
       ],
     );
@@ -1257,26 +1277,11 @@ class _MapMarker extends StatelessWidget {
       firstDate: firstDate,
       siteLocalNow: siteLocalNow,
     );
-    final style = markerStyleFor(
-      status: site.status,
-      firstState: firstState,
-      visited: site.visited,
-    );
-
-    return Container(
-      width: 28,
-      height: 28,
-      decoration: BoxDecoration(
-        color: style.color,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 2),
-        boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.black45)],
-      ),
-      child: Icon(
-        style.glyph,
-        color: glyphForeground(style.color),
-        size: 16,
-        semanticLabel: style.label,
+    return PinDot(
+      markerStyleFor(
+        status: site.status,
+        firstState: firstState,
+        visited: site.visited,
       ),
     );
   }

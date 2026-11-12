@@ -4,19 +4,23 @@ import '../database/database.dart';
 
 /// Marker styling for the map (SPEC Section 5).
 ///
-/// Colours follow the supercharging.life map, which uses the
-/// leaflet-color-markers set. Each colour also gets its own glyph so state
-/// survives colour blindness (WCAG 1.4.1).
+/// Each supercharging.life map color is swapped for its nearest Okabe-Ito
+/// color, which stays distinct under color blindness. Every state also keeps
+/// its own glyph (WCAG 1.4.1). Gold (First today) and the site's olive yellow
+/// (construction) both land on Okabe-Ito yellow, so their glyphs tell them
+/// apart.
 class LifePin {
-  static const Color green = Color(0xFF2AAD27);
-  static const Color red = Color(0xFFCB2B3E);
-  static const Color gold = Color(0xFFFFD326);
-  static const Color yellow = Color(0xFFCAC428);
-  static const Color blue = Color(0xFF2A81CB);
-  static const Color orange = Color(0xFFCB8427);
-  static const Color violet = Color(0xFF9C2BCB);
-  static const Color black = Color(0xFF3D3D3D);
-  static const Color grey = Color(0xFF7B7B7B);
+  static const Color green = Color(0xFF009E73);
+  static const Color red = Color(0xFFD55E00);
+  static const Color gold = Color(0xFFF0E442);
+  static const Color yellow = Color(0xFFF0E442);
+  static const Color blue = Color(0xFF0072B2);
+  static const Color orange = Color(0xFFE69F00);
+  static const Color violet = Color(0xFFCC79A7);
+  static const Color black = Color(0xFF000000);
+
+  /// Okabe-Ito has no grey. This is the grey usually paired with it.
+  static const Color grey = Color(0xFF999999);
 }
 
 /// Three-state First colouring for operational sites. The boundary moves with
@@ -165,5 +169,34 @@ MarkerStyle _baseStyle(SiteStatus status, FirstState firstState) {
     case SiteStatus.expanding:
       // Handled by the operational branch above; unreachable.
       return const MarkerStyle(LifePin.green, Icons.circle_outlined, 'Open');
+  }
+}
+
+/// The round map pin: [style]'s color, a white rim, and its glyph. The map and
+/// the legend both draw it, so they always match.
+class PinDot extends StatelessWidget {
+  final MarkerStyle style;
+  final double size;
+
+  const PinDot(this.style, {super.key, this.size = 28});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: style.color,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: size / 14),
+        boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.black45)],
+      ),
+      child: Icon(
+        style.glyph,
+        color: glyphForeground(style.color),
+        size: size * 4 / 7,
+        semanticLabel: style.label,
+      ),
+    );
   }
 }
