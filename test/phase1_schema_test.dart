@@ -175,6 +175,22 @@ void main() {
       await db.migration.onUpgrade(Migrator(db), 12, 13);
     });
 
+    test('v14 upgrade adds the setup marker once', () async {
+      await db.customStatement(
+        'ALTER TABLE user_settings DROP COLUMN setup_completed_at',
+      );
+      await db.migration.onUpgrade(Migrator(db), 13, 14);
+      final columns = await db
+          .customSelect("SELECT name FROM pragma_table_info('user_settings')")
+          .get();
+      expect(
+        columns.map((row) => row.read<String>('name')),
+        contains('setup_completed_at'),
+      );
+      expect((await db.getUserSettings()).setupCompletedAt, isNull);
+      await db.migration.onUpgrade(Migrator(db), 13, 14);
+    });
+
     test('site persists new enum value and derived timezone column', () async {
       await db.upsertSite(
         SitesCompanion.insert(

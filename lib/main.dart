@@ -5,6 +5,7 @@ import 'database/database.dart';
 import 'screens/app_shell.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/setup_screen.dart';
 import 'services/database_service.dart';
 import 'services/notification_service.dart';
 import 'services/sync_service.dart';
@@ -35,6 +36,7 @@ class SuperchargerBingoApp extends StatefulWidget {
 
 class _SuperchargerBingoAppState extends State<SuperchargerBingoApp> {
   bool _hasCompletedSetup = false;
+  bool _needsSetup = false;
   bool _isLoading = true;
   late final AppearanceController _appearance;
 
@@ -56,14 +58,18 @@ class _SuperchargerBingoAppState extends State<SuperchargerBingoApp> {
     setState(() {
       // Consider setup complete if user has been through login screen
       _hasCompletedSetup = settings.lastLoginAt != null;
+      _needsSetup = settings.setupCompletedAt == null;
       _isLoading = false;
     });
 
-    // Sync sites on startup (supercharge.info has CORS enabled, works on web)
-    try {
-      await SyncService.instance.syncSites();
-    } catch (e) {
-      debugPrint('Failed to sync sites: $e');
+    // Sync sites on startup (supercharge.info has CORS enabled, works on web).
+    // It asks for location, so it waits until setup has asked first.
+    if (settings.setupCompletedAt != null) {
+      try {
+        await SyncService.instance.syncSites();
+      } catch (e) {
+        debugPrint('Failed to sync sites: $e');
+      }
     }
 
     // Sync community check-in data (drives the First pin colours). Best-effort
@@ -72,8 +78,10 @@ class _SuperchargerBingoAppState extends State<SuperchargerBingoApp> {
 
     // Site and First alerts come from supercharge.info, so a device-only
     // sign-in still schedules them. The check-in post itself still waits
-    // for a session.
-    if (!kIsWeb && settings.lastLoginAt != null) {
+    // for a session. Setup asks for permissions in its own order first.
+    if (!kIsWeb &&
+        settings.lastLoginAt != null &&
+        settings.setupCompletedAt != null) {
       // Android 13+ and iOS drop alerts until the user allows them.
       await NotificationService.instance.requestPermissions();
       await NotificationService.instance.scheduleBackgroundSync(settings);
@@ -106,12 +114,17 @@ class _SuperchargerBingoAppState extends State<SuperchargerBingoApp> {
                   key: const ValueKey('splash'),
                   onReady: () => setState(() => _isLoading = false),
                 )
-              : (_hasCompletedSetup
-                    ? const AppShell(key: ValueKey('appShell'))
-                    : LoginScreen(
-                        key: const ValueKey('login'),
-                        onLoginSuccess: _onLoginSuccess,
-                      )),
+              : !_hasCompletedSetup
+              ? LoginScreen(
+                  key: const ValueKey('login'),
+                  onLoginSuccess: _onLoginSuccess,
+                )
+              : _needsSetup
+              ? SetupScreen(
+                  key: const ValueKey('setup'),
+                  onDone: _checkAuthStatus,
+                )
+              : const AppShell(key: ValueKey('appShell')),
         ),
       ),
     );

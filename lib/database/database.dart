@@ -31,6 +31,15 @@ enum AuthProvider { github, google }
 
 enum PollingInterval { minutes15, hour1, hours4, hours6, hours12, hours24 }
 
+String pollingIntervalLabel(PollingInterval interval) => switch (interval) {
+  PollingInterval.minutes15 => '15 minutes',
+  PollingInterval.hour1 => '1 hour',
+  PollingInterval.hours4 => '4 hours',
+  PollingInterval.hours6 => '6 hours',
+  PollingInterval.hours12 => '12 hours',
+  PollingInterval.hours24 => '24 hours',
+};
+
 /// My Map filters on supercharging.life, in the order that page shows them.
 /// Unvisited (Open) is the default. NACS is supercharge.info `otherEVs`.
 enum MapFilter {
@@ -226,6 +235,9 @@ class UserSettingsTable extends Table {
   TextColumn get authProvider => textEnum<AuthProvider>().nullable()();
   DateTimeColumn get firstLoginAt => dateTime().nullable()();
   DateTimeColumn get lastLoginAt => dateTime().nullable()();
+
+  /// Set when the first-run setup screens finish. Null shows them again.
+  DateTimeColumn get setupCompletedAt => dateTime().nullable()();
   DateTimeColumn get lastXlsxSyncAt => dateTime().nullable()();
   TextColumn get pollingInterval => textEnum<PollingInterval>().withDefault(
     Constant(PollingInterval.hours24.name),
@@ -308,7 +320,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration {
@@ -479,6 +491,14 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(
               userSettingsTable,
               userSettingsTable.appAppearance,
+            );
+          }
+        }
+        if (from < 14) {
+          if (!await _columnExists('user_settings', 'setup_completed_at')) {
+            await m.addColumn(
+              userSettingsTable,
+              userSettingsTable.setupCompletedAt,
             );
           }
         }

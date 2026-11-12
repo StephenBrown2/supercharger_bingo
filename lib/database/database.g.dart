@@ -471,8 +471,7 @@ class Site extends DataClass implements Insertable<Site> {
   final DateTime? dateOpened;
 
   /// Cache of "community check-in count > 0" from the counts endpoint.
-  /// First eligibility comes from getEarliestCheckinDates (the earliest
-  /// qualifying community check-in). This flag is only the counts cache.
+  /// getEarliestCheckinDates uses it when the First history has no date.
   final bool hasCheckins;
 
   /// Whether the current user has visited this site
@@ -3585,6 +3584,18 @@ class $UserSettingsTableTable extends UserSettingsTable
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _setupCompletedAtMeta = const VerificationMeta(
+    'setupCompletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> setupCompletedAt =
+      GeneratedColumn<DateTime>(
+        'setup_completed_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _lastXlsxSyncAtMeta = const VerificationMeta(
     'lastXlsxSyncAt',
   );
@@ -3805,6 +3816,7 @@ class $UserSettingsTableTable extends UserSettingsTable
     authProvider,
     firstLoginAt,
     lastLoginAt,
+    setupCompletedAt,
     lastXlsxSyncAt,
     pollingInterval,
     notificationRadiusKm,
@@ -3883,6 +3895,15 @@ class $UserSettingsTableTable extends UserSettingsTable
         lastLoginAt.isAcceptableOrUnknown(
           data['last_login_at']!,
           _lastLoginAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('setup_completed_at')) {
+      context.handle(
+        _setupCompletedAtMeta,
+        setupCompletedAt.isAcceptableOrUnknown(
+          data['setup_completed_at']!,
+          _setupCompletedAtMeta,
         ),
       );
     }
@@ -4046,6 +4067,10 @@ class $UserSettingsTableTable extends UserSettingsTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_login_at'],
       ),
+      setupCompletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}setup_completed_at'],
+      ),
       lastXlsxSyncAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_xlsx_sync_at'],
@@ -4165,6 +4190,9 @@ class UserSettingsTableData extends DataClass
   final AuthProvider? authProvider;
   final DateTime? firstLoginAt;
   final DateTime? lastLoginAt;
+
+  /// Set when the first-run setup screens finish. Null shows them again.
+  final DateTime? setupCompletedAt;
   final DateTime? lastXlsxSyncAt;
   final PollingInterval pollingInterval;
   final double notificationRadiusKm;
@@ -4202,6 +4230,7 @@ class UserSettingsTableData extends DataClass
     this.authProvider,
     this.firstLoginAt,
     this.lastLoginAt,
+    this.setupCompletedAt,
     this.lastXlsxSyncAt,
     required this.pollingInterval,
     required this.notificationRadiusKm,
@@ -4244,6 +4273,9 @@ class UserSettingsTableData extends DataClass
     }
     if (!nullToAbsent || lastLoginAt != null) {
       map['last_login_at'] = Variable<DateTime>(lastLoginAt);
+    }
+    if (!nullToAbsent || setupCompletedAt != null) {
+      map['setup_completed_at'] = Variable<DateTime>(setupCompletedAt);
     }
     if (!nullToAbsent || lastXlsxSyncAt != null) {
       map['last_xlsx_sync_at'] = Variable<DateTime>(lastXlsxSyncAt);
@@ -4321,6 +4353,9 @@ class UserSettingsTableData extends DataClass
       lastLoginAt: lastLoginAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastLoginAt),
+      setupCompletedAt: setupCompletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(setupCompletedAt),
       lastXlsxSyncAt: lastXlsxSyncAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastXlsxSyncAt),
@@ -4369,6 +4404,9 @@ class UserSettingsTableData extends DataClass
       ),
       firstLoginAt: serializer.fromJson<DateTime?>(json['firstLoginAt']),
       lastLoginAt: serializer.fromJson<DateTime?>(json['lastLoginAt']),
+      setupCompletedAt: serializer.fromJson<DateTime?>(
+        json['setupCompletedAt'],
+      ),
       lastXlsxSyncAt: serializer.fromJson<DateTime?>(json['lastXlsxSyncAt']),
       pollingInterval: $UserSettingsTableTable.$converterpollingInterval
           .fromJson(serializer.fromJson<String>(json['pollingInterval'])),
@@ -4421,6 +4459,7 @@ class UserSettingsTableData extends DataClass
       ),
       'firstLoginAt': serializer.toJson<DateTime?>(firstLoginAt),
       'lastLoginAt': serializer.toJson<DateTime?>(lastLoginAt),
+      'setupCompletedAt': serializer.toJson<DateTime?>(setupCompletedAt),
       'lastXlsxSyncAt': serializer.toJson<DateTime?>(lastXlsxSyncAt),
       'pollingInterval': serializer.toJson<String>(
         $UserSettingsTableTable.$converterpollingInterval.toJson(
@@ -4464,6 +4503,7 @@ class UserSettingsTableData extends DataClass
     Value<AuthProvider?> authProvider = const Value.absent(),
     Value<DateTime?> firstLoginAt = const Value.absent(),
     Value<DateTime?> lastLoginAt = const Value.absent(),
+    Value<DateTime?> setupCompletedAt = const Value.absent(),
     Value<DateTime?> lastXlsxSyncAt = const Value.absent(),
     PollingInterval? pollingInterval,
     double? notificationRadiusKm,
@@ -4490,6 +4530,9 @@ class UserSettingsTableData extends DataClass
     authProvider: authProvider.present ? authProvider.value : this.authProvider,
     firstLoginAt: firstLoginAt.present ? firstLoginAt.value : this.firstLoginAt,
     lastLoginAt: lastLoginAt.present ? lastLoginAt.value : this.lastLoginAt,
+    setupCompletedAt: setupCompletedAt.present
+        ? setupCompletedAt.value
+        : this.setupCompletedAt,
     lastXlsxSyncAt: lastXlsxSyncAt.present
         ? lastXlsxSyncAt.value
         : this.lastXlsxSyncAt,
@@ -4539,6 +4582,9 @@ class UserSettingsTableData extends DataClass
       lastLoginAt: data.lastLoginAt.present
           ? data.lastLoginAt.value
           : this.lastLoginAt,
+      setupCompletedAt: data.setupCompletedAt.present
+          ? data.setupCompletedAt.value
+          : this.setupCompletedAt,
       lastXlsxSyncAt: data.lastXlsxSyncAt.present
           ? data.lastXlsxSyncAt.value
           : this.lastXlsxSyncAt,
@@ -4602,6 +4648,7 @@ class UserSettingsTableData extends DataClass
           ..write('authProvider: $authProvider, ')
           ..write('firstLoginAt: $firstLoginAt, ')
           ..write('lastLoginAt: $lastLoginAt, ')
+          ..write('setupCompletedAt: $setupCompletedAt, ')
           ..write('lastXlsxSyncAt: $lastXlsxSyncAt, ')
           ..write('pollingInterval: $pollingInterval, ')
           ..write('notificationRadiusKm: $notificationRadiusKm, ')
@@ -4633,6 +4680,7 @@ class UserSettingsTableData extends DataClass
     authProvider,
     firstLoginAt,
     lastLoginAt,
+    setupCompletedAt,
     lastXlsxSyncAt,
     pollingInterval,
     notificationRadiusKm,
@@ -4663,6 +4711,7 @@ class UserSettingsTableData extends DataClass
           other.authProvider == this.authProvider &&
           other.firstLoginAt == this.firstLoginAt &&
           other.lastLoginAt == this.lastLoginAt &&
+          other.setupCompletedAt == this.setupCompletedAt &&
           other.lastXlsxSyncAt == this.lastXlsxSyncAt &&
           other.pollingInterval == this.pollingInterval &&
           other.notificationRadiusKm == this.notificationRadiusKm &&
@@ -4693,6 +4742,7 @@ class UserSettingsTableCompanion
   final Value<AuthProvider?> authProvider;
   final Value<DateTime?> firstLoginAt;
   final Value<DateTime?> lastLoginAt;
+  final Value<DateTime?> setupCompletedAt;
   final Value<DateTime?> lastXlsxSyncAt;
   final Value<PollingInterval> pollingInterval;
   final Value<double> notificationRadiusKm;
@@ -4719,6 +4769,7 @@ class UserSettingsTableCompanion
     this.authProvider = const Value.absent(),
     this.firstLoginAt = const Value.absent(),
     this.lastLoginAt = const Value.absent(),
+    this.setupCompletedAt = const Value.absent(),
     this.lastXlsxSyncAt = const Value.absent(),
     this.pollingInterval = const Value.absent(),
     this.notificationRadiusKm = const Value.absent(),
@@ -4746,6 +4797,7 @@ class UserSettingsTableCompanion
     this.authProvider = const Value.absent(),
     this.firstLoginAt = const Value.absent(),
     this.lastLoginAt = const Value.absent(),
+    this.setupCompletedAt = const Value.absent(),
     this.lastXlsxSyncAt = const Value.absent(),
     this.pollingInterval = const Value.absent(),
     this.notificationRadiusKm = const Value.absent(),
@@ -4773,6 +4825,7 @@ class UserSettingsTableCompanion
     Expression<String>? authProvider,
     Expression<DateTime>? firstLoginAt,
     Expression<DateTime>? lastLoginAt,
+    Expression<DateTime>? setupCompletedAt,
     Expression<DateTime>? lastXlsxSyncAt,
     Expression<String>? pollingInterval,
     Expression<double>? notificationRadiusKm,
@@ -4800,6 +4853,7 @@ class UserSettingsTableCompanion
       if (authProvider != null) 'auth_provider': authProvider,
       if (firstLoginAt != null) 'first_login_at': firstLoginAt,
       if (lastLoginAt != null) 'last_login_at': lastLoginAt,
+      if (setupCompletedAt != null) 'setup_completed_at': setupCompletedAt,
       if (lastXlsxSyncAt != null) 'last_xlsx_sync_at': lastXlsxSyncAt,
       if (pollingInterval != null) 'polling_interval': pollingInterval,
       if (notificationRadiusKm != null)
@@ -4835,6 +4889,7 @@ class UserSettingsTableCompanion
     Value<AuthProvider?>? authProvider,
     Value<DateTime?>? firstLoginAt,
     Value<DateTime?>? lastLoginAt,
+    Value<DateTime?>? setupCompletedAt,
     Value<DateTime?>? lastXlsxSyncAt,
     Value<PollingInterval>? pollingInterval,
     Value<double>? notificationRadiusKm,
@@ -4862,6 +4917,7 @@ class UserSettingsTableCompanion
       authProvider: authProvider ?? this.authProvider,
       firstLoginAt: firstLoginAt ?? this.firstLoginAt,
       lastLoginAt: lastLoginAt ?? this.lastLoginAt,
+      setupCompletedAt: setupCompletedAt ?? this.setupCompletedAt,
       lastXlsxSyncAt: lastXlsxSyncAt ?? this.lastXlsxSyncAt,
       pollingInterval: pollingInterval ?? this.pollingInterval,
       notificationRadiusKm: notificationRadiusKm ?? this.notificationRadiusKm,
@@ -4914,6 +4970,9 @@ class UserSettingsTableCompanion
     }
     if (lastLoginAt.present) {
       map['last_login_at'] = Variable<DateTime>(lastLoginAt.value);
+    }
+    if (setupCompletedAt.present) {
+      map['setup_completed_at'] = Variable<DateTime>(setupCompletedAt.value);
     }
     if (lastXlsxSyncAt.present) {
       map['last_xlsx_sync_at'] = Variable<DateTime>(lastXlsxSyncAt.value);
@@ -5002,6 +5061,7 @@ class UserSettingsTableCompanion
           ..write('authProvider: $authProvider, ')
           ..write('firstLoginAt: $firstLoginAt, ')
           ..write('lastLoginAt: $lastLoginAt, ')
+          ..write('setupCompletedAt: $setupCompletedAt, ')
           ..write('lastXlsxSyncAt: $lastXlsxSyncAt, ')
           ..write('pollingInterval: $pollingInterval, ')
           ..write('notificationRadiusKm: $notificationRadiusKm, ')
@@ -7770,6 +7830,7 @@ typedef $$UserSettingsTableTableCreateCompanionBuilder =
       Value<AuthProvider?> authProvider,
       Value<DateTime?> firstLoginAt,
       Value<DateTime?> lastLoginAt,
+      Value<DateTime?> setupCompletedAt,
       Value<DateTime?> lastXlsxSyncAt,
       Value<PollingInterval> pollingInterval,
       Value<double> notificationRadiusKm,
@@ -7798,6 +7859,7 @@ typedef $$UserSettingsTableTableUpdateCompanionBuilder =
       Value<AuthProvider?> authProvider,
       Value<DateTime?> firstLoginAt,
       Value<DateTime?> lastLoginAt,
+      Value<DateTime?> setupCompletedAt,
       Value<DateTime?> lastXlsxSyncAt,
       Value<PollingInterval> pollingInterval,
       Value<double> notificationRadiusKm,
@@ -7864,6 +7926,11 @@ class $$UserSettingsTableTableFilterComposer
 
   ColumnFilters<DateTime> get lastLoginAt => $composableBuilder(
     column: $table.lastLoginAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get setupCompletedAt => $composableBuilder(
+    column: $table.setupCompletedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8006,6 +8073,11 @@ class $$UserSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get setupCompletedAt => $composableBuilder(
+    column: $table.setupCompletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get lastXlsxSyncAt => $composableBuilder(
     column: $table.lastXlsxSyncAt,
     builder: (column) => ColumnOrderings(column),
@@ -8133,6 +8205,11 @@ class $$UserSettingsTableTableAnnotationComposer
 
   GeneratedColumn<DateTime> get lastLoginAt => $composableBuilder(
     column: $table.lastLoginAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get setupCompletedAt => $composableBuilder(
+    column: $table.setupCompletedAt,
     builder: (column) => column,
   );
 
@@ -8271,6 +8348,7 @@ class $$UserSettingsTableTableTableManager
                 Value<AuthProvider?> authProvider = const Value.absent(),
                 Value<DateTime?> firstLoginAt = const Value.absent(),
                 Value<DateTime?> lastLoginAt = const Value.absent(),
+                Value<DateTime?> setupCompletedAt = const Value.absent(),
                 Value<DateTime?> lastXlsxSyncAt = const Value.absent(),
                 Value<PollingInterval> pollingInterval = const Value.absent(),
                 Value<double> notificationRadiusKm = const Value.absent(),
@@ -8298,6 +8376,7 @@ class $$UserSettingsTableTableTableManager
                 authProvider: authProvider,
                 firstLoginAt: firstLoginAt,
                 lastLoginAt: lastLoginAt,
+                setupCompletedAt: setupCompletedAt,
                 lastXlsxSyncAt: lastXlsxSyncAt,
                 pollingInterval: pollingInterval,
                 notificationRadiusKm: notificationRadiusKm,
@@ -8326,6 +8405,7 @@ class $$UserSettingsTableTableTableManager
                 Value<AuthProvider?> authProvider = const Value.absent(),
                 Value<DateTime?> firstLoginAt = const Value.absent(),
                 Value<DateTime?> lastLoginAt = const Value.absent(),
+                Value<DateTime?> setupCompletedAt = const Value.absent(),
                 Value<DateTime?> lastXlsxSyncAt = const Value.absent(),
                 Value<PollingInterval> pollingInterval = const Value.absent(),
                 Value<double> notificationRadiusKm = const Value.absent(),
@@ -8353,6 +8433,7 @@ class $$UserSettingsTableTableTableManager
                 authProvider: authProvider,
                 firstLoginAt: firstLoginAt,
                 lastLoginAt: lastLoginAt,
+                setupCompletedAt: setupCompletedAt,
                 lastXlsxSyncAt: lastXlsxSyncAt,
                 pollingInterval: pollingInterval,
                 notificationRadiusKm: notificationRadiusKm,

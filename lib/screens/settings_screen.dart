@@ -297,7 +297,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ListTile(
                   leading: const Icon(Icons.sync),
                   title: const Text('Polling Interval'),
-                  subtitle: Text(_getPollingIntervalLabel()),
+                  subtitle: Text(
+                    pollingIntervalLabel(
+                      _settings?.pollingInterval ?? PollingInterval.hours24,
+                    ),
+                  ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: _showPollingIntervalPicker,
                 ),
@@ -511,24 +515,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  String _getPollingIntervalLabel() {
-    switch (_settings?.pollingInterval) {
-      case PollingInterval.minutes15:
-        return '15 minutes';
-      case PollingInterval.hour1:
-        return '1 hour';
-      case PollingInterval.hours4:
-        return '4 hours';
-      case PollingInterval.hours6:
-        return '6 hours';
-      case PollingInterval.hours12:
-        return '12 hours';
-      case PollingInterval.hours24:
-      case null:
-        return '24 hours';
-    }
-  }
-
   String _formatDate(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
@@ -618,14 +604,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: PollingInterval.values.map((interval) {
-                final label = switch (interval) {
-                  PollingInterval.minutes15 => '15 minutes',
-                  PollingInterval.hour1 => '1 hour',
-                  PollingInterval.hours4 => '4 hours',
-                  PollingInterval.hours6 => '6 hours',
-                  PollingInterval.hours12 => '12 hours',
-                  PollingInterval.hours24 => '24 hours',
-                };
+                final label = pollingIntervalLabel(interval);
                 final isSelected = _settings?.pollingInterval == interval;
                 return ListTile(
                   title: Text(label),
