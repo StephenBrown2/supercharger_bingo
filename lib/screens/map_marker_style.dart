@@ -184,7 +184,7 @@ class PinDot extends StatelessWidget {
   final MarkerStyle style;
   final double size;
 
-  const PinDot(this.style, {super.key, this.size = 28});
+  const PinDot(this.style, {super.key, this.size = 24});
 
   @override
   Widget build(BuildContext context) {

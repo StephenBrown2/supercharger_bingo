@@ -350,7 +350,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                   MarkerClusterLayerWidget(
                     options: MarkerClusterLayerOptions(
                       maxClusterRadius: 80,
-                      size: const Size(40, 40),
+                      size: const Size.square(30),
                       disableClusteringAtZoom: 10,
                       markers: _buildMarkers(),
                       builder: (context, markers) {
@@ -361,11 +361,14 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                             border: Border.all(color: Colors.white, width: 2),
                           ),
                           child: Center(
-                            child: Text(
-                              markers.length.toString(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                markers.length.toString(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
@@ -375,6 +378,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                   ),
                 // Live user location marker with custom unified stream
                 CurrentLocationLayer(
+                  style: const LocationMarkerStyle(markerSize: Size.square(12)),
                   positionStream: _locationMarkerStream,
                   headingStream: _headingStream,
                 ),
@@ -387,8 +391,8 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                         final site = siteWithDist.site;
                         return Marker(
                           point: LatLng(site.latitude, site.longitude),
-                          width: 32,
-                          height: 32,
+                          width: 24,
+                          height: 24,
                           child: _MapMarker(
                             site: site,
                             firstDate: _firstDates[site.siteId],
@@ -645,8 +649,8 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     return _sites.map((site) {
       return Marker(
         point: LatLng(site.latitude, site.longitude),
-        width: 32,
-        height: 32,
+        width: 24,
+        height: 24,
         child: GestureDetector(
           onTap: () => _showSiteInfo(site),
           child: _MapMarker(site: site, firstDate: _firstDates[site.siteId]),
