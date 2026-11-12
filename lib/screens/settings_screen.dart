@@ -483,9 +483,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               await ApiService.instance.clearSessionCookie();
               if (mounted) {
                 setState(() {});
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('Logged out')));
+                ScaffoldMessenger.of(context)
+                    .showSnackBar(const SnackBar(content: Text('Logged out')));
               }
             },
             child: const Text('Log out'),
@@ -542,191 +541,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showRadiusPicker() {
-    final controller = TextEditingController();
     final isImperial = _settings?.unitSystem == UnitSystem.imperial;
-    final initialDisplayValue = isImperial
-        ? (_settings?.notificationRadiusKm ?? 100) * 0.621371
-        : (_settings?.notificationRadiusKm ?? 100);
-    controller.text = initialDisplayValue.toStringAsFixed(0);
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Notification Radius'),
-        content: StatefulBuilder(
-          builder: (context, setDialogState) {
-            final isImperial = _settings?.unitSystem == UnitSystem.imperial;
-            final displayValue = isImperial
-                ? (_settings?.notificationRadiusKm ?? 100) * 0.621371
-                : (_settings?.notificationRadiusKm ?? 100);
-            final unit = isImperial ? 'mi' : 'km';
-            final minValue = isImperial ? 6.0 : 10.0;
-            final maxValue = isImperial ? 1000.0 : 1609.0;
-
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Slider(
-                  value: displayValue.clamp(minValue, maxValue),
-                  min: minValue,
-                  max: maxValue,
-                  divisions: 99,
-                  label: '${displayValue.toStringAsFixed(0)} $unit',
-                  onChanged: (value) {
-                    setDialogState(() {
-                      _settings?.notificationRadiusKm = isImperial
-                          ? value / 0.621371
-                          : value;
-                    });
-                    setState(() {});
-                    controller.text = value.toStringAsFixed(0);
-                  },
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: controller,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          labelText: 'Exact value ($unit)',
-                          border: const OutlineInputBorder(),
-                        ),
-                        onChanged: (value) {
-                          final numValue = double.tryParse(value);
-                          if (numValue != null &&
-                              numValue >= minValue &&
-                              numValue <= maxValue) {
-                            setDialogState(() {
-                              _settings?.notificationRadiusKm = isImperial
-                                  ? numValue / 0.621371
-                                  : numValue;
-                            });
-                            setState(() {});
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            );
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              controller.dispose();
-              Navigator.pop(context);
-            },
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              _saveSettings();
-              controller.dispose();
-              Navigator.pop(context);
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+    _editRadius(
+      title: 'Notification Radius',
+      currentKm: _settings?.notificationRadiusKm ?? 100,
+      minDisplay: isImperial ? 6 : 10,
+      maxDisplay: isImperial ? 1000 : 1609,
+      applyKm: (km) => _settings?.notificationRadiusKm = km,
     );
   }
 
   void _showCheckinRadiusPicker() {
-    final controller = TextEditingController();
     final isImperial = _settings?.unitSystem == UnitSystem.imperial;
-    final initialDisplayValue = isImperial
-        ? (_settings?.checkinRadiusKm ?? 5000) * 0.621371
-        : (_settings?.checkinRadiusKm ?? 5000);
-    controller.text = initialDisplayValue.toStringAsFixed(0);
+    _editRadius(
+      title: 'Check-in Search Radius',
+      currentKm: _settings?.checkinRadiusKm ?? 5000,
+      minDisplay: isImperial ? 62 : 100,
+      maxDisplay: isImperial ? 6214 : 10000,
+      applyKm: (km) => _settings?.checkinRadiusKm = km,
+    );
+  }
 
-    showDialog(
+  /// The dialog owns the text controller. Disposing it before the route pops
+  /// rebuilds the exiting field against a dead controller.
+  Future<void> _editRadius({
+    required String title,
+    required double currentKm,
+    required double minDisplay,
+    required double maxDisplay,
+    required void Function(double km) applyKm,
+  }) async {
+    final isImperial = _settings?.unitSystem == UnitSystem.imperial;
+    final saved = await showDialog<double>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Check-in Search Radius'),
-        content: StatefulBuilder(
-          builder: (context, setDialogState) {
-            final isImperial = _settings?.unitSystem == UnitSystem.imperial;
-            final displayValue = isImperial
-                ? (_settings?.checkinRadiusKm ?? 5000) * 0.621371
-                : (_settings?.checkinRadiusKm ?? 5000);
-            final unit = isImperial ? 'mi' : 'km';
-            final minValue = isImperial ? 62.0 : 100.0;
-            final maxValue = isImperial ? 6214.0 : 10000.0;
-
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Slider(
-                  value: displayValue.clamp(minValue, maxValue),
-                  min: minValue,
-                  max: maxValue,
-                  divisions: 99,
-                  label: '${displayValue.toStringAsFixed(0)} $unit',
-                  onChanged: (value) {
-                    setDialogState(() {
-                      _settings?.checkinRadiusKm = isImperial
-                          ? value / 0.621371
-                          : value;
-                    });
-                    setState(() {});
-                    controller.text = value.toStringAsFixed(0);
-                  },
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: controller,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          labelText: 'Exact value ($unit)',
-                          border: const OutlineInputBorder(),
-                        ),
-                        onChanged: (value) {
-                          final numValue = double.tryParse(value);
-                          if (numValue != null &&
-                              numValue >= minValue &&
-                              numValue <= maxValue) {
-                            setDialogState(() {
-                              _settings?.checkinRadiusKm = isImperial
-                                  ? numValue / 0.621371
-                                  : numValue;
-                            });
-                            setState(() {});
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            );
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              controller.dispose();
-              Navigator.pop(context);
-            },
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              _saveSettings();
-              controller.dispose();
-              Navigator.pop(context);
-            },
-            child: const Text('Save'),
-          ),
-        ],
+      builder: (context) => _RangeValueDialog(
+        title: title,
+        initial: isImperial ? currentKm * 0.621371 : currentKm,
+        min: minDisplay,
+        max: maxDisplay,
+        unit: isImperial ? 'mi' : 'km',
       ),
     );
+    if (saved == null || !mounted) return;
+    setState(() => applyKm(isImperial ? saved / 0.621371 : saved));
+    await _saveSettings();
   }
 
   void _showUnitSystemPicker() {
@@ -985,6 +843,98 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Owns its text controller so dispose runs after the route is gone.
+class _RangeValueDialog extends StatefulWidget {
+  final String title;
+  final double initial;
+  final double min;
+  final double max;
+  final String unit;
+
+  const _RangeValueDialog({
+    required this.title,
+    required this.initial,
+    required this.min,
+    required this.max,
+    required this.unit,
+  });
+
+  @override
+  State<_RangeValueDialog> createState() => _RangeValueDialogState();
+}
+
+class _RangeValueDialogState extends State<_RangeValueDialog> {
+  late final TextEditingController _controller;
+  late double _value;
+
+  @override
+  void initState() {
+    super.initState();
+    var initial = widget.initial;
+    if (initial < widget.min) initial = widget.min;
+    if (initial > widget.max) initial = widget.max;
+    _value = initial;
+    _controller = TextEditingController(text: _value.toStringAsFixed(0));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Slider(
+            value: _value,
+            min: widget.min,
+            max: widget.max,
+            divisions: 99,
+            label: '${_value.toStringAsFixed(0)} ${widget.unit}',
+            onChanged: (value) {
+              setState(() => _value = value);
+              _controller.text = value.toStringAsFixed(0);
+            },
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _controller,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              labelText: 'Exact value (${widget.unit})',
+              border: const OutlineInputBorder(),
+            ),
+            onChanged: (text) {
+              final parsed = double.tryParse(text);
+              if (parsed == null ||
+                  parsed < widget.min ||
+                  parsed > widget.max) {
+                return;
+              }
+              setState(() => _value = parsed);
+            },
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _value),
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }

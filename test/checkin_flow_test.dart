@@ -618,4 +618,168 @@ void main() {
     expect((await db.getUserSettings()).includeVehicleInPrivateNote, isTrue);
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets('every settings control saves without crashing', (tester) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.binding.setSurfaceSize(const Size(800, 1600));
+    await tester.pumpWidget(const MaterialApp(home: SettingsScreen()));
+    await tester.pumpAndSettle();
+
+    Future<void> tapTile(String label) async {
+      final tile = find.text(label);
+      await tester.scrollUntilVisible(tile, 200);
+      await tester.tap(tile);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> cancelDialog() async {
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    }
+
+    Future<void> saveDialog() async {
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    }
+
+    await tapTile('New Superchargers');
+    expect((await db.getUserSettings()).notifyNewSites, isFalse);
+    await tapTile('New Superchargers');
+    expect((await db.getUserSettings()).notifyNewSites, isTrue);
+
+    await tapTile('First-Eligible Alerts');
+    expect((await db.getUserSettings()).notifyFirstEligible, isFalse);
+    await tapTile('First-Eligible Alerts');
+    expect((await db.getUserSettings()).notifyFirstEligible, isTrue);
+
+    await tapTile('Polling Interval');
+    await tester.tap(find.text('15 minutes'));
+    await tester.pumpAndSettle();
+    expect(
+      (await db.getUserSettings()).pollingInterval,
+      PollingInterval.minutes15,
+    );
+    await tapTile('Polling Interval');
+    await tester.tap(find.text('24 hours'));
+    await tester.pumpAndSettle();
+    expect(
+      (await db.getUserSettings()).pollingInterval,
+      PollingInterval.hours24,
+    );
+
+    await tapTile('Distance Units');
+    await tester.tap(find.text('Metric (kilometers)'));
+    await tester.pumpAndSettle();
+    expect((await db.getUserSettings()).unitSystem, UnitSystem.metric);
+
+    await tapTile('Notification Radius');
+    await tester.enterText(find.byType(TextField), '42');
+    await tester.pump();
+    await saveDialog();
+    expect((await db.getUserSettings()).notificationRadiusKm, 42);
+
+    await tapTile('Notification Radius');
+    await tester.enterText(find.byType(TextField), '5000');
+    await tester.pump();
+    await saveDialog();
+    expect((await db.getUserSettings()).notificationRadiusKm, 42);
+
+    await tapTile('Notification Radius');
+    await tester.enterText(find.byType(TextField), '90');
+    await tester.pump();
+    await cancelDialog();
+    expect((await db.getUserSettings()).notificationRadiusKm, 42);
+
+    await tapTile('Notification Radius');
+    final beforeDrag = (await db.getUserSettings()).notificationRadiusKm;
+    await tester.drag(find.byType(Slider), const Offset(80, 0));
+    await tester.pump();
+    await saveDialog();
+    expect(
+      (await db.getUserSettings()).notificationRadiusKm,
+      isNot(beforeDrag),
+    );
+
+    await tapTile('Notification Radius');
+    await tester.enterText(find.byType(TextField), '100');
+    await tester.pump();
+    await saveDialog();
+    expect((await db.getUserSettings()).notificationRadiusKm, 100);
+
+    await tapTile('Check-in Search Radius');
+    await tester.enterText(find.byType(TextField), '250');
+    await tester.pump();
+    await saveDialog();
+    expect((await db.getUserSettings()).checkinRadiusKm, 250);
+
+    await tapTile('Check-in Search Radius');
+    await tester.enterText(find.byType(TextField), '400');
+    await tester.pump();
+    await cancelDialog();
+    expect((await db.getUserSettings()).checkinRadiusKm, 250);
+
+    await tapTile('Check-in Search Radius');
+    await tester.enterText(find.byType(TextField), '5000');
+    await tester.pump();
+    await saveDialog();
+    expect((await db.getUserSettings()).checkinRadiusKm, 5000);
+
+    await tapTile('Distance Units');
+    await tester.tap(find.text('Imperial (miles)'));
+    await tester.pumpAndSettle();
+    expect((await db.getUserSettings()).unitSystem, UnitSystem.imperial);
+
+    await tapTile('Notification Radius');
+    await tester.enterText(find.byType(TextField), '100');
+    await tester.pump();
+    await saveDialog();
+    expect(
+      (await db.getUserSettings()).notificationRadiusKm,
+      closeTo(100 / 0.621371, 0.001),
+    );
+
+    await tapTile('Check-in Search Radius');
+    await tester.enterText(find.byType(TextField), '200');
+    await tester.pump();
+    await saveDialog();
+    expect(
+      (await db.getUserSettings()).checkinRadiusKm,
+      closeTo(200 / 0.621371, 0.001),
+    );
+
+    await tapTile('Include visited sites');
+    expect((await db.getUserSettings()).includeVisitedNearby, isTrue);
+    await tapTile('Include visited sites');
+    expect((await db.getUserSettings()).includeVisitedNearby, isFalse);
+
+    await tapTile('Include vehicle details in the private note');
+    expect((await db.getUserSettings()).includeVehicleInPrivateNote, isTrue);
+    await tapTile('Include vehicle details in the private note');
+    expect((await db.getUserSettings()).includeVehicleInPrivateNote, isFalse);
+
+    await tapTile('Vehicles');
+    expect(find.text('Manage your vehicles (local only)'), findsNothing);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tapTile('Visits');
+    expect(
+      find.text('Local check-ins, including ones still pending'),
+      findsNothing,
+    );
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tapTile('Sync Visit History');
+    await cancelDialog();
+    await tapTile('Clear Local Data');
+    await cancelDialog();
+    await tapTile('Reset Database');
+    await cancelDialog();
+
+    expect(find.text('Settings'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
