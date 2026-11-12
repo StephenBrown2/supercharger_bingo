@@ -6,13 +6,12 @@ import '../database/database.dart';
 ///
 /// Each supercharging.life map color is swapped for its nearest Okabe-Ito
 /// color, which stays distinct under color blindness. Every state also keeps
-/// its own glyph (WCAG 1.4.1). Gold (First today) and the site's olive yellow
-/// (construction) both land on Okabe-Ito yellow, so their glyphs tell them
-/// apart.
+/// its own glyph (WCAG 1.4.1). First today uses sky blue to distinguish it
+/// from construction yellow.
 class LifePin {
   static const Color green = Color(0xFF009E73);
   static const Color red = Color(0xFFD55E00);
-  static const Color gold = Color(0xFFF0E442);
+  static const Color skyBlue = Color(0xFF56B4E9);
   static const Color yellow = Color(0xFFF0E442);
   static const Color blue = Color(0xFF0072B2);
   static const Color orange = Color(0xFFE69F00);
@@ -49,9 +48,9 @@ class MarkerStyle {
 }
 
 /// Readable glyph colour on a filled [background]: black on light fills (e.g.
-/// the gold First-today pin), white on dark ones.
+/// the construction pin), white on dark ones.
 Color glyphForeground(Color background) =>
-    background.computeLuminance() > 0.5 ? Colors.black : Colors.white;
+    background.computeLuminance() > 0.179 ? Colors.black : Colors.white;
 
 /// Whether a status is operational (chargeable, First applies): OPEN/EXPANDING.
 bool isOperational(SiteStatus status) =>
@@ -138,7 +137,11 @@ MarkerStyle _baseStyle(SiteStatus status, FirstState firstState) {
           'First up for grabs',
         );
       case FirstState.today:
-        return const MarkerStyle(LifePin.gold, Icons.schedule, 'First today');
+        return const MarkerStyle(
+          LifePin.skyBlue,
+          Icons.schedule,
+          'First today',
+        );
       case FirstState.passed:
         // The common case, so it stays plain.
         return const MarkerStyle(LifePin.red, null, 'Open');

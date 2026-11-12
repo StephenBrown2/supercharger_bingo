@@ -15,7 +15,7 @@ void main() {
       );
     });
 
-    test('first date today (site-local) => today (yellow window)', () {
+    test('first date today (site-local) => today (shared window)', () {
       expect(
         computeFirstState(
           firstDate: DateTime(2026, 6, 18, 9, 30),
@@ -41,11 +41,12 @@ void main() {
           visited: v,
         );
 
-    test('First states are green, gold, and a plain red Open', () {
+    test('First states are green, sky blue, and a plain red Open', () {
       expect(style(SiteStatus.open).color, LifePin.green);
       expect(style(SiteStatus.open).glyph, Icons.circle_outlined);
       final today = style(SiteStatus.expanding, FirstState.today);
-      expect(today.color, LifePin.gold);
+      expect(today.color, const Color(0xFF56B4E9));
+      expect(glyphForeground(today.color), Colors.black);
       expect(today.glyph, Icons.schedule);
       final open = style(SiteStatus.open, FirstState.passed);
       expect(open.color, LifePin.red);
