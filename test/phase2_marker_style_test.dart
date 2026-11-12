@@ -54,13 +54,15 @@ void main() {
       expect(s.glyph, Icons.schedule);
     });
 
-    test('operational first-passed is red filled-check', () {
+    test('operational first-passed is a plain red Open marker', () {
       final s = markerStyleFor(
         status: SiteStatus.open,
         firstState: FirstState.passed,
         visited: false,
       );
       expect(s.color, OkabeIto.vermillion);
+      expect(s.glyph, isNull);
+      expect(s.label, 'Open');
     });
 
     test('construction is blue, ignores first state', () {

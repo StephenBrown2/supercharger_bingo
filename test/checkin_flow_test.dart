@@ -607,6 +607,8 @@ void main() {
 
     final tile = find.text('Include visited sites');
     await tester.scrollUntilVisible(tile, 200);
+    await tester.ensureVisible(tile);
+    await tester.pumpAndSettle();
     await tester.tap(tile);
     await tester.pumpAndSettle();
 
@@ -614,6 +616,8 @@ void main() {
 
     final note = find.text('Include vehicle details in the private note');
     await tester.scrollUntilVisible(note, 200);
+    await tester.ensureVisible(note);
+    await tester.pumpAndSettle();
     await tester.tap(note);
     await tester.pumpAndSettle();
     expect((await db.getUserSettings()).includeVehicleInPrivateNote, isTrue);
@@ -803,7 +807,7 @@ void main() {
     await tapTile('Reset Database');
     await cancelDialog();
 
-    expect(find.text('Settings'), findsOneWidget);
+    expect(find.byType(SettingsScreen), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

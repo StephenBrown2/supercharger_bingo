@@ -207,298 +207,302 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings'), centerTitle: true),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              children: [
-                // Account section
-                _buildSectionHeader(theme, 'Account'),
-                ListTile(
-                  leading: const Icon(Icons.person),
-                  title: Text(_accountTitle),
-                  subtitle: Text(_accountSubtitle),
-                  trailing: _showLogout
-                      ? TextButton(
-                          onPressed: _handleLogout,
-                          child: const Text('Log out'),
-                        )
-                      : null,
-                  onTap: _settings?.isAuthenticated != true
-                      ? _handleLogin
-                      : null,
-                ),
-                const Divider(),
-
-                _buildSectionHeader(theme, 'Appearance'),
-                ListTile(
-                  leading: const Icon(Icons.palette_outlined),
-                  title: const Text('Theme'),
-                  subtitle: Text(
-                    appearanceLabel(
-                      _settings?.appAppearance ?? AppAppearance.system,
-                    ),
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _showThemePicker,
-                ),
-                const Divider(),
-
-                // Notifications section
-                _buildSectionHeader(theme, 'Notifications'),
-                SwitchListTile(
-                  secondary: const Icon(Icons.notifications_active),
-                  title: const Text('New Superchargers'),
-                  subtitle: const Text(
-                    'A site opening inside the notification radius',
-                  ),
-                  value: _settings?.notifyNewSites ?? true,
-                  onChanged: (value) {
-                    setState(() => _settings?.notifyNewSites = value);
-                    _saveSettings();
-                    if (value) _ensureAlertPermissions();
-                  },
-                ),
-                SwitchListTile(
-                  secondary: const Icon(Icons.star),
-                  title: const Text('First Countdown Started'),
-                  subtitle: const Text(
-                    'Someone claimed a nearby First. Check in there before local midnight to share it',
-                  ),
-                  value: _settings?.notifyFirstEligible ?? true,
-                  onChanged: (value) {
-                    setState(() => _settings?.notifyFirstEligible = value);
-                    _saveSettings();
-                    if (value) _ensureAlertPermissions();
-                  },
-                ),
-                if (_locationAccess != null)
+      // No app bar: the tab already says Settings.
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : ListView(
+                children: [
+                  // Account section
+                  _buildSectionHeader(theme, 'Account'),
                   ListTile(
-                    leading: const Icon(Icons.my_location),
-                    title: const Text('Location for alerts'),
+                    leading: const Icon(Icons.person),
+                    title: Text(_accountTitle),
+                    subtitle: Text(_accountSubtitle),
+                    trailing: _showLogout
+                        ? TextButton(
+                            onPressed: _handleLogout,
+                            child: const Text('Log out'),
+                          )
+                        : null,
+                    onTap: _settings?.isAuthenticated != true
+                        ? _handleLogin
+                        : null,
+                  ),
+                  const Divider(),
+
+                  _buildSectionHeader(theme, 'Appearance'),
+                  ListTile(
+                    leading: const Icon(Icons.palette_outlined),
+                    title: const Text('Theme'),
                     subtitle: Text(
-                      _locationAccess == LocationPermission.always
-                          ? 'All the time'
-                          : 'Only while the app is open. Tap to allow all the time',
+                      appearanceLabel(
+                        _settings?.appAppearance ?? AppAppearance.system,
+                      ),
                     ),
-                    onTap: _locationAccess == LocationPermission.always
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _showThemePicker,
+                  ),
+                  const Divider(),
+
+                  // Notifications section
+                  _buildSectionHeader(theme, 'Notifications'),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.notifications_active),
+                    title: const Text('New Superchargers'),
+                    subtitle: const Text(
+                      'A site opening inside the notification radius',
+                    ),
+                    value: _settings?.notifyNewSites ?? true,
+                    onChanged: (value) {
+                      setState(() => _settings?.notifyNewSites = value);
+                      _saveSettings();
+                      if (value) _ensureAlertPermissions();
+                    },
+                  ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.star),
+                    title: const Text('First Countdown Started'),
+                    subtitle: const Text(
+                      'Someone claimed a nearby First. Check in there before local midnight to share it',
+                    ),
+                    value: _settings?.notifyFirstEligible ?? true,
+                    onChanged: (value) {
+                      setState(() => _settings?.notifyFirstEligible = value);
+                      _saveSettings();
+                      if (value) _ensureAlertPermissions();
+                    },
+                  ),
+                  if (_locationAccess != null)
+                    ListTile(
+                      leading: const Icon(Icons.my_location),
+                      title: const Text('Location for alerts'),
+                      subtitle: Text(
+                        _locationAccess == LocationPermission.always
+                            ? 'All the time'
+                            : 'Only while the app is open. Tap to allow all the time',
+                      ),
+                      onTap: _locationAccess == LocationPermission.always
+                          ? null
+                          : _ensureAlertPermissions,
+                    ),
+                  ListTile(
+                    leading: const Icon(Icons.notification_add_outlined),
+                    title: const Text('Send test notification'),
+                    onTap: _sendTestNotification,
+                  ),
+                  const Divider(),
+
+                  // Polling section
+                  _buildSectionHeader(theme, 'Background Sync'),
+                  ListTile(
+                    leading: const Icon(Icons.sync),
+                    title: const Text('Polling Interval'),
+                    subtitle: Text(
+                      pollingIntervalLabel(
+                        _settings?.pollingInterval ?? PollingInterval.hours24,
+                      ),
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _showPollingIntervalPicker,
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.radar),
+                    title: const Text('Notification Radius'),
+                    subtitle: Text(
+                      _settings?.unitSystem == UnitSystem.imperial
+                          ? '${(_settings!.notificationRadiusKm * 0.621371).toStringAsFixed(0)} mi'
+                          : '${_settings?.notificationRadiusKm.toStringAsFixed(0)} km',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _showRadiusPicker,
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.straighten),
+                    title: const Text('Distance Units'),
+                    subtitle: Text(
+                      _settings?.unitSystem == UnitSystem.metric
+                          ? 'Metric (km)'
+                          : 'Imperial (miles)',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _showUnitSystemPicker,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Text(
+                      'Note: iOS may limit background refresh to once per day due to system restrictions.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
+                  ),
+                  const Divider(),
+
+                  _buildSectionHeader(theme, 'Check-in'),
+                  ListTile(
+                    leading: const Icon(Icons.near_me),
+                    title: const Text('Check-in Search Radius'),
+                    subtitle: Text(
+                      _settings?.unitSystem == UnitSystem.imperial
+                          ? '${(_settings!.checkinRadiusKm * 0.621371).toStringAsFixed(0)} mi'
+                          : '${_settings?.checkinRadiusKm.toStringAsFixed(0)} km',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _showCheckinRadiusPicker,
+                  ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.history),
+                    title: const Text('Include visited sites'),
+                    subtitle: const Text(
+                      'Show them in the nearby check-in list, with the last visit date',
+                    ),
+                    value: _settings?.includeVisitedNearby ?? false,
+                    onChanged: (value) {
+                      setState(() => _settings?.includeVisitedNearby = value);
+                      _saveSettings();
+                    },
+                  ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.directions_car),
+                    title: const Text(
+                      'Include vehicle details in the private note',
+                    ),
+                    subtitle: const Text(
+                      'Adds year, make, model, and trim when you check in with a vehicle. The VIN is never included.',
+                    ),
+                    value: _settings?.includeVehicleInPrivateNote ?? false,
+                    onChanged: (value) {
+                      setState(
+                        () => _settings?.includeVehicleInPrivateNote = value,
+                      );
+                      _saveSettings();
+                    },
+                  ),
+                  const Divider(),
+
+                  // Garage section
+                  _buildSectionHeader(theme, 'Garage'),
+                  ListTile(
+                    leading: const Icon(Icons.directions_car),
+                    title: const Text('Vehicles'),
+                    subtitle: const Text('Manage your vehicles (local only)'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const VehiclesScreen()),
+                    ),
+                  ),
+                  const Divider(),
+
+                  // Advanced section
+                  _buildSectionHeader(theme, 'Advanced'),
+                  ListTile(
+                    leading: const Icon(Icons.place),
+                    title: const Text('Visits'),
+                    subtitle: const Text(
+                      'Local check-ins, including ones still pending',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const VisitsScreen()),
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.history),
+                    title: const Text('Sync Visit History'),
+                    subtitle: _settings?.lastXlsxSyncAt != null
+                        ? Text(
+                            'Last synced: ${_formatDate(_settings!.lastXlsxSyncAt!)}',
+                          )
+                        : const Text('Import visits from supercharging.life'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _handleSyncHistory,
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.delete_forever),
+                    title: const Text('Clear Local Data'),
+                    subtitle: const Text('Remove all cached data'),
+                    onTap: _handleClearData,
+                  ),
+                  const Divider(),
+
+                  // About section
+                  _buildSectionHeader(theme, 'About'),
+                  ListTile(
+                    leading: const Icon(Icons.info),
+                    title: const Text('Supercharger Bingo'),
+                    subtitle: const Text('Version 1.0.0'),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.code),
+                    title: const Text('Open Source Licenses'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => showLicensePage(context: context),
+                  ),
+                  const Divider(),
+
+                  // Debug section
+                  _buildSectionHeader(theme, 'Debug'),
+                  ListTile(
+                    leading: const Icon(Icons.cloud_download),
+                    title: const Text('Force Sync Sites'),
+                    subtitle: Text('${_siteCount ?? 0} sites in database'),
+                    trailing: _isSyncingSites
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.chevron_right),
+                    onTap: _isSyncingSites ? null : _handleForceSyncSites,
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.people),
+                    title: const Text('Sync Check-in Counts'),
+                    subtitle: const Text(
+                      'Update which sites have been visited',
+                    ),
+                    trailing: _isSyncingSites
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.chevron_right),
+                    onTap: _isSyncingSites ? null : _handleSyncCheckinCounts,
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.person_search),
+                    title: const Text('Re-sync User Data'),
+                    subtitle: Text(
+                      _settings?.username != null
+                          ? 'Sync visits for ${_settings!.username}'
+                          : 'No username set',
+                    ),
+                    trailing: _isSyncingSites
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.chevron_right),
+                    onTap: (_isSyncingSites || _settings?.username == null)
                         ? null
-                        : _ensureAlertPermissions,
+                        : _handleResyncUserData,
                   ),
-                ListTile(
-                  leading: const Icon(Icons.notification_add_outlined),
-                  title: const Text('Send test notification'),
-                  onTap: _sendTestNotification,
-                ),
-                const Divider(),
-
-                // Polling section
-                _buildSectionHeader(theme, 'Background Sync'),
-                ListTile(
-                  leading: const Icon(Icons.sync),
-                  title: const Text('Polling Interval'),
-                  subtitle: Text(
-                    pollingIntervalLabel(
-                      _settings?.pollingInterval ?? PollingInterval.hours24,
-                    ),
+                  ListTile(
+                    leading: const Icon(Icons.delete_sweep),
+                    title: const Text('Reset Database'),
+                    subtitle: const Text('Clear all data and re-sync'),
+                    onTap: _handleResetDatabase,
                   ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _showPollingIntervalPicker,
-                ),
-                ListTile(
-                  leading: const Icon(Icons.radar),
-                  title: const Text('Notification Radius'),
-                  subtitle: Text(
-                    _settings?.unitSystem == UnitSystem.imperial
-                        ? '${(_settings!.notificationRadiusKm * 0.621371).toStringAsFixed(0)} mi'
-                        : '${_settings?.notificationRadiusKm.toStringAsFixed(0)} km',
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _showRadiusPicker,
-                ),
-                ListTile(
-                  leading: const Icon(Icons.straighten),
-                  title: const Text('Distance Units'),
-                  subtitle: Text(
-                    _settings?.unitSystem == UnitSystem.metric
-                        ? 'Metric (km)'
-                        : 'Imperial (miles)',
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _showUnitSystemPicker,
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: Text(
-                    'Note: iOS may limit background refresh to once per day due to system restrictions.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.outline,
-                    ),
-                  ),
-                ),
-                const Divider(),
-
-                _buildSectionHeader(theme, 'Check-in'),
-                ListTile(
-                  leading: const Icon(Icons.near_me),
-                  title: const Text('Check-in Search Radius'),
-                  subtitle: Text(
-                    _settings?.unitSystem == UnitSystem.imperial
-                        ? '${(_settings!.checkinRadiusKm * 0.621371).toStringAsFixed(0)} mi'
-                        : '${_settings?.checkinRadiusKm.toStringAsFixed(0)} km',
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _showCheckinRadiusPicker,
-                ),
-                SwitchListTile(
-                  secondary: const Icon(Icons.history),
-                  title: const Text('Include visited sites'),
-                  subtitle: const Text(
-                    'Show them in the nearby check-in list, with the last visit date',
-                  ),
-                  value: _settings?.includeVisitedNearby ?? false,
-                  onChanged: (value) {
-                    setState(() => _settings?.includeVisitedNearby = value);
-                    _saveSettings();
-                  },
-                ),
-                SwitchListTile(
-                  secondary: const Icon(Icons.directions_car),
-                  title: const Text(
-                    'Include vehicle details in the private note',
-                  ),
-                  subtitle: const Text(
-                    'Adds year, make, model, and trim when you check in with a vehicle. The VIN is never included.',
-                  ),
-                  value: _settings?.includeVehicleInPrivateNote ?? false,
-                  onChanged: (value) {
-                    setState(
-                      () => _settings?.includeVehicleInPrivateNote = value,
-                    );
-                    _saveSettings();
-                  },
-                ),
-                const Divider(),
-
-                // Garage section
-                _buildSectionHeader(theme, 'Garage'),
-                ListTile(
-                  leading: const Icon(Icons.directions_car),
-                  title: const Text('Vehicles'),
-                  subtitle: const Text('Manage your vehicles (local only)'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const VehiclesScreen()),
-                  ),
-                ),
-                const Divider(),
-
-                // Advanced section
-                _buildSectionHeader(theme, 'Advanced'),
-                ListTile(
-                  leading: const Icon(Icons.place),
-                  title: const Text('Visits'),
-                  subtitle: const Text(
-                    'Local check-ins, including ones still pending',
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const VisitsScreen()),
-                  ),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.history),
-                  title: const Text('Sync Visit History'),
-                  subtitle: _settings?.lastXlsxSyncAt != null
-                      ? Text(
-                          'Last synced: ${_formatDate(_settings!.lastXlsxSyncAt!)}',
-                        )
-                      : const Text('Import visits from supercharging.life'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _handleSyncHistory,
-                ),
-                ListTile(
-                  leading: const Icon(Icons.delete_forever),
-                  title: const Text('Clear Local Data'),
-                  subtitle: const Text('Remove all cached data'),
-                  onTap: _handleClearData,
-                ),
-                const Divider(),
-
-                // About section
-                _buildSectionHeader(theme, 'About'),
-                ListTile(
-                  leading: const Icon(Icons.info),
-                  title: const Text('Supercharger Bingo'),
-                  subtitle: const Text('Version 1.0.0'),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.code),
-                  title: const Text('Open Source Licenses'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => showLicensePage(context: context),
-                ),
-                const Divider(),
-
-                // Debug section
-                _buildSectionHeader(theme, 'Debug'),
-                ListTile(
-                  leading: const Icon(Icons.cloud_download),
-                  title: const Text('Force Sync Sites'),
-                  subtitle: Text('${_siteCount ?? 0} sites in database'),
-                  trailing: _isSyncingSites
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.chevron_right),
-                  onTap: _isSyncingSites ? null : _handleForceSyncSites,
-                ),
-                ListTile(
-                  leading: const Icon(Icons.people),
-                  title: const Text('Sync Check-in Counts'),
-                  subtitle: const Text('Update which sites have been visited'),
-                  trailing: _isSyncingSites
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.chevron_right),
-                  onTap: _isSyncingSites ? null : _handleSyncCheckinCounts,
-                ),
-                ListTile(
-                  leading: const Icon(Icons.person_search),
-                  title: const Text('Re-sync User Data'),
-                  subtitle: Text(
-                    _settings?.username != null
-                        ? 'Sync visits for ${_settings!.username}'
-                        : 'No username set',
-                  ),
-                  trailing: _isSyncingSites
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.chevron_right),
-                  onTap: (_isSyncingSites || _settings?.username == null)
-                      ? null
-                      : _handleResyncUserData,
-                ),
-                ListTile(
-                  leading: const Icon(Icons.delete_sweep),
-                  title: const Text('Reset Database'),
-                  subtitle: const Text('Clear all data and re-sync'),
-                  onTap: _handleResetDatabase,
-                ),
-                const SizedBox(height: 32),
-              ],
-            ),
+                  const SizedBox(height: 32),
+                ],
+              ),
+      ),
     );
   }
 

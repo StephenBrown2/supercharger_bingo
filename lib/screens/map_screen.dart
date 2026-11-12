@@ -58,8 +58,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   // Earliest qualifying community check-in for the nearby rows. Absence means
   // the First is still open.
   Map<int, DateTime> _nearbyFirstDates = {};
-  // Check-in radius in the user's units, for the empty-list message.
-  String? _checkinRadiusLabel;
+  // 'unvisited superchargers within 50 mi', for the empty-list message.
+  String? _emptyNearbyLabel;
   bool _isLoadingLocation = false;
   bool _isLoadingSites = false;
   String? _locationError;
@@ -308,204 +308,203 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    // No app bar: the tab already says Map.
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Map'),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: _isLocating
-                ? RotationTransition(
-                    turns: _locationAnimController,
-                    child: const Icon(Icons.my_location),
-                  )
-                : const Icon(Icons.my_location),
-            onPressed: _isLocating ? null : _centerOnUser,
-            tooltip: 'Center on my location',
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          // Map
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: _getInitialCenter(),
-              initialZoom: _getInitialZoom(),
-              // North stays up: no two-finger rotate.
-              interactionOptions: const InteractionOptions(
-                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            // Map
+            FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                initialCenter: _getInitialCenter(),
+                initialZoom: _getInitialZoom(),
+                // North stays up: no two-finger rotate.
+                interactionOptions: const InteractionOptions(
+                  flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                ),
               ),
-            ),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'bingo.supercharger.checkin',
-              ),
-              // Site markers with clustering
-              if (!_isLoading)
-                MarkerClusterLayerWidget(
-                  options: MarkerClusterLayerOptions(
-                    maxClusterRadius: 80,
-                    size: const Size(40, 40),
-                    disableClusteringAtZoom: 10,
-                    markers: _buildMarkers(),
-                    computeSize: (markers) {
-                      // Don't cluster if only 3 markers
-                      if (markers.length <= 3) {
-                        return const Size(
-                          0,
-                          0,
-                        ); // Return invalid size to prevent clustering
-                      }
-                      return const Size(40, 40);
-                    },
-                    builder: (context, markers) {
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: Colors.blue,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
-                        ),
-                        child: Center(
-                          child: Text(
-                            markers.length.toString(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'bingo.supercharger.checkin',
+                ),
+                // Site markers with clustering
+                if (!_isLoading)
+                  MarkerClusterLayerWidget(
+                    options: MarkerClusterLayerOptions(
+                      maxClusterRadius: 80,
+                      size: const Size(40, 40),
+                      disableClusteringAtZoom: 10,
+                      markers: _buildMarkers(),
+                      computeSize: (markers) {
+                        // Don't cluster if only 3 markers
+                        if (markers.length <= 3) {
+                          return const Size(
+                            0,
+                            0,
+                          ); // Return invalid size to prevent clustering
+                        }
+                        return const Size(40, 40);
+                      },
+                      builder: (context, markers) {
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: Colors.blue,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: Center(
+                            child: Text(
+                              markers.length.toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
+                // Live user location marker with custom unified stream
+                CurrentLocationLayer(
+                  positionStream: _locationMarkerStream,
+                  headingStream: _headingStream,
                 ),
-              // Live user location marker with custom unified stream
-              CurrentLocationLayer(
-                positionStream: _locationMarkerStream,
-                headingStream: _headingStream,
-              ),
-              // Nearby sites markers when drawer is open
-              if (_showCheckinDrawer && _userPosition != null)
-                MarkerLayer(
-                  markers: [
-                    // Nearest 3 sites
-                    ..._nearbySites.take(3).map((siteWithDist) {
-                      final site = siteWithDist.site;
-                      return Marker(
-                        point: LatLng(site.latitude, site.longitude),
-                        width: 32,
-                        height: 32,
-                        child: _MapMarker(
-                          site: site,
-                          firstDate: _firstDates[site.siteId],
-                        ),
-                      );
-                    }),
-                  ],
-                ),
-            ],
-          ),
-
-          // Removed full-screen loading overlay; map renders while sites load.
-
-          // Site count badge
-          if (!_isLoading)
-            Positioned(
-              top: 56,
-              right: 8,
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
+                // Nearby sites markers when drawer is open
+                if (_showCheckinDrawer && _userPosition != null)
+                  MarkerLayer(
+                    markers: [
+                      // Nearest 3 sites
+                      ..._nearbySites.take(3).map((siteWithDist) {
+                        final site = siteWithDist.site;
+                        return Marker(
+                          point: LatLng(site.latitude, site.longitude),
+                          width: 32,
+                          height: 32,
+                          child: _MapMarker(
+                            site: site,
+                            firstDate: _firstDates[site.siteId],
+                          ),
+                        );
+                      }),
+                    ],
                   ),
-                  child: Text('${_sites.length} sites'),
-                ),
-              ),
-            ),
-
-          // Filter chips at top
-          Positioned(
-            top: 8,
-            left: 8,
-            right: 8,
-            child: _buildFilterChips(theme),
-          ),
-
-          if (_needsSignIn)
-            Positioned(
-              top: 52,
-              left: 8,
-              right: 8,
-              child: Material(
-                elevation: 2,
-                borderRadius: BorderRadius.circular(8),
-                color: theme.colorScheme.errorContainer,
-                child: ListTile(
-                  dense: true,
-                  title: const Text(signInAgainMessage),
-                  trailing: TextButton(
-                    onPressed: _openSignIn,
-                    child: const Text('Sign in'),
-                  ),
-                ),
-              ),
-            ),
-
-          // Legend at bottom
-          Positioned(bottom: 16, left: 16, child: _buildLegend(theme)),
-
-          // Zoom controls for desktop (positioned above legend)
-          Positioned(
-            bottom: _showCheckinDrawer ? 240 : 80,
-            right: 16,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FloatingActionButton.small(
-                  heroTag: 'zoom_in',
-                  onPressed: () {
-                    final currentZoom = _mapController.camera.zoom;
-                    _mapController.move(
-                      _mapController.camera.center,
-                      currentZoom + 1,
-                    );
-                  },
-                  child: const Icon(Icons.add),
-                ),
-                const SizedBox(height: 4),
-                FloatingActionButton.small(
-                  heroTag: 'zoom_out',
-                  onPressed: () {
-                    final currentZoom = _mapController.camera.zoom;
-                    _mapController.move(
-                      _mapController.camera.center,
-                      currentZoom - 1,
-                    );
-                  },
-                  child: const Icon(Icons.remove),
-                ),
               ],
             ),
-          ),
 
-          // Checkin drawer at bottom
-          if (_showCheckinDrawer)
+            // Removed full-screen loading overlay; map renders while sites load.
+
+            // Site count badge
+            if (!_isLoading)
+              Positioned(
+                top: 56,
+                right: 8,
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    child: Text('${_sites.length} sites'),
+                  ),
+                ),
+              ),
+
+            // Filter chips at top
             Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 1),
-                  end: Offset.zero,
-                ).animate(_drawerAnimation),
-                child: _buildCheckinDrawer(theme),
+              top: 8,
+              left: 8,
+              right: 8,
+              child: _buildFilterChips(theme),
+            ),
+
+            if (_needsSignIn)
+              Positioned(
+                top: 52,
+                left: 8,
+                right: 8,
+                child: Material(
+                  elevation: 2,
+                  borderRadius: BorderRadius.circular(8),
+                  color: theme.colorScheme.errorContainer,
+                  child: ListTile(
+                    dense: true,
+                    title: const Text(signInAgainMessage),
+                    trailing: TextButton(
+                      onPressed: _openSignIn,
+                      child: const Text('Sign in'),
+                    ),
+                  ),
+                ),
+              ),
+
+            // Legend at bottom
+            Positioned(bottom: 16, left: 16, child: _buildLegend(theme)),
+
+            // Zoom controls for desktop (positioned above legend)
+            Positioned(
+              bottom: _showCheckinDrawer ? 240 : 80,
+              right: 16,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FloatingActionButton.small(
+                    heroTag: 'zoom_in',
+                    onPressed: () {
+                      final currentZoom = _mapController.camera.zoom;
+                      _mapController.move(
+                        _mapController.camera.center,
+                        currentZoom + 1,
+                      );
+                    },
+                    child: const Icon(Icons.add),
+                  ),
+                  const SizedBox(height: 4),
+                  FloatingActionButton.small(
+                    heroTag: 'zoom_out',
+                    onPressed: () {
+                      final currentZoom = _mapController.camera.zoom;
+                      _mapController.move(
+                        _mapController.camera.center,
+                        currentZoom - 1,
+                      );
+                    },
+                    child: const Icon(Icons.remove),
+                  ),
+                  const SizedBox(height: 12),
+                  FloatingActionButton.small(
+                    heroTag: 'recenter',
+                    onPressed: _isLocating ? null : _centerOnUser,
+                    tooltip: 'Center on my location',
+                    child: _isLocating
+                        ? RotationTransition(
+                            turns: _locationAnimController,
+                            child: const Icon(Icons.my_location),
+                          )
+                        : const Icon(Icons.my_location),
+                  ),
+                ],
               ),
             ),
-        ],
+
+            // Checkin drawer at bottom
+            if (_showCheckinDrawer)
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 1),
+                    end: Offset.zero,
+                  ).animate(_drawerAnimation),
+                  child: _buildCheckinDrawer(theme),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -560,7 +559,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             const SizedBox(height: 4),
             _legendItem(Icons.schedule, OkabeIto.yellow, 'First today'),
             const SizedBox(height: 4),
-            _legendItem(Icons.task_alt, OkabeIto.vermillion, 'First taken'),
+            _legendItem(Icons.circle, OkabeIto.vermillion, 'Open'),
             const SizedBox(height: 4),
             _legendItem(Icons.construction, OkabeIto.blue, 'Construction'),
             const SizedBox(height: 4),
@@ -982,10 +981,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           : 'No matching superchargers';
     }
     if (_userPosition == null) return 'Getting location...';
-    final radius = _checkinRadiusLabel;
-    return radius == null
-        ? 'No superchargers nearby'
-        : 'No superchargers within $radius';
+    final label = _emptyNearbyLabel;
+    return label == null ? 'No superchargers nearby' : 'No $label';
   }
 
   String _formatShortDate(DateTime d) =>
@@ -1158,7 +1155,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           ? '${(settings.checkinRadiusKm * 0.621371).round()} mi'
           : '${settings.checkinRadiusKm.round()} km';
       setState(() {
-        _checkinRadiusLabel = radius;
+        _emptyNearbyLabel = settings.includeVisitedNearby
+            ? 'superchargers within $radius'
+            : 'unvisited superchargers within $radius';
         _searchAll = false;
         _nearbySites = sites;
         _lastVisits = lastVisits;

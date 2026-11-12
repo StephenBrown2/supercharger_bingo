@@ -38,7 +38,9 @@ enum FirstState {
 /// Resolved marker appearance: a colour plus a redundant glyph and a label.
 class MarkerStyle {
   final Color color;
-  final IconData glyph;
+
+  /// Null draws a plain marker.
+  final IconData? glyph;
   final String label;
 
   const MarkerStyle(this.color, this.glyph, this.label);
@@ -141,11 +143,8 @@ MarkerStyle _baseStyle(SiteStatus status, FirstState firstState) {
           'First today',
         );
       case FirstState.passed:
-        return const MarkerStyle(
-          OkabeIto.vermillion,
-          Icons.task_alt,
-          'First taken',
-        );
+        // The common case, so it stays plain.
+        return const MarkerStyle(OkabeIto.vermillion, null, 'Open');
     }
   }
   switch (status) {
