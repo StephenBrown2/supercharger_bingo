@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'database/database.dart';
 import 'screens/app_shell.dart';
@@ -103,6 +103,11 @@ class _SuperchargerBingoAppState extends State<SuperchargerBingoApp> {
         theme: light,
         darkTheme: dark,
         themeMode: mode,
+        // flutter_map and its plugins still use the SDK's Material library.
+        // Remove once they move to material_ui.
+        builder: (context, child) =>
+            // ignore: deprecated_member_use
+            MaterialUiCompatibilityBridge(child: child!),
         home: AnimatedSwitcher(
           duration: const Duration(milliseconds: 400),
           switchInCurve: Curves.easeOut,

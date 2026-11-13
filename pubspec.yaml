@@ -50,9 +50,11 @@ dependencies:
   # Timezone handling
   timezone: ^0.11.2
 
-  # Wallpaper colors for the Material You appearance. 2.x requires
-  # material_ui, and this app still uses flutter/material.dart.
-  dynamic_color: ">=1.9.0 <2.0.0"
+  # Material widgets, unbundled from the Flutter SDK.
+  material_ui: ^1.11.0
+
+  # Wallpaper colors for the Material You appearance.
+  dynamic_color: ^2.1.0
   webview_win_floating: ^3.0.2
   lat_lng_to_timezone: ^0.2.0
 

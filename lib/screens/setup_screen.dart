@@ -3,7 +3,7 @@ import 'dart:ui' show PlatformDispatcher;
 
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../database/database.dart';

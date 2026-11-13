@@ -1,5 +1,5 @@
 import 'package:drift/drift.dart' show Value;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../database/database.dart';

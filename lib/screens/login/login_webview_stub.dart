@@ -1,7 +1,7 @@
 // Stub file - this shouldn't be imported directly
 // Used for conditional imports
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Stub widget builder - should never be called directly
 Widget buildPlatformWebView({

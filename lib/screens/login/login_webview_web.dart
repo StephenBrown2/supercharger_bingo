@@ -4,7 +4,7 @@
 import 'dart:html' as html;
 import 'dart:ui_web' as ui_web;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Whether this platform supports inline webview
 bool get supportsInlineWebView => true;
