@@ -4,6 +4,8 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show debugPrint;
+
 import '../database/database.dart';
 import 'sync_service.dart';
 
@@ -56,8 +58,7 @@ class DesktopBackgroundService {
       if (hook != null) await hook();
     } catch (e) {
       // Log error but don't crash
-      // In a real app, consider using a proper logging package
-      print('Desktop background sync error: $e');
+      debugPrint('Desktop background sync error: $e');
     }
   }
 

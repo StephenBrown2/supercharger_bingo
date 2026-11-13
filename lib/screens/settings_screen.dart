@@ -558,19 +558,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _handleLogout() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Log out'),
         content: const Text(
           'Are you sure you want to log out? Your local data will be kept.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () async {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               _settings?.isAuthenticated = false;
               _settings?.authProvider = null;
               await _saveSettings();
@@ -727,36 +727,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showUnitSystemPicker() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Distance Units'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RadioListTile<UnitSystem>(
-              title: const Text('Metric (kilometers)'),
-              value: UnitSystem.metric,
-              groupValue: _settings?.unitSystem,
-              onChanged: (value) {
-                setState(() {
-                  _settings?.unitSystem = value!;
-                });
-                Navigator.pop(context);
-                _saveSettings();
-              },
-            ),
-            RadioListTile<UnitSystem>(
-              title: const Text('Imperial (miles)'),
-              value: UnitSystem.imperial,
-              groupValue: _settings?.unitSystem,
-              onChanged: (value) {
-                setState(() {
-                  _settings?.unitSystem = value!;
-                });
-                Navigator.pop(context);
-                _saveSettings();
-              },
-            ),
-          ],
+        content: RadioGroup<UnitSystem>(
+          groupValue: _settings?.unitSystem,
+          onChanged: (value) {
+            if (value == null) return;
+            setState(() => _settings?.unitSystem = value);
+            Navigator.pop(dialogContext);
+            _saveSettings();
+          },
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioListTile<UnitSystem>(
+                title: Text('Metric (kilometers)'),
+                value: UnitSystem.metric,
+              ),
+              RadioListTile<UnitSystem>(
+                title: Text('Imperial (miles)'),
+                value: UnitSystem.imperial,
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -5,7 +5,6 @@ import 'package:material_ui/material_ui.dart';
 import '../database/database.dart';
 import '../services/api_service.dart';
 import '../services/database_service.dart';
-import '../services/life_auth.dart';
 import '../services/sync_service.dart';
 import 'life_login_page.dart';
 import 'login/login_webview.dart';

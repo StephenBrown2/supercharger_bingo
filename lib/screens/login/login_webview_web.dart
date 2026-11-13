@@ -1,10 +1,9 @@
 // Web implementation using HtmlElementView with iframe
-// ignore_for_file: avoid_web_libraries_in_flutter
 
-import 'dart:html' as html;
 import 'dart:ui_web' as ui_web;
 
 import 'package:material_ui/material_ui.dart';
+import 'package:web/web.dart' as web;
 
 /// Whether this platform supports inline webview
 bool get supportsInlineWebView => true;
@@ -46,7 +45,7 @@ class _WebIframeView extends StatefulWidget {
 
 class _WebIframeViewState extends State<_WebIframeView> {
   late final String _viewType;
-  html.IFrameElement? _iframe;
+  web.HTMLIFrameElement? _iframe;
   bool _isLoading = true;
 
   @override
@@ -59,7 +58,7 @@ class _WebIframeViewState extends State<_WebIframeView> {
   void _registerIframe() {
     // Register the iframe factory
     ui_web.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
-      _iframe = html.IFrameElement()
+      _iframe = web.HTMLIFrameElement()
         ..src = widget.initialUrl
         ..style.border = 'none'
         ..style.width = '100%'
@@ -89,19 +88,13 @@ class _WebIframeViewState extends State<_WebIframeView> {
     // or use a redirect-based OAuth flow.
 
     try {
-      final cookies = html.document.cookie ?? '';
+      final cookies = web.document.cookie;
       widget.onCookiesAvailable(cookies);
 
       // Try to get iframe URL (may fail due to CORS)
       try {
-        final location = _iframe?.contentWindow?.location;
-        if (location != null) {
-          // Cast to get href property
-          final href = (location as dynamic).href as String?;
-          if (href != null) {
-            widget.onUrlChanged(href);
-          }
-        }
+        final href = _iframe?.contentWindow?.location.href;
+        if (href != null) widget.onUrlChanged(href);
       } catch (_) {
         // Cross-origin - cannot access iframe location
         // This is expected for external sites

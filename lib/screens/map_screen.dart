@@ -808,7 +808,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           color: theme.colorScheme.surface,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.2),
+              color: Colors.black.withValues(alpha: 0.2),
               blurRadius: 10,
               offset: const Offset(0, -2),
             ),
@@ -824,7 +824,9 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: theme.colorScheme.onSurfaceVariant.withOpacity(0.4),
+                color: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.4,
+                ),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1087,9 +1089,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     try {
       // Try to use cached location first
       Position? position = LocationService.instance.cachedPosition;
-      if (position == null) {
-        position = await LocationService.instance.getCurrentPosition();
-      }
+      position ??= await LocationService.instance.getCurrentPosition();
 
       if (position == null) {
         setState(() {

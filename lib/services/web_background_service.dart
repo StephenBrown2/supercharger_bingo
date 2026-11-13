@@ -1,9 +1,9 @@
 // Background sync service for web platform
 // Uses Dart Timer for periodic sync (works on web)
-// ignore_for_file: avoid_web_libraries_in_flutter
 
 import 'dart:async';
-import 'dart:html' as html;
+
+import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../database/database.dart';
 import 'sync_service.dart';
@@ -54,7 +54,7 @@ class WebBackgroundService {
       if (hook != null) await hook();
     } catch (e) {
       // Log error but don't crash
-      html.window.console.warn('Web background sync error: $e');
+      debugPrint('Web background sync error: $e');
     }
   }
 
