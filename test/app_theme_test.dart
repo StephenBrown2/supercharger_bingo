@@ -42,4 +42,15 @@ void main() {
     );
     expect(fallback.colorScheme.primary, teslaRed);
   });
+
+  test('buttons opt into Material 3 Expressive', () {
+    for (final brightness in Brightness.values) {
+      final theme = buildAppTheme(brightness: brightness, materialYou: false);
+      expect(theme.iconButtonTheme.variant, StyleVariant.material3Expressive);
+      expect(
+        theme.elevatedButtonTheme.variant,
+        StyleVariant.material3Expressive,
+      );
+    }
+  });
 }

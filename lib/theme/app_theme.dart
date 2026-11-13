@@ -124,6 +124,13 @@ ThemeData buildAppTheme({
       side: BorderSide(color: scheme.outlineVariant),
     ),
     dividerTheme: DividerThemeData(color: scheme.outlineVariant),
+    // Material 3 Expressive, for the components material_ui supports so far.
+    elevatedButtonTheme: const ElevatedButtonThemeData(
+      variant: StyleVariant.material3Expressive,
+    ),
+    iconButtonTheme: const IconButtonThemeData(
+      variant: StyleVariant.material3Expressive,
+    ),
   );
 }
 
