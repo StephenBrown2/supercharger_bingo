@@ -1,7 +1,8 @@
 import 'package:drift/drift.dart' hide Column;
 import 'dart:io' show Platform;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:material_ui/material_ui.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -280,6 +281,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     trailing: const Icon(Icons.chevron_right),
                     onTap: _showThemePicker,
                   ),
+                  ListTile(
+                    leading: const Icon(Icons.straighten),
+                    title: const Text('Distance Units'),
+                    subtitle: Text(
+                      _settings?.unitSystem == UnitSystem.metric
+                          ? 'Metric (km) for all distances'
+                          : 'Imperial (miles) for all distances',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _showUnitSystemPicker,
+                  ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.bubble_chart),
+                    title: const Text('Cluster map markers'),
+                    subtitle: const Text('Group nearby sites when zoomed out'),
+                    value: _settings?.clusterMarkers ?? true,
+                    onChanged: (value) {
+                      setState(() => _settings?.clusterMarkers = value);
+                      _saveSettings();
+                    },
+                  ),
                   const Divider(),
 
                   // Notifications section
@@ -287,9 +309,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   SwitchListTile(
                     secondary: const Icon(Icons.notifications_active),
                     title: const Text('New Superchargers'),
-                    subtitle: const Text(
-                      'A site opening inside the notification radius',
-                    ),
+                    subtitle: const Text('Alert when a site opens nearby'),
                     value: _settings?.notifyNewSites ?? true,
                     onChanged: (value) {
                       setState(() => _settings?.notifyNewSites = value);
@@ -301,7 +321,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     secondary: const Icon(Icons.star),
                     title: const Text('First Countdown Started'),
                     subtitle: const Text(
-                      'Someone claimed a nearby First. Check in there before local midnight to share it',
+                      'Alert when a nearby First is claimed',
                     ),
                     value: _settings?.notifyFirstEligible ?? true,
                     onChanged: (value) {
@@ -310,19 +330,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       if (value) _ensureAlertPermissions();
                     },
                   ),
-                  if (!kIsWeb && Platform.isAndroid) ...[
+                  ListTile(
+                    leading: const Icon(Icons.radar),
+                    title: const Text('Notification Radius'),
+                    subtitle: Text(
+                      _settings?.unitSystem == UnitSystem.imperial
+                          ? 'Alerts within ${(_settings!.notificationRadiusKm * 0.621371).toStringAsFixed(0)} mi'
+                          : 'Alerts within ${_settings?.notificationRadiusKm.toStringAsFixed(0)} km',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _showRadiusPicker,
+                  ),
+                  if (_locationAccess != null)
+                    ListTile(
+                      leading: const Icon(Icons.my_location),
+                      title: const Text('Location for alerts'),
+                      subtitle: Text(
+                        _locationAccess == LocationPermission.always
+                            ? 'All the time, even with the app closed'
+                            : 'Only while the app is open. Tap to change',
+                      ),
+                      onTap: _locationAccess == LocationPermission.always
+                          ? null
+                          : _ensureAlertPermissions,
+                    ),
+                  if (!kIsWeb &&
+                      defaultTargetPlatform == TargetPlatform.android) ...[
                     SwitchListTile(
                       secondary: const Icon(Icons.near_me),
                       title: const Text('Nearest Unvisited Site'),
-                      subtitle: const Text(
-                        'A live notification with the distance to the closest unvisited site while the app runs',
-                      ),
+                      subtitle: const Text('Live distance while the app runs'),
                       value: _settings?.nearestSiteLiveUpdate ?? false,
                       onChanged: _setNearestSiteLiveUpdate,
                     ),
                     SwitchListTile(
                       secondary: const Icon(Icons.construction),
                       title: const Text('Include Sites Under Construction'),
+                      subtitle: const Text('Count sites that are not open yet'),
                       value: _settings?.nearestSiteIncludeConstruction ?? false,
                       onChanged: _settings?.nearestSiteLiveUpdate == true
                           ? (value) {
@@ -336,73 +380,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           : null,
                     ),
                   ],
-                  if (_locationAccess != null)
-                    ListTile(
-                      leading: const Icon(Icons.my_location),
-                      title: const Text('Location for alerts'),
-                      subtitle: Text(
-                        _locationAccess == LocationPermission.always
-                            ? 'All the time'
-                            : 'Only while the app is open. Tap to allow all the time',
-                      ),
-                      onTap: _locationAccess == LocationPermission.always
-                          ? null
-                          : _ensureAlertPermissions,
-                    ),
-                  ListTile(
-                    leading: const Icon(Icons.notification_add_outlined),
-                    title: const Text('Send test notification'),
-                    onTap: _sendTestNotification,
-                  ),
-                  const Divider(),
-
-                  // Polling section
-                  _buildSectionHeader(theme, 'Background Sync'),
-                  ListTile(
-                    leading: const Icon(Icons.sync),
-                    title: const Text('Polling Interval'),
-                    subtitle: Text(
-                      pollingIntervalLabel(
-                        _settings?.pollingInterval ?? PollingInterval.hours24,
-                      ),
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: _showPollingIntervalPicker,
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.radar),
-                    title: const Text('Notification Radius'),
-                    subtitle: Text(
-                      _settings?.unitSystem == UnitSystem.imperial
-                          ? '${(_settings!.notificationRadiusKm * 0.621371).toStringAsFixed(0)} mi'
-                          : '${_settings?.notificationRadiusKm.toStringAsFixed(0)} km',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: _showRadiusPicker,
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.straighten),
-                    title: const Text('Distance Units'),
-                    subtitle: Text(
-                      _settings?.unitSystem == UnitSystem.metric
-                          ? 'Metric (km)'
-                          : 'Imperial (miles)',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: _showUnitSystemPicker,
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: Text(
-                      'Note: iOS may limit background refresh to once per day due to system restrictions.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.outline,
-                      ),
-                    ),
-                  ),
                   const Divider(),
 
                   _buildSectionHeader(theme, 'Check-in'),
@@ -411,8 +388,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: const Text('Check-in Search Radius'),
                     subtitle: Text(
                       _settings?.unitSystem == UnitSystem.imperial
-                          ? '${(_settings!.checkinRadiusKm * 0.621371).toStringAsFixed(0)} mi'
-                          : '${_settings?.checkinRadiusKm.toStringAsFixed(0)} km',
+                          ? 'Sites within ${(_settings!.checkinRadiusKm * 0.621371).toStringAsFixed(0)} mi'
+                          : 'Sites within ${_settings?.checkinRadiusKm.toStringAsFixed(0)} km',
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: _showCheckinRadiusPicker,
@@ -421,7 +398,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     secondary: const Icon(Icons.history),
                     title: const Text('Include visited sites'),
                     subtitle: const Text(
-                      'Show them in the nearby check-in list, with the last visit date',
+                      'Show them with their last visit date',
                     ),
                     value: _settings?.includeVisitedNearby ?? false,
                     onChanged: (value) {
@@ -434,9 +411,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: const Text(
                       'Include vehicle details in the private note',
                     ),
-                    subtitle: const Text(
-                      'Adds year, make, model, and trim when you check in with a vehicle. The VIN is never included.',
-                    ),
+                    subtitle: const Text('Year, make, model, and trim. No VIN'),
                     value: _settings?.includeVehicleInPrivateNote ?? false,
                     onChanged: (value) {
                       setState(
@@ -452,7 +427,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ListTile(
                     leading: const Icon(Icons.directions_car),
                     title: const Text('Vehicles'),
-                    subtitle: const Text('Manage your vehicles (local only)'),
+                    subtitle: const Text('Cars for check-ins, stored locally'),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const VehiclesScreen()),
@@ -462,56 +437,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                   // Advanced section
                   _buildSectionHeader(theme, 'Advanced'),
-                  SwitchListTile(
-                    secondary: const Icon(Icons.bubble_chart),
-                    title: const Text('Cluster map markers'),
-                    subtitle: const Text('Group nearby sites when zoomed out'),
-                    value: _settings?.clusterMarkers ?? true,
-                    onChanged: (value) {
-                      setState(() => _settings?.clusterMarkers = value);
-                      _saveSettings();
-                    },
+                  ListTile(
+                    leading: const Icon(Icons.sync),
+                    title: const Text('Background Polling Interval'),
+                    subtitle: Text(
+                      'Check for alerts every ${pollingIntervalLabel(_settings?.pollingInterval ?? PollingInterval.hours24)}${defaultTargetPlatform == TargetPlatform.iOS ? '. iOS may limit this to daily' : ''}',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _showPollingIntervalPicker,
                   ),
                   ListTile(
                     leading: const Icon(Icons.history),
                     title: const Text('Sync Visit History'),
-                    subtitle: _settings?.lastXlsxSyncAt != null
-                        ? Text(
-                            'Last synced: ${_formatDate(_settings!.lastXlsxSyncAt!)}',
-                          )
-                        : const Text('Import visits from supercharging.life'),
+                    subtitle: Text(
+                      _settings?.lastXlsxSyncAt != null
+                          ? 'Last imported ${_formatDate(_settings!.lastXlsxSyncAt!)}'
+                          : 'Import visits from supercharging.life',
+                    ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: _handleSyncHistory,
                   ),
                   ListTile(
                     leading: const Icon(Icons.delete_forever),
                     title: const Text('Clear Local Data'),
-                    subtitle: const Text('Remove all cached data'),
+                    subtitle: const Text('Remove cached sites and visits'),
                     onTap: _handleClearData,
-                  ),
-                  const Divider(),
-
-                  // About section
-                  _buildSectionHeader(theme, 'About'),
-                  ListTile(
-                    leading: const Icon(Icons.info),
-                    title: const Text('Supercharger Bingo'),
-                    subtitle: const Text('Version 1.0.0'),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.code),
-                    title: const Text('Open Source Licenses'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => showLicensePage(context: context),
                   ),
                   const Divider(),
 
                   // Debug section
                   _buildSectionHeader(theme, 'Debug'),
                   ListTile(
+                    leading: const Icon(Icons.notification_add_outlined),
+                    title: const Text('Send test notification'),
+                    subtitle: const Text('Check that alerts reach this device'),
+                    onTap: _sendTestNotification,
+                  ),
+                  ListTile(
                     leading: const Icon(Icons.cloud_download),
                     title: const Text('Force Sync Sites'),
-                    subtitle: Text('${_siteCount ?? 0} sites in database'),
+                    subtitle: Text(
+                      'Download sites again. ${_siteCount ?? 0} stored',
+                    ),
                     trailing: _isSyncingSites
                         ? const SizedBox(
                             width: 20,
@@ -524,9 +491,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ListTile(
                     leading: const Icon(Icons.people),
                     title: const Text('Sync Check-in Counts'),
-                    subtitle: const Text(
-                      'Update which sites have been visited',
-                    ),
+                    subtitle: const Text('Refresh which sites anyone visited'),
                     trailing: _isSyncingSites
                         ? const SizedBox(
                             width: 20,
@@ -541,8 +506,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: const Text('Re-sync User Data'),
                     subtitle: Text(
                       _settings?.username != null
-                          ? 'Sync visits for ${_settings!.username}'
-                          : 'No username set',
+                          ? 'Download your visits again'
+                          : 'Needs a username',
                     ),
                     trailing: _isSyncingSites
                         ? const SizedBox(
@@ -558,8 +523,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ListTile(
                     leading: const Icon(Icons.delete_sweep),
                     title: const Text('Reset Database'),
-                    subtitle: const Text('Clear all data and re-sync'),
+                    subtitle: const Text(
+                      'Delete everything, then download sites',
+                    ),
                     onTap: _handleResetDatabase,
+                  ),
+                  const Divider(),
+
+                  // About section
+                  _buildSectionHeader(theme, 'About'),
+                  ListTile(
+                    leading: const Icon(Icons.info),
+                    title: const Text('Supercharger Bingo'),
+                    subtitle: const Text('Version 1.0.0'),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.code),
+                    title: const Text('Open Source Licenses'),
+                    subtitle: const Text('Credits for open source code'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => showLicensePage(context: context),
                   ),
                   const SizedBox(height: 32),
                 ],
@@ -599,7 +582,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return label == null ? 'Signed in' : 'Signed in with $label';
     }
     if (label != null) {
-      return '$label on this device. Check-ins stay here until they sync.';
+      return '$label. Check-ins wait here to sync';
     }
     return 'Tap to log in';
   }
@@ -664,7 +647,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Polling Interval'),
+        title: const Text('Background Polling Interval'),
         content: StatefulBuilder(
           builder: (context, setDialogState) {
             return Column(

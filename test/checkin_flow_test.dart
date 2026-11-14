@@ -640,7 +640,12 @@ void main() {
 
     Future<void> tapTile(String label) async {
       final tile = find.text(label);
+      // Start from the top so the steps need not follow page order.
+      await tester.drag(find.byType(ListView), const Offset(0, 100000));
+      await tester.pumpAndSettle();
       await tester.scrollUntilVisible(tile, 200);
+      await tester.ensureVisible(tile);
+      await tester.pumpAndSettle();
       await tester.tap(tile);
       await tester.pumpAndSettle();
     }
@@ -682,14 +687,14 @@ void main() {
     await tapTile('First Countdown Started');
     expect((await db.getUserSettings()).notifyFirstEligible, isTrue);
 
-    await tapTile('Polling Interval');
+    await tapTile('Background Polling Interval');
     await tester.tap(find.text('15 minutes'));
     await tester.pumpAndSettle();
     expect(
       (await db.getUserSettings()).pollingInterval,
       PollingInterval.minutes15,
     );
-    await tapTile('Polling Interval');
+    await tapTile('Background Polling Interval');
     await tester.tap(find.text('24 hours'));
     await tester.pumpAndSettle();
     expect(
