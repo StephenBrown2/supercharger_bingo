@@ -345,14 +345,14 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 ),
                 // Site markers with clustering
                 if (!_isLoading && !_clusterMarkers)
-                  MarkerLayer(markers: _buildMarkers()),
+                  MarkerLayer(markers: _buildMarkers(null)),
                 if (!_isLoading && _clusterMarkers)
                   MarkerClusterLayerWidget(
                     options: MarkerClusterLayerOptions(
                       maxClusterRadius: 80,
                       size: const Size.square(30),
                       disableClusteringAtZoom: 10,
-                      markers: _buildMarkers(),
+                      markers: _buildMarkers(null),
                       builder: (context, markers) {
                         return Container(
                           decoration: BoxDecoration(
@@ -401,6 +401,13 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                       }),
                     ],
                   ),
+                // Draw in reverse legend order so higher priorities stay on top.
+                if (!_isLoading)
+                  MarkerLayer(markers: _buildMarkers(FirstState.passed)),
+                if (!_isLoading)
+                  MarkerLayer(markers: _buildMarkers(FirstState.upForGrabs)),
+                if (!_isLoading)
+                  MarkerLayer(markers: _buildMarkers(FirstState.today)),
               ],
             ),
 
@@ -583,13 +590,13 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _legendItem(SiteStatus.open, FirstState.today, 'First today'),
+            const SizedBox(height: 4),
             _legendItem(
               SiteStatus.open,
               FirstState.upForGrabs,
               'First up for grabs',
             ),
-            const SizedBox(height: 4),
-            _legendItem(SiteStatus.open, FirstState.today, 'First today'),
             const SizedBox(height: 4),
             _legendItem(SiteStatus.open, FirstState.passed, 'Open'),
             const SizedBox(height: 4),
@@ -645,18 +652,35 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     );
   }
 
-  List<Marker> _buildMarkers() {
-    return _sites.map((site) {
-      return Marker(
-        point: LatLng(site.latitude, site.longitude),
-        width: 24,
-        height: 24,
-        child: GestureDetector(
-          onTap: () => _showSiteInfo(site),
-          child: _MapMarker(site: site, firstDate: _firstDates[site.siteId]),
-        ),
-      );
-    }).toList();
+  List<Marker> _buildMarkers(FirstState? firstState) {
+    return _sites
+        .where((site) {
+          final state = isOperational(site.status) && !site.visited
+              ? computeFirstState(
+                  firstDate: _firstDates[site.siteId],
+                  siteLocalNow: TimezoneService.instance.getLocalTimeAtSite(
+                    site,
+                  ),
+                )
+              : null;
+          return state == firstState;
+        })
+        .map((site) {
+          return Marker(
+            key: ValueKey(site.siteId),
+            point: LatLng(site.latitude, site.longitude),
+            width: 24,
+            height: 24,
+            child: GestureDetector(
+              onTap: () => _showSiteInfo(site),
+              child: _MapMarker(
+                site: site,
+                firstDate: _firstDates[site.siteId],
+              ),
+            ),
+          );
+        })
+        .toList();
   }
 
   // Set by showSite, so the startup location fix does not pull the camera
