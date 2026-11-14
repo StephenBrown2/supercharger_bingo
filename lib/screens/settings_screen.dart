@@ -10,6 +10,7 @@ import '../services/api_service.dart';
 import '../services/database_service.dart';
 import '../services/life_auth.dart';
 import '../services/location_service.dart';
+import '../services/nearest_site_service.dart';
 import '../services/notification_service.dart';
 import '../services/sync_service.dart';
 import '../theme/app_theme.dart';
@@ -33,6 +34,8 @@ class MutableSettings {
   AppAppearance appAppearance;
   bool notifyNewSites;
   bool notifyFirstEligible;
+  bool nearestSiteLiveUpdate;
+  bool nearestSiteIncludeConstruction;
   AuthProvider? authProvider;
   DateTime? lastSitesSyncAt;
   DateTime? lastCheckinHistorySyncAt;
@@ -54,6 +57,8 @@ class MutableSettings {
     this.appAppearance = AppAppearance.system,
     this.notifyNewSites = true,
     this.notifyFirstEligible = true,
+    this.nearestSiteLiveUpdate = false,
+    this.nearestSiteIncludeConstruction = false,
     this.authProvider,
     this.lastSitesSyncAt,
     this.lastCheckinHistorySyncAt,
@@ -77,6 +82,8 @@ class MutableSettings {
       appAppearance: data.appAppearance,
       notifyNewSites: data.notifyNewSites,
       notifyFirstEligible: data.notifyFirstEligible,
+      nearestSiteLiveUpdate: data.nearestSiteLiveUpdate,
+      nearestSiteIncludeConstruction: data.nearestSiteIncludeConstruction,
       authProvider: data.authProvider,
       lastSitesSyncAt: data.lastSitesSyncAt,
       lastCheckinHistorySyncAt: data.lastCheckinHistorySyncAt,
@@ -101,6 +108,8 @@ class MutableSettings {
       appAppearance: Value(appAppearance),
       notifyNewSites: Value(notifyNewSites),
       notifyFirstEligible: Value(notifyFirstEligible),
+      nearestSiteLiveUpdate: Value(nearestSiteLiveUpdate),
+      nearestSiteIncludeConstruction: Value(nearestSiteIncludeConstruction),
       authProvider: Value(authProvider),
     );
   }
@@ -184,6 +193,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) setState(() => _locationAccess = access);
   }
 
+  /// The live notification needs notifications and location while in use.
+  Future<void> _setNearestSiteLiveUpdate(bool value) async {
+    if (value) {
+      final notifications = await NotificationService.instance
+          .requestPermissions();
+      final location = await LocationService.instance.checkPermission();
+      if (!mounted) return;
+      if (!notifications || !location) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Allow notifications and location to show the nearest site',
+            ),
+          ),
+        );
+        return;
+      }
+    }
+    setState(() => _settings?.nearestSiteLiveUpdate = value);
+    await _saveSettings();
+  }
+
   Future<void> _loadSettings() async {
     final settings = await DatabaseService.getUserSettings();
     setState(() {
@@ -202,6 +233,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveSettings() async {
     if (_settings != null) {
       await DatabaseService.updateUserSettings(_settings!.toCompanion());
+      await NearestSiteService.instance.sync(
+        await DatabaseService.getUserSettings(),
+      );
     }
   }
 
@@ -276,6 +310,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       if (value) _ensureAlertPermissions();
                     },
                   ),
+                  if (!kIsWeb && Platform.isAndroid) ...[
+                    SwitchListTile(
+                      secondary: const Icon(Icons.near_me),
+                      title: const Text('Nearest Unvisited Site'),
+                      subtitle: const Text(
+                        'A live notification with the distance to the closest unvisited site while the app runs',
+                      ),
+                      value: _settings?.nearestSiteLiveUpdate ?? false,
+                      onChanged: _setNearestSiteLiveUpdate,
+                    ),
+                    SwitchListTile(
+                      secondary: const Icon(Icons.construction),
+                      title: const Text('Include Sites Under Construction'),
+                      value: _settings?.nearestSiteIncludeConstruction ?? false,
+                      onChanged: _settings?.nearestSiteLiveUpdate == true
+                          ? (value) {
+                              setState(
+                                () =>
+                                    _settings?.nearestSiteIncludeConstruction =
+                                        value,
+                              );
+                              _saveSettings();
+                            }
+                          : null,
+                    ),
+                  ],
                   if (_locationAccess != null)
                     ListTile(
                       leading: const Icon(Icons.my_location),

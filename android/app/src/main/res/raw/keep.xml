@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The notification icon is looked up by name, so keep it in shrunk builds. -->
+<!-- Notification icons are looked up by name, so keep them in shrunk builds. -->
 <resources xmlns:tools="http://schemas.android.com/tools"
-    tools:keep="@drawable/ic_stat_bolt" />
+    tools:keep="@drawable/ic_stat_bolt,@drawable/ic_stat_compass_*" />

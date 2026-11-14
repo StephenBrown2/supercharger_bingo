@@ -7,6 +7,7 @@ import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/setup_screen.dart';
 import 'services/database_service.dart';
+import 'services/nearest_site_service.dart';
 import 'services/notification_service.dart';
 import 'services/sync_service.dart';
 import 'services/timezone_service.dart';
@@ -85,6 +86,7 @@ class _SuperchargerBingoAppState extends State<SuperchargerBingoApp> {
       // Android 13+ and iOS drop alerts until the user allows them.
       await NotificationService.instance.requestPermissions();
       await NotificationService.instance.scheduleBackgroundSync(settings);
+      await NearestSiteService.instance.sync(settings);
     }
   }
 

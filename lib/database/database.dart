@@ -290,6 +290,13 @@ class UserSettingsTable extends Table {
   BoolColumn get notifyFirstEligible =>
       boolean().withDefault(const Constant(true))();
 
+  /// Android: an ongoing Live Update with the distance to the nearest
+  /// unvisited site while the app runs. Construction sites are opt-in.
+  BoolColumn get nearestSiteLiveUpdate =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get nearestSiteIncludeConstruction =>
+      boolean().withDefault(const Constant(false))();
+
   /// Highest allChanges id already considered for a new-site alert.
   /// Null until the first poll, which records the cursor and does not alert.
   IntColumn get lastNotifiedChangeId => integer().nullable()();
@@ -337,7 +344,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 17;
 
   @override
   MigrationStrategy get migration {
@@ -532,6 +539,26 @@ class AppDatabase extends _$AppDatabase {
             userSettingsTable.clusterMarkers,
           );
         }
+        if (from < 17 && to >= 17) {
+          if (!await _columnExists(
+            'user_settings',
+            'nearest_site_live_update',
+          )) {
+            await m.addColumn(
+              userSettingsTable,
+              userSettingsTable.nearestSiteLiveUpdate,
+            );
+          }
+          if (!await _columnExists(
+            'user_settings',
+            'nearest_site_include_construction',
+          )) {
+            await m.addColumn(
+              userSettingsTable,
+              userSettingsTable.nearestSiteIncludeConstruction,
+            );
+          }
+        }
       },
     );
   }
@@ -619,6 +646,18 @@ class AppDatabase extends _$AppDatabase {
 
   Future<List<Site>> getVisitedSites() {
     return (select(sites)..where((t) => t.visited.equals(true))).get();
+  }
+
+  /// Unvisited OPEN sites, plus CONSTRUCTION when asked. Re-emits whenever
+  /// the sites table changes, such as after a check-in.
+  Stream<List<Site>> watchUnvisitedSites({required bool includeConstruction}) {
+    final statuses = [
+      SiteStatus.open.name,
+      if (includeConstruction) SiteStatus.construction.name,
+    ];
+    return (select(
+      sites,
+    )..where((t) => t.status.isIn(statuses) & t.visited.equals(false))).watch();
   }
 
   /// Unvisited OPEN sites that supercharging.life shows as NACS.
