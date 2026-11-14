@@ -208,4 +208,11 @@ void main() {
     expect(formatTimeLeft(const Duration(hours: 5, minutes: 12)), '5h 12m');
     expect(formatTimeLeft(const Duration(hours: 23, minutes: 59)), '23h 59m');
   });
+
+  test('joinNames', () {
+    expect(joinNames([]), '');
+    expect(joinNames(['gbrgbr']), 'gbrgbr');
+    expect(joinNames(['A', 'B']), 'A and B');
+    expect(joinNames(['A', 'B', 'C']), 'A, B and C');
+  });
 }

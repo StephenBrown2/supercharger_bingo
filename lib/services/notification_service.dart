@@ -350,35 +350,45 @@ class NotificationService {
     await showNewSuperchargerNotification(site, distance, units);
   }
 
-  /// On app start: alert for new First windows, and quietly put back any
-  /// still-open ones that an app update or a reboot removed. Android clears
-  /// an app's notifications on both, and the daily dedupe would otherwise
-  /// keep them gone.
+  /// On app start: alert for new First windows, quietly repost open ones
+  /// (Android clears notifications on an app update or a reboot, and the
+  /// daily dedupe would keep them gone), and remove ones no longer open.
   Future<void> checkFirstWindowsOnStartup() async {
     if (kIsWeb) return;
     final settings = await DatabaseService.getUserSettings();
     final lat = settings.lastLatitude;
     final lng = settings.lastLongitude;
     if (lat == null || lng == null || !settings.notifyFirstEligible) return;
-    final active = await _notifications.getActiveNotifications();
-    await _notifyFirstWindow(
+    final open = await _notifyFirstWindow(
       lat,
       lng,
       settings.notificationRadiusKm,
       settings.unitSystem,
-      showing: {for (final n in active) ?n.id},
+      repost: true,
     );
+    // Drop alerts whose window closed or no longer applies, such as a site
+    // the user has since visited.
+    for (final n in await _notifications.getActiveNotifications()) {
+      final id = n.id;
+      if (n.channelId == firstEligibleChannelId &&
+          id != null &&
+          !open.contains(id)) {
+        await _notifications.cancel(id: id);
+      }
+    }
   }
 
-  /// [showing] holds the ids on screen. When given, a window already
-  /// alerted today that is not on screen is reposted without sound.
-  Future<void> _notifyFirstWindow(
+  /// Alerts for open First windows and returns their notification ids.
+  /// With [repost], a window already alerted today is posted again without
+  /// sound, which restores it or refreshes its text.
+  Future<Set<int>> _notifyFirstWindow(
     double lat,
     double lng,
     double radiusKm,
     UnitSystem units, {
-    Set<int>? showing,
+    bool repost = false,
   }) async {
+    final open = <int>{};
     final openSites = await DatabaseService.getSites(status: SiteStatus.open);
     final nearby = <Site>[];
     final distances = <int, double>{};
@@ -405,6 +415,7 @@ class NotificationService {
       )) {
         continue;
       }
+      open.add(_firstNotificationId(site));
       final day =
           '${localNow.year.toString().padLeft(4, '0')}-'
           '${localNow.month.toString().padLeft(2, '0')}-'
@@ -417,8 +428,7 @@ class NotificationService {
       final distance = distances[site.siteId]!;
       if (claimed) {
         await showFirstEligibleNotification(site, distance, units);
-      } else if (showing != null &&
-          !showing.contains(_firstNotificationId(site))) {
+      } else if (repost) {
         await showFirstEligibleNotification(
           site,
           distance,
@@ -427,6 +437,7 @@ class NotificationService {
         );
       }
     }
+    return open;
   }
 
   /// Show notification for new supercharger
@@ -494,11 +505,13 @@ class NotificationService {
     // Site on the first line, since collapsed Android shows only that line.
     // Android has a live countdown in the header, so only iOS needs the
     // time left in the text.
+    final names = await DatabaseService.getFirstCheckinNames(site.siteId);
+    final shareWith = names.isEmpty ? '' : ' with ${joinNames(names)}';
     final body =
         '${site.name}\n'
         '${formatDistance(distanceKm, units)} away\n'
         '${Platform.isAndroid ? 'Check in' : '${formatTimeLeft(left)} left to check in'} '
-        'to share the First';
+        'to share the First$shareWith';
     await _notifications.show(
       id: _firstNotificationId(site),
       title: 'First Countdown Started',

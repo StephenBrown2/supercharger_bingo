@@ -687,6 +687,9 @@ class AppDatabase extends _$AppDatabase {
       ])
       ..addColumns([siteCheckins.siteId, minDate])
       ..where(siteCheckins.siteId.isIn(siteIds))
+      // The feed also lists each user's first visit to a site. Only rows
+      // marked as the site's First date it.
+      ..where(siteCheckins.isFirstAtSupercharger.equals(true))
       ..where(
         sites.dateOpened.isNull() |
             siteCheckins.checkinDate.isBiggerOrEqual(sites.dateOpened),
@@ -919,6 +922,30 @@ class AppDatabase extends _$AppDatabase {
           ..orderBy([(t) => OrderingTerm.desc(t.checkinTime)])
           ..limit(limit))
         .get();
+  }
+
+  /// Who took the First at [siteId]: everyone marked First on the first
+  /// such day, in check-in order. A First can be shared, so there may be
+  /// several. Empty when the First has aged out of the history feed.
+  Future<List<String>> getFirstCheckinNames(int siteId) async {
+    final rows =
+        await (select(siteCheckins)
+              ..where(
+                (t) =>
+                    t.siteId.equals(siteId) &
+                    t.isFirstAtSupercharger.equals(true),
+              )
+              ..orderBy([
+                (t) => OrderingTerm.asc(t.checkinDate),
+                (t) => OrderingTerm.asc(t.checkinTime),
+              ]))
+            .get();
+    if (rows.isEmpty) return const [];
+    final day = rows.first.checkinDate;
+    return [
+      for (final row in rows)
+        if (row.checkinDate == day) row.displayName ?? row.username,
+    ];
   }
 
   Future<DateTime?> getLastPublicCheckinDate(int siteId) async {

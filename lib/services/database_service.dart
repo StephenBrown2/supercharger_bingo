@@ -117,6 +117,10 @@ class DatabaseService {
     return db.getAllSites();
   }
 
+  /// Who took the First at a site, for the First Countdown alert.
+  static Future<List<String>> getFirstCheckinNames(int siteId) =>
+      db.getFirstCheckinNames(siteId);
+
   /// Earliest community check-in date per site, used to derive First state.
   static Future<Map<int, DateTime>> getEarliestCheckinDates(
     List<int> siteIds,

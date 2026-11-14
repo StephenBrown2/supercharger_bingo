@@ -66,3 +66,10 @@ String formatTimeLeft(Duration left) {
   if (hours == 0) return '${minutes}m';
   return '${hours}h ${minutes}m';
 }
+
+/// "A", "A and B", or "A, B and C".
+String joinNames(List<String> names) => switch (names.length) {
+  0 => '',
+  1 => names.single,
+  _ => '${names.sublist(0, names.length - 1).join(', ')} and ${names.last}',
+};

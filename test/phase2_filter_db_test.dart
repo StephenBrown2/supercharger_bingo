@@ -45,6 +45,7 @@ void main() {
           username: 'a',
           checkinDate: DateTime(2026, 5, 2),
           checkinTime: DateTime(2026, 5, 2, 12),
+          isFirstAtSupercharger: const Value(true),
           syncedAt: DateTime.now(),
         ),
         SiteCheckinsCompanion.insert(
@@ -54,6 +55,7 @@ void main() {
           username: 'b',
           checkinDate: DateTime(2026, 5, 1),
           checkinTime: DateTime(2026, 5, 1, 9),
+          isFirstAtSupercharger: const Value(true),
           syncedAt: DateTime.now(),
         ),
       ]);
@@ -120,6 +122,7 @@ void main() {
             username: 'a',
             checkinDate: DateTime(2026, 5, day),
             checkinTime: DateTime(2026, 5, day, 12),
+            isFirstAtSupercharger: const Value(true),
             syncedAt: DateTime.now(),
           ),
         ]);
@@ -161,6 +164,38 @@ void main() {
       final all = await db.getSiteCheckins(9928);
       expect(all, hasLength(1));
       expect(all.first.isFirstAtSupercharger, isTrue);
+    },
+  );
+
+  test(
+    'a repeat visitor is not the First, and a shared First lists everyone',
+    () async {
+      SiteCheckinsCompanion row(int id, String name, int day, bool first) =>
+          SiteCheckinsCompanion.insert(
+            checkinId: id,
+            siteId: 20,
+            odUserId: id,
+            username: name,
+            checkinDate: DateTime(2026, 11, day),
+            checkinTime: DateTime(2026, 11, day, 9 + id),
+            isFirstAtSupercharger: Value(first),
+            syncedAt: DateTime.now(),
+          );
+      await seedSite(20);
+      // Someone's first visit today, at a site whose First was earlier.
+      await db.upsertSiteCheckins([row(1, 'smithg13', 14, false)]);
+      expect(await db.getEarliestCheckinDates([20]), isEmpty);
+      expect(await db.getFirstCheckinNames(20), isEmpty);
+
+      await db.upsertSiteCheckins([
+        row(2, 'Bighorn', 11, true),
+        row(3, 'theflyer', 11, true),
+        row(4, 'late', 12, true),
+      ]);
+      expect(await db.getEarliestCheckinDates([20]), {
+        20: DateTime(2026, 11, 11),
+      });
+      expect(await db.getFirstCheckinNames(20), ['Bighorn', 'theflyer']);
     },
   );
 }
