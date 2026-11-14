@@ -87,6 +87,7 @@ class _SuperchargerBingoAppState extends State<SuperchargerBingoApp> {
       await NotificationService.instance.requestPermissions();
       await NotificationService.instance.scheduleBackgroundSync(settings);
       await NearestSiteService.instance.sync(settings);
+      await NotificationService.instance.checkFirstWindowsOnStartup();
     }
   }
 

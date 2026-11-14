@@ -350,12 +350,35 @@ class NotificationService {
     await showNewSuperchargerNotification(site, distance, units);
   }
 
+  /// On app start: alert for new First windows, and quietly put back any
+  /// still-open ones that an app update or a reboot removed. Android clears
+  /// an app's notifications on both, and the daily dedupe would otherwise
+  /// keep them gone.
+  Future<void> checkFirstWindowsOnStartup() async {
+    if (kIsWeb) return;
+    final settings = await DatabaseService.getUserSettings();
+    final lat = settings.lastLatitude;
+    final lng = settings.lastLongitude;
+    if (lat == null || lng == null || !settings.notifyFirstEligible) return;
+    final active = await _notifications.getActiveNotifications();
+    await _notifyFirstWindow(
+      lat,
+      lng,
+      settings.notificationRadiusKm,
+      settings.unitSystem,
+      showing: {for (final n in active) ?n.id},
+    );
+  }
+
+  /// [showing] holds the ids on screen. When given, a window already
+  /// alerted today that is not on screen is reposted without sound.
   Future<void> _notifyFirstWindow(
     double lat,
     double lng,
     double radiusKm,
-    UnitSystem units,
-  ) async {
+    UnitSystem units, {
+    Set<int>? showing,
+  }) async {
     final openSites = await DatabaseService.getSites(status: SiteStatus.open);
     final nearby = <Site>[];
     final distances = <int, double>{};
@@ -391,8 +414,18 @@ class NotificationService {
         channel: firstEligibleChannelId,
         dedupeKey: day,
       );
-      if (!claimed) continue;
-      await showFirstEligibleNotification(site, distances[site.siteId]!, units);
+      final distance = distances[site.siteId]!;
+      if (claimed) {
+        await showFirstEligibleNotification(site, distance, units);
+      } else if (showing != null &&
+          !showing.contains(_firstNotificationId(site))) {
+        await showFirstEligibleNotification(
+          site,
+          distance,
+          units,
+          silent: true,
+        );
+      }
     }
   }
 
@@ -445,21 +478,31 @@ class NotificationService {
     );
   }
 
+  /// Offset from the site id so it never collides with a new-site alert.
+  int _firstNotificationId(Site site) => site.siteId + 100000;
+
   /// Someone claimed the First nearby and the share window is open
   Future<void> showFirstEligibleNotification(
     Site site,
     double distanceKm,
-    UnitSystem units,
-  ) async {
+    UnitSystem units, {
+    bool silent = false,
+  }) async {
     final midnight = TimezoneService.instance.getNextMidnightAtSite(site);
     final left = midnight.difference(DateTime.now());
     if (left <= Duration.zero) return;
+    // Site on the first line, since collapsed Android shows only that line.
+    // Android has a live countdown in the header, so only iOS needs the
+    // time left in the text.
+    final body =
+        '${site.name}\n'
+        '${formatDistance(distanceKm, units)} away\n'
+        '${Platform.isAndroid ? 'Check in' : '${formatTimeLeft(left)} left to check in'} '
+        'to share the First';
     await _notifications.show(
-      id: site.siteId + 100000, // Offset to avoid ID collision
+      id: _firstNotificationId(site),
       title: 'First Countdown Started',
-      body:
-          '${site.name} (${formatDistance(distanceKm, units)}): '
-          '${formatTimeLeft(left)} left to check in and share the First',
+      body: body,
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           firstEligibleChannelId,
@@ -469,6 +512,9 @@ class NotificationService {
           importance: Importance.high,
           priority: Priority.high,
           icon: 'ic_stat_bolt',
+          silent: silent,
+          // The standard style shows only two lines when expanded.
+          styleInformation: BigTextStyleInformation(body),
           // A live countdown to the site's midnight, since the body text
           // goes stale. The alert removes itself when the window closes.
           when: midnight.millisecondsSinceEpoch,
@@ -485,10 +531,10 @@ class NotificationService {
               ),
           ],
         ),
-        iOS: const DarwinNotificationDetails(
+        iOS: DarwinNotificationDetails(
           presentAlert: true,
           presentBadge: true,
-          presentSound: true,
+          presentSound: !silent,
         ),
       ),
       payload: 'site:${site.siteId}',
