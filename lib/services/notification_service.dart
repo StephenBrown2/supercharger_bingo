@@ -459,8 +459,7 @@ class NotificationService {
       title: 'First Countdown Started',
       body:
           '${site.name} (${formatDistance(distanceKm, units)}): '
-          '${formatTimeLeft(left)} left to check in and share the First, '
-          'until local midnight there',
+          '${formatTimeLeft(left)} left to check in and share the First',
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           firstEligibleChannelId,
