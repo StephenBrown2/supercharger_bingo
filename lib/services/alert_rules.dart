@@ -56,3 +56,13 @@ OpeningAlertPlan planOpeningAlerts({
       .toList();
   return OpeningAlertPlan(toAlert: fresh, nextCursor: next);
 }
+
+/// Time left in a First window, for the notification text: "5h 12m",
+/// "45m", or "under a minute".
+String formatTimeLeft(Duration left) {
+  if (left.inMinutes < 1) return 'under a minute';
+  final hours = left.inHours;
+  final minutes = left.inMinutes % 60;
+  if (hours == 0) return '${minutes}m';
+  return '${hours}h ${minutes}m';
+}

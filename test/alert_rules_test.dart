@@ -201,4 +201,11 @@ void main() {
       isTrue,
     );
   });
+
+  test('formatTimeLeft', () {
+    expect(formatTimeLeft(const Duration(seconds: 30)), 'under a minute');
+    expect(formatTimeLeft(const Duration(minutes: 45, seconds: 59)), '45m');
+    expect(formatTimeLeft(const Duration(hours: 5, minutes: 12)), '5h 12m');
+    expect(formatTimeLeft(const Duration(hours: 23, minutes: 59)), '23h 59m');
+  });
 }

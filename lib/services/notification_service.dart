@@ -15,6 +15,8 @@ import 'background/background_stub.dart'
     as background;
 import 'database_service.dart';
 import 'location_service.dart';
+import 'nearest_site_service.dart' show navigateActionId;
+import 'site_navigation.dart';
 import 'supercharge_region.dart';
 import 'sync_service.dart';
 import 'timezone_service.dart';
@@ -134,11 +136,19 @@ class NotificationService {
   }
 
   /// Handle notification tap
-  /// Alerts carry `site:<id>` as their payload.
+  /// Alerts carry `site:<id>` as their payload. The Navigate action sends
+  /// that site to a navigation app instead of opening it on the map.
   void _onNotificationTapped(NotificationResponse response) {
     final payload = response.payload ?? '';
     if (!payload.startsWith('site:')) return;
-    openSiteRequest.value = int.tryParse(payload.substring(5));
+    final siteId = int.tryParse(payload.substring(5));
+    if (response.actionId == navigateActionId && siteId != null) {
+      DatabaseService.getSiteBySiteId(siteId).then((site) {
+        if (site != null) navigateToSite(site);
+      });
+      return;
+    }
+    openSiteRequest.value = siteId;
   }
 
   /// Request notification permissions (iOS)
@@ -441,12 +451,16 @@ class NotificationService {
     double distanceKm,
     UnitSystem units,
   ) async {
+    final midnight = TimezoneService.instance.getNextMidnightAtSite(site);
+    final left = midnight.difference(DateTime.now());
+    if (left <= Duration.zero) return;
     await _notifications.show(
       id: site.siteId + 100000, // Offset to avoid ID collision
       title: 'First Countdown Started',
       body:
-          '${site.name} (${formatDistance(distanceKm, units)}): check in before '
-          'local midnight to share the First',
+          '${site.name} (${formatDistance(distanceKm, units)}): '
+          '${formatTimeLeft(left)} left to check in and share the First, '
+          'until local midnight there',
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           firstEligibleChannelId,
@@ -456,6 +470,21 @@ class NotificationService {
           importance: Importance.high,
           priority: Priority.high,
           icon: 'ic_stat_bolt',
+          // A live countdown to the site's midnight, since the body text
+          // goes stale. The alert removes itself when the window closes.
+          when: midnight.millisecondsSinceEpoch,
+          usesChronometer: true,
+          chronometerCountDown: true,
+          timeoutAfter: left.inMilliseconds,
+          actions: [
+            if (canNavigateToSite)
+              const AndroidNotificationAction(
+                navigateActionId,
+                'Navigate',
+                showsUserInterface: true,
+                cancelNotification: false,
+              ),
+          ],
         ),
         iOS: const DarwinNotificationDetails(
           presentAlert: true,

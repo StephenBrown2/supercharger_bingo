@@ -1,6 +1,9 @@
 package bingo.supercharger.checkin
 
 import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.os.Build
 import io.flutter.embedding.android.FlutterActivity
@@ -27,6 +30,26 @@ class MainActivity : FlutterActivity() {
                         arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
                         BACKGROUND_REQUEST,
                     )
+                }
+            }
+        // Hands a site to whichever navigation app the user picks: Google
+        // Maps, Waze, ABRP and the Tesla app all open geo: links. Android's
+        // own picker offers "Always", so it is one tap after the first time.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "supercharger_bingo/navigate")
+            .setMethodCallHandler { call, result ->
+                if (call.method != "navigate") {
+                    result.notImplemented()
+                    return@setMethodCallHandler
+                }
+                val lat = call.argument<Double>("latitude")
+                val lon = call.argument<Double>("longitude")
+                val label = Uri.encode(call.argument<String>("label") ?: "")
+                val uri = Uri.parse("geo:$lat,$lon?q=$lat,$lon($label)")
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, uri))
+                    result.success(true)
+                } catch (_: ActivityNotFoundException) {
+                    result.success(false)
                 }
             }
     }

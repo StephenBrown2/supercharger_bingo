@@ -10,6 +10,9 @@ import 'database_service.dart';
 import 'location_service.dart';
 
 const String nearestSiteChannelId = 'nearest_unvisited';
+
+/// Notification action that opens the site in a navigation app.
+const String navigateActionId = 'navigate';
 const int _notificationId = 7302;
 
 typedef NearestSite = ({Site site, double km, double bearing});
@@ -211,6 +214,16 @@ class NearestSiteService {
         category: AndroidNotificationCategory.navigation,
         requestPromotedOngoing: true,
         shortCriticalText: chip,
+        actions: [
+          if (siteId != null)
+            const AndroidNotificationAction(
+              navigateActionId,
+              'Navigate',
+              showsUserInterface: true,
+              // The service owns this notification; leave it up.
+              cancelNotification: false,
+            ),
+        ],
       ),
     );
   }

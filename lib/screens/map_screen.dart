@@ -9,6 +9,7 @@ import 'package:latlong2/latlong.dart';
 import '../database/database.dart';
 import '../services/database_service.dart';
 import '../services/location_service.dart';
+import '../services/site_navigation.dart';
 import '../services/sync_service.dart';
 import '../services/timezone_service.dart';
 import '../services/write_result.dart';
@@ -723,6 +724,23 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                   onPressed: () => Navigator.pop(context),
                   child: const Text('Close'),
                 ),
+                if (canNavigateToSite) ...[
+                  const SizedBox(width: 8),
+                  FilledButton.tonalIcon(
+                    onPressed: () async {
+                      final messenger = ScaffoldMessenger.of(context);
+                      if (!await navigateToSite(site)) {
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('No navigation app is installed'),
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.directions),
+                    label: const Text('Navigate'),
+                  ),
+                ],
                 const SizedBox(width: 8),
                 // Like the site's Check-in Manually link. A real check-in is
                 // the only way a site becomes visited.
