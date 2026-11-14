@@ -234,14 +234,36 @@ class LocationService {
     return Geolocator.distanceBetween(lat1, lon1, lat2, lon2) / 1000;
   }
 
-  /// Get stream of position updates
-  Stream<Position> getPositionStream() {
-    return Geolocator.getPositionStream(
+  /// Position updates every 50 meters, starting with a fix right away.
+  /// The platform stream only reports after moving distanceFilter, so a
+  /// listener standing still would otherwise never hear anything.
+  Stream<Position> getPositionStream() async* {
+    final now = await _gpsFix();
+    if (now != null) yield now;
+    yield* Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
         distanceFilter: 50, // Update every 50 meters
       ),
     );
+  }
+
+  /// A current GPS fix, else the last known one, else null. No IP fallback.
+  Future<Position?> _gpsFix() async {
+    try {
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
+      );
+    } catch (_) {
+      try {
+        return await Geolocator.getLastKnownPosition();
+      } catch (_) {
+        return null;
+      }
+    }
   }
 
   /// Unified position stream:
@@ -250,15 +272,19 @@ class LocationService {
   ///   location every 10 seconds (staying under 45 req/min ip-api limit)
   Stream<Position> unifiedPositionStream() {
     final controller = StreamController<Position>.broadcast();
+    Position? latest;
+    void emit(Position pos) {
+      latest = pos;
+      if (!controller.isClosed) controller.add(pos);
+    }
+
     Timer? ipTimer;
     StreamSubscription<Position>? geoSub;
 
     void startIpPolling() {
       ipTimer ??= Timer.periodic(const Duration(seconds: 10), (_) async {
         final pos = await _getPositionFromIP();
-        if (pos != null && !controller.isClosed) {
-          controller.add(pos);
-        }
+        if (pos != null) emit(pos);
       });
     }
 
@@ -272,7 +298,7 @@ class LocationService {
       (pos) {
         // On any geolocator update, forward and stop IP fallback
         stopIpPolling();
-        if (!controller.isClosed) controller.add(pos);
+        emit(pos);
       },
       onError: (_) {
         // If geolocator errors, ensure IP fallback is running
@@ -293,12 +319,25 @@ class LocationService {
     controller.onListen = () async {
       // Emit cached if present immediately
       final cached = cachedPosition;
-      if (cached != null) controller.add(cached);
+      if (cached != null) emit(cached);
       // Also try a fresh position fast-path
       final fresh = await getCurrentPosition();
-      if (fresh != null) controller.add(fresh);
+      if (fresh != null) emit(fresh);
     };
 
-    return controller.stream;
+    // Each new listener starts from the latest position. A plain broadcast
+    // stream would give it nothing until the next 50 m of movement, which
+    // is how the map's location marker missed the first fix.
+    return Stream.multi((listener) {
+      // Read before listening: the first listen emits the cached fix itself.
+      final last = latest;
+      if (last != null) listener.addSync(last);
+      final sub = controller.stream.listen(
+        listener.addSync,
+        onError: listener.addErrorSync,
+        onDone: listener.closeSync,
+      );
+      listener.onCancel = sub.cancel;
+    }, isBroadcast: true);
   }
 }
