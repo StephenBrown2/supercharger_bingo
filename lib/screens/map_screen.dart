@@ -699,9 +699,26 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     _showSiteInfo(site);
   }
 
+  ModalBottomSheetRoute<void>? _siteSheetRoute;
+
   void _showSiteInfo(Site site) {
-    showModalBottomSheet(
-      context: context,
+    final previous = _siteSheetRoute;
+    if (previous != null && previous.isActive) {
+      previous.navigator!.removeRoute(previous);
+    }
+    final navigator = Navigator.of(context);
+    final localizations = MaterialLocalizations.of(context);
+    final route = ModalBottomSheetRoute<void>(
+      capturedThemes: InheritedTheme.capture(
+        from: context,
+        to: navigator.context,
+      ),
+      isScrollControlled: false,
+      barrierLabel: localizations.scrimLabel,
+      barrierOnTapHint: localizations.scrimOnTapHint(
+        localizations.bottomSheetLabel,
+      ),
+      modalBarrierColor: Theme.of(context).bottomSheetTheme.modalBarrierColor,
       builder: (context) => Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -772,6 +789,11 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         ),
       ),
     );
+    _siteSheetRoute = route;
+    navigator.push(route);
+    route.completed.then((_) {
+      if (identical(_siteSheetRoute, route)) _siteSheetRoute = null;
+    });
   }
 
   Future<void> _centerOnUser() async {

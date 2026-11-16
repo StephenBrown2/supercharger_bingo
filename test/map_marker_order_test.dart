@@ -49,7 +49,7 @@ void main() {
   });
 
   for (final clustered in [false, true]) {
-    testWidgets('markers and legend follow priority, clustering $clustered', (
+    testWidgets('marker priority and single site sheet, clustering $clustered', (
       tester,
     ) async {
       await db.clearAll();
@@ -141,6 +141,40 @@ void main() {
         const ValueKey(3),
         const ValueKey(7),
       ]);
+
+      // A notification must replace a sheet opened from a map marker.
+      (top.markers.single.child as GestureDetector).onTap!();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Site 5'), findsOneWidget);
+      final state = tester.state<MapScreenState>(find.byType(MapScreen));
+      for (final siteId in [1, 1, 2]) {
+        await tester.runAsync(() => state.showSite(siteId));
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+        expect(find.byType(BottomSheet, skipOffstage: false), findsOneWidget);
+        expect(find.text('Site $siteId'), findsOneWidget);
+      }
+      await tester.tap(find.text('Close'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byType(BottomSheet, skipOffstage: false), findsNothing);
+      expect(Navigator.of(state.context).canPop(), isFalse);
+
+      // Opening again after dismissal must not leave stale sheet state.
+      await tester.runAsync(() => state.showSite(5));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Site 5'), findsOneWidget);
+      expect(find.byType(BottomSheet, skipOffstage: false), findsOneWidget);
+      await tester.runAsync(() async {
+        await state.showSite(1);
+        await state.showSite(2);
+      });
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Site 2'), findsOneWidget);
+      expect(find.byType(BottomSheet, skipOffstage: false), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
       await tester.pump();
     });

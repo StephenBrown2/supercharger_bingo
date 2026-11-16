@@ -35,6 +35,30 @@ void main() {
     await loadRoboto();
   });
 
+  testWidgets('notification grouping help explains how to exclude the app', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: SettingsScreen()));
+    await tester.pumpAndSettle();
+    final help = find.byTooltip('Notification grouping help');
+    await tester.scrollUntilVisible(help, 300);
+    final before =
+        (await DatabaseService.getUserSettings()).notifyFirstEligible;
+    await tester.tap(help);
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.textContaining('Suggested'), findsOneWidget);
+    expect(find.textContaining('Don\'t include these apps'), findsOneWidget);
+    expect(find.textContaining('Uncheck Supercharger Bingo'), findsOneWidget);
+    expect(
+      (await DatabaseService.getUserSettings()).notifyFirstEligible,
+      before,
+    );
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+  });
+
   testWidgets('every setting has a caption of at most two lines on a Pixel 9', (
     tester,
   ) async {

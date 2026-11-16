@@ -305,7 +305,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const Divider(),
 
                   // Notifications section
-                  _buildSectionHeader(theme, 'Notifications'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildSectionHeader(theme, 'Notifications'),
+                      ),
+                      IconButton(
+                        tooltip: 'Notification grouping help',
+                        icon: const Icon(Icons.info_outline),
+                        onPressed: _showNotificationGroupingHelp,
+                      ),
+                    ],
+                  ),
                   SwitchListTile(
                     secondary: const Icon(Icons.notifications_active),
                     title: const Text('New Superchargers'),
@@ -626,6 +637,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             },
             child: const Text('Log out'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showNotificationGroupingHelp() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Notification grouping on Pixel'),
+        content: const SingleChildScrollView(
+          child: Text(
+            'On Pixel phones, Notification Organizer may group First Countdown '
+            'alerts under "Suggested" and silence them.\n\n'
+            'To exclude Supercharger Bingo, open your phone\'s Settings:\n\n'
+            'Notifications > Notification organizer > Don\'t include these apps '
+            '> Manage Apps > Uncheck Supercharger Bingo\n\n'
+            'You can also long-press a countdown notification and turn off '
+            'Notification Organizer for this app.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK'),
           ),
         ],
       ),
