@@ -75,7 +75,7 @@ class _SuperchargerBingoAppState extends State<SuperchargerBingoApp> {
 
     // Sync community check-in data (drives the First pin colours). Best-effort
     // and unawaited so the map renders without waiting on the fragile endpoint.
-    SyncService.instance.syncCommunityData();
+    final communitySync = SyncService.instance.syncCommunityData();
 
     // Site and First alerts come from supercharge.info, so a device-only
     // sign-in still schedules them. The check-in post itself still waits
@@ -87,6 +87,8 @@ class _SuperchargerBingoAppState extends State<SuperchargerBingoApp> {
       await NotificationService.instance.requestPermissions();
       await NotificationService.instance.scheduleBackgroundSync(settings);
       await NearestSiteService.instance.sync(settings);
+      // The First check reads the history this sync writes.
+      await communitySync;
       await NotificationService.instance.checkFirstWindowsOnStartup();
     }
   }
