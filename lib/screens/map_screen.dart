@@ -5,8 +5,10 @@ import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
 import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../database/database.dart';
+import '../services/api_service.dart';
 import '../services/database_service.dart';
 import '../services/location_service.dart';
 import '../services/site_navigation.dart';
@@ -714,6 +716,18 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             const SizedBox(height: 4),
             Text('Status: ${site.status.name}'),
             Text('Stalls: ${site.stallCount ?? "Unknown"}'),
+            // supercharging.life uses supercharge.info's site ids.
+            TextButton.icon(
+              style: TextButton.styleFrom(padding: EdgeInsets.zero),
+              onPressed: () => launchUrl(
+                Uri.parse(
+                  '${ApiService.superchargingLifeBaseUrl}/supercharging/supercharger.php?id=${site.siteId}',
+                ),
+                mode: LaunchMode.externalApplication,
+              ),
+              icon: const Icon(Icons.open_in_new, size: 18),
+              label: const Text('View on supercharging.life'),
+            ),
             if (site.visited)
               const Chip(label: Text('Visited'), backgroundColor: Colors.green),
             const SizedBox(height: 16),
