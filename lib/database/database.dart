@@ -57,8 +57,8 @@ enum UnitSystem { metric, imperial }
 typedef RadiusRange = ({double min, double max, double initial});
 
 RadiusRange alertRadiusRange(UnitSystem units) => units == UnitSystem.imperial
-    ? (min: 5, max: 2000, initial: 1500)
-    : (min: 10, max: 3200, initial: 2400);
+    ? (min: 5, max: 3000, initial: 1500)
+    : (min: 10, max: 4800, initial: 2400);
 
 RadiusRange checkinRadiusRange(UnitSystem units) => units == UnitSystem.imperial
     ? (min: 1, max: 250, initial: 25)
