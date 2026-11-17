@@ -39,7 +39,7 @@ void main() {
       'checkin_time': '2026-11-10 00:05:53-05',
       'is_first_at_supercharger_cache': 'N',
     });
-    expect(row.checkinDate.value, DateTime.parse('2026-11-10'));
+    expect(row.checkinDate.value, DateTime.utc(2026, 11, 10));
     expect(row.checkinTime.value, DateTime.utc(2026, 11, 10, 5, 5, 53));
   });
 

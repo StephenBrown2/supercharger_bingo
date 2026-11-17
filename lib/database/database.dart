@@ -83,6 +83,18 @@ enum AppAppearance { light, dark, system, materialYou }
 /// DATE_ONLY is a calendar date. TIMESTAMP also has a clock time.
 enum CheckinPrecision { dateOnly, timestamp }
 
+extension SiteOpening on Site {
+  /// Earliest available opening evidence, never a later reopening.
+  /// Upstream dates can still need correction to the actual first local day.
+  DateTime? get firstOpeningDay {
+    final history = firstOpened;
+    final listed = dateOpened;
+    if (history == null) return listed;
+    if (listed == null || history.isBefore(listed)) return history;
+    return listed;
+  }
+}
+
 // ============================================================================
 // Tables
 // ============================================================================
@@ -111,8 +123,12 @@ class Sites extends Table {
   BoolColumn get otherEvs => boolean().withDefault(const Constant(false))();
   DateTimeColumn get dateOpened => dateTime().nullable()();
 
+  /// Earliest OPEN transition observed in supercharge.info change history.
+  /// Unlike dateOpened, this survives a later closure and reopening.
+  DateTimeColumn get firstOpened => dateTime().nullable()();
+
   /// Cache of "community check-in count > 0" from the counts endpoint.
-  /// getEarliestCheckinDates uses it when the First history has no date.
+  /// Only undated operational sites use it as a conservative taken fallback.
   BoolColumn get hasCheckins => boolean().withDefault(const Constant(false))();
 
   /// Whether the current user has visited this site
@@ -344,7 +360,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 17;
+  int get schemaVersion => 18;
 
   @override
   MigrationStrategy get migration {
@@ -559,6 +575,41 @@ class AppDatabase extends _$AppDatabase {
             );
           }
         }
+        if (from < 18 && to >= 18) {
+          if (!await _columnExists('sites', 'first_opened')) {
+            await m.addColumn(sites, sites.firstOpened);
+          }
+          // Backfill original openings once, using the existing regional sync.
+          await customStatement('UPDATE region_syncs SET last_change_id = 0');
+          // Older imports stored date-only values as device-local midnight.
+          // Re-encode their calendar day, leaving all visit clocks untouched.
+          for (final (table, column) in [
+            ('sites', 'date_opened'),
+            ('site_checkins', 'checkin_date'),
+          ]) {
+            final rows = await customSelect(
+              'SELECT id, $column AS calendar_date FROM $table '
+              'WHERE $column IS NOT NULL',
+            ).get();
+            for (final row in rows) {
+              final date = row.read<DateTime>('calendar_date');
+              if (date.hour != 0 ||
+                  date.minute != 0 ||
+                  date.second != 0 ||
+                  date.millisecond != 0 ||
+                  date.microsecond != 0) {
+                continue;
+              }
+              await customUpdate(
+                'UPDATE $table SET $column = ? WHERE id = ?',
+                variables: [
+                  Variable(DateTime.utc(date.year, date.month, date.day)),
+                  Variable(row.read<int>('id')),
+                ],
+              );
+            }
+          }
+        }
       },
     );
   }
@@ -676,47 +727,110 @@ class AppDatabase extends _$AppDatabase {
   /// than stored, so it always reflects the current SiteCheckins data.
   Future<Map<int, DateTime>> getEarliestCheckinDates(List<int> siteIds) async {
     if (siteIds.isEmpty) return {};
-    final minDate = siteCheckins.checkinDate.min();
-    final query = selectOnly(siteCheckins)
-      ..join([
-        innerJoin(
-          sites,
-          sites.siteId.equalsExp(siteCheckins.siteId),
-          useColumns: false,
-        ),
-      ])
-      ..addColumns([siteCheckins.siteId, minDate])
-      ..where(siteCheckins.siteId.isIn(siteIds))
-      // The feed also lists each user's first visit to a site. Only rows
-      // marked as the site's First date it.
-      ..where(siteCheckins.isFirstAtSupercharger.equals(true))
-      ..where(
-        sites.dateOpened.isNull() |
-            siteCheckins.checkinDate.isBiggerOrEqual(sites.dateOpened),
-      )
-      ..groupBy([siteCheckins.siteId]);
-    final rows = await query.get();
+    final firsts = await _getFirstCheckins(siteIds);
     final result = <int, DateTime>{};
-    for (final row in rows) {
-      final id = row.read(siteCheckins.siteId);
-      final date = row.read(minDate);
-      if (id != null && date != null) result[id] = date;
+    for (final entry in firsts.entries) {
+      if (entry.value.isEmpty) continue;
+      result[entry.key] = _checkinDay(entry.value.first.checkinDate);
     }
-    // The First history feed only lists recent Firsts. A site the counts feed
-    // says has check-ins already has its First, so fall back to the opening
-    // day: passed for an older site, today for one that opened today.
-    final missing = siteIds.where((id) => !result.containsKey(id)).toList();
+    // Missing recent history must not reopen an older claimed site. A known
+    // premature visit has an empty entry and must not use this fallback.
+    final missing = siteIds.where((id) => !firsts.containsKey(id)).toList();
     if (missing.isNotEmpty) {
       final taken =
           await (select(sites)..where(
-                (t) => t.siteId.isIn(missing) & t.hasCheckins.equals(true),
+                (t) =>
+                    t.siteId.isIn(missing) &
+                    t.hasCheckins.equals(true) &
+                    t.status.isIn([
+                      SiteStatus.open.name,
+                      SiteStatus.expanding.name,
+                      SiteStatus.closedTemp.name,
+                      SiteStatus.closedPerm.name,
+                    ]),
               ))
               .get();
       for (final site in taken) {
-        result[site.siteId] = site.dateOpened ?? DateTime(2000);
+        result[site.siteId] = DateTime(2000);
       }
     }
     return result;
+  }
+
+  // The feed's checkinDate is already a site-local calendar date, not a clock.
+  static DateTime _checkinDay(DateTime date) {
+    final utc = date.toUtc();
+    return DateTime(utc.year, utc.month, utc.day);
+  }
+
+  Future<Map<int, List<SiteCheckin>>> _getFirstCheckins(List<int> ids) async {
+    if (ids.isEmpty) return {};
+    final rows =
+        await (select(siteCheckins).join([
+                innerJoin(sites, sites.siteId.equalsExp(siteCheckins.siteId)),
+              ])
+              ..where(siteCheckins.siteId.isIn(ids))
+              ..orderBy([
+                OrderingTerm.asc(siteCheckins.checkinDate),
+                OrderingTerm.asc(siteCheckins.checkinTime),
+                OrderingTerm.asc(siteCheckins.checkinId),
+              ]))
+            .get();
+    final history = <int, List<SiteCheckin>>{};
+    final siteById = <int, Site>{};
+    for (final row in rows) {
+      final site = row.readTable(sites);
+      if ([
+        SiteStatus.plan,
+        SiteStatus.permit,
+        SiteStatus.construction,
+        SiteStatus.voting,
+      ].contains(site.status)) {
+        continue;
+      }
+      siteById[site.siteId] = site;
+      (history[site.siteId] ??= []).add(row.readTable(siteCheckins));
+    }
+    final result = <int, List<SiteCheckin>>{};
+    for (final entry in history.entries) {
+      final site = siteById[entry.key]!;
+      final opened = site.firstOpeningDay;
+      bool beforeOpening(SiteCheckin row) =>
+          opened != null &&
+          _checkinDay(row.checkinDate).isBefore(_checkinDay(opened));
+      // A premature cached First can suppress the rightful later rows' flags.
+      // shortcut: recovery uses cached history, fetch full history if the feed truncates it.
+      final invalidFirst = entry.value.any(
+        (row) => row.isFirstAtSupercharger && beforeOpening(row),
+      );
+      final eligible = entry.value.where(
+        (row) =>
+            !beforeOpening(row) && (row.isFirstAtSupercharger || invalidFirst),
+      );
+      if (eligible.isEmpty) {
+        if (entry.value.any(beforeOpening)) result[entry.key] = [];
+        continue;
+      }
+      final day = _checkinDay(eligible.first.checkinDate);
+      result[entry.key] = eligible
+          .where((row) => _checkinDay(row.checkinDate) == day)
+          .toList();
+    }
+    return result;
+  }
+
+  Future<void> recordFirstOpeningDates(Map<int, DateTime> dates) async {
+    await transaction(() async {
+      for (final entry in dates.entries) {
+        await (update(sites)..where(
+              (t) =>
+                  t.siteId.equals(entry.key) &
+                  (t.firstOpened.isNull() |
+                      t.firstOpened.isBiggerThanValue(entry.value)),
+            ))
+            .write(SitesCompanion(firstOpened: Value(entry.value)));
+      }
+    });
   }
 
   Future<Site?> getSiteBySiteId(int siteId) {
@@ -726,9 +840,31 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<void> upsertSite(SitesCompanion site) async {
-    await into(
-      sites,
-    ).insert(site, onConflict: DoUpdate((old) => site, target: [sites.siteId]));
+    await into(sites).insert(
+      site,
+      onConflict: DoUpdate(
+        ($SitesTable old) => _siteUpdate(site, old),
+        target: [sites.siteId],
+      ),
+    );
+  }
+
+  Insertable<Site> _siteUpdate(SitesCompanion site, $SitesTable old) {
+    return RawValuesInsertable({
+      ...site.toColumns(false),
+      if (!site.firstOpened.present)
+        'first_opened': CaseWhenExpression(
+          cases: [
+            CaseWhen(
+              old.firstOpened.isNull() |
+                  (old.dateOpened.isNotNull() &
+                      old.dateOpened.isSmallerThan(old.firstOpened)),
+              then: old.dateOpened,
+            ),
+          ],
+          orElse: old.firstOpened,
+        ),
+    });
   }
 
   Future<void> upsertSites(List<SitesCompanion> siteList) async {
@@ -737,7 +873,10 @@ class AppDatabase extends _$AppDatabase {
         batch.insert(
           sites,
           site,
-          onConflict: DoUpdate((old) => site, target: [sites.siteId]),
+          onConflict: DoUpdate(
+            ($SitesTable old) => _siteUpdate(site, old),
+            target: [sites.siteId],
+          ),
         );
       }
     });
@@ -928,24 +1067,8 @@ class AppDatabase extends _$AppDatabase {
   /// such day, in check-in order. A First can be shared, so there may be
   /// several. Empty when the First has aged out of the history feed.
   Future<List<String>> getFirstCheckinNames(int siteId) async {
-    final rows =
-        await (select(siteCheckins)
-              ..where(
-                (t) =>
-                    t.siteId.equals(siteId) &
-                    t.isFirstAtSupercharger.equals(true),
-              )
-              ..orderBy([
-                (t) => OrderingTerm.asc(t.checkinDate),
-                (t) => OrderingTerm.asc(t.checkinTime),
-              ]))
-            .get();
-    if (rows.isEmpty) return const [];
-    final day = rows.first.checkinDate;
-    return [
-      for (final row in rows)
-        if (row.checkinDate == day) row.displayName ?? row.username,
-    ];
+    final rows = (await _getFirstCheckins([siteId]))[siteId] ?? const [];
+    return [for (final row in rows) row.displayName ?? row.username];
   }
 
   Future<DateTime?> getLastPublicCheckinDate(int siteId) async {

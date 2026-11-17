@@ -50,7 +50,7 @@ void main() {
     expect(parsed.status.value, SiteStatus.open);
     expect(parsed.stallCount.value, 8);
     expect(parsed.otherEvs.value, isTrue);
-    expect(parsed.dateOpened.value, DateTime.parse('2024-01-15'));
+    expect(parsed.dateOpened.value, DateTime.utc(2024, 1, 15));
     expect(parsed.latitude.value, -34.9);
   });
 

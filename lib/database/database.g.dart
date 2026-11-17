@@ -173,6 +173,17 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _firstOpenedMeta = const VerificationMeta(
+    'firstOpened',
+  );
+  @override
+  late final GeneratedColumn<DateTime> firstOpened = GeneratedColumn<DateTime>(
+    'first_opened',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _hasCheckinsMeta = const VerificationMeta(
     'hasCheckins',
   );
@@ -231,6 +242,7 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
     stallCount,
     otherEvs,
     dateOpened,
+    firstOpened,
     hasCheckins,
     visited,
     lastSynced,
@@ -332,6 +344,15 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
         dateOpened.isAcceptableOrUnknown(data['date_opened']!, _dateOpenedMeta),
       );
     }
+    if (data.containsKey('first_opened')) {
+      context.handle(
+        _firstOpenedMeta,
+        firstOpened.isAcceptableOrUnknown(
+          data['first_opened']!,
+          _firstOpenedMeta,
+        ),
+      );
+    }
     if (data.containsKey('has_checkins')) {
       context.handle(
         _hasCheckinsMeta,
@@ -424,6 +445,10 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}date_opened'],
       ),
+      firstOpened: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}first_opened'],
+      ),
       hasCheckins: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}has_checkins'],
@@ -470,6 +495,10 @@ class Site extends DataClass implements Insertable<Site> {
   final bool otherEvs;
   final DateTime? dateOpened;
 
+  /// Earliest OPEN transition observed in supercharge.info change history.
+  /// Unlike dateOpened, this survives a later closure and reopening.
+  final DateTime? firstOpened;
+
   /// Cache of "community check-in count > 0" from the counts endpoint.
   /// getEarliestCheckinDates uses it when the First history has no date.
   final bool hasCheckins;
@@ -493,6 +522,7 @@ class Site extends DataClass implements Insertable<Site> {
     this.stallCount,
     required this.otherEvs,
     this.dateOpened,
+    this.firstOpened,
     required this.hasCheckins,
     required this.visited,
     this.lastSynced,
@@ -531,6 +561,9 @@ class Site extends DataClass implements Insertable<Site> {
     if (!nullToAbsent || dateOpened != null) {
       map['date_opened'] = Variable<DateTime>(dateOpened);
     }
+    if (!nullToAbsent || firstOpened != null) {
+      map['first_opened'] = Variable<DateTime>(firstOpened);
+    }
     map['has_checkins'] = Variable<bool>(hasCheckins);
     map['visited'] = Variable<bool>(visited);
     if (!nullToAbsent || lastSynced != null) {
@@ -566,6 +599,9 @@ class Site extends DataClass implements Insertable<Site> {
       dateOpened: dateOpened == null && nullToAbsent
           ? const Value.absent()
           : Value(dateOpened),
+      firstOpened: firstOpened == null && nullToAbsent
+          ? const Value.absent()
+          : Value(firstOpened),
       hasCheckins: Value(hasCheckins),
       visited: Value(visited),
       lastSynced: lastSynced == null && nullToAbsent
@@ -597,6 +633,7 @@ class Site extends DataClass implements Insertable<Site> {
       stallCount: serializer.fromJson<int?>(json['stallCount']),
       otherEvs: serializer.fromJson<bool>(json['otherEvs']),
       dateOpened: serializer.fromJson<DateTime?>(json['dateOpened']),
+      firstOpened: serializer.fromJson<DateTime?>(json['firstOpened']),
       hasCheckins: serializer.fromJson<bool>(json['hasCheckins']),
       visited: serializer.fromJson<bool>(json['visited']),
       lastSynced: serializer.fromJson<DateTime?>(json['lastSynced']),
@@ -623,6 +660,7 @@ class Site extends DataClass implements Insertable<Site> {
       'stallCount': serializer.toJson<int?>(stallCount),
       'otherEvs': serializer.toJson<bool>(otherEvs),
       'dateOpened': serializer.toJson<DateTime?>(dateOpened),
+      'firstOpened': serializer.toJson<DateTime?>(firstOpened),
       'hasCheckins': serializer.toJson<bool>(hasCheckins),
       'visited': serializer.toJson<bool>(visited),
       'lastSynced': serializer.toJson<DateTime?>(lastSynced),
@@ -645,6 +683,7 @@ class Site extends DataClass implements Insertable<Site> {
     Value<int?> stallCount = const Value.absent(),
     bool? otherEvs,
     Value<DateTime?> dateOpened = const Value.absent(),
+    Value<DateTime?> firstOpened = const Value.absent(),
     bool? hasCheckins,
     bool? visited,
     Value<DateTime?> lastSynced = const Value.absent(),
@@ -664,6 +703,7 @@ class Site extends DataClass implements Insertable<Site> {
     stallCount: stallCount.present ? stallCount.value : this.stallCount,
     otherEvs: otherEvs ?? this.otherEvs,
     dateOpened: dateOpened.present ? dateOpened.value : this.dateOpened,
+    firstOpened: firstOpened.present ? firstOpened.value : this.firstOpened,
     hasCheckins: hasCheckins ?? this.hasCheckins,
     visited: visited ?? this.visited,
     lastSynced: lastSynced.present ? lastSynced.value : this.lastSynced,
@@ -691,6 +731,9 @@ class Site extends DataClass implements Insertable<Site> {
       dateOpened: data.dateOpened.present
           ? data.dateOpened.value
           : this.dateOpened,
+      firstOpened: data.firstOpened.present
+          ? data.firstOpened.value
+          : this.firstOpened,
       hasCheckins: data.hasCheckins.present
           ? data.hasCheckins.value
           : this.hasCheckins,
@@ -719,6 +762,7 @@ class Site extends DataClass implements Insertable<Site> {
           ..write('stallCount: $stallCount, ')
           ..write('otherEvs: $otherEvs, ')
           ..write('dateOpened: $dateOpened, ')
+          ..write('firstOpened: $firstOpened, ')
           ..write('hasCheckins: $hasCheckins, ')
           ..write('visited: $visited, ')
           ..write('lastSynced: $lastSynced')
@@ -743,6 +787,7 @@ class Site extends DataClass implements Insertable<Site> {
     stallCount,
     otherEvs,
     dateOpened,
+    firstOpened,
     hasCheckins,
     visited,
     lastSynced,
@@ -766,6 +811,7 @@ class Site extends DataClass implements Insertable<Site> {
           other.stallCount == this.stallCount &&
           other.otherEvs == this.otherEvs &&
           other.dateOpened == this.dateOpened &&
+          other.firstOpened == this.firstOpened &&
           other.hasCheckins == this.hasCheckins &&
           other.visited == this.visited &&
           other.lastSynced == this.lastSynced);
@@ -787,6 +833,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
   final Value<int?> stallCount;
   final Value<bool> otherEvs;
   final Value<DateTime?> dateOpened;
+  final Value<DateTime?> firstOpened;
   final Value<bool> hasCheckins;
   final Value<bool> visited;
   final Value<DateTime?> lastSynced;
@@ -806,6 +853,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
     this.stallCount = const Value.absent(),
     this.otherEvs = const Value.absent(),
     this.dateOpened = const Value.absent(),
+    this.firstOpened = const Value.absent(),
     this.hasCheckins = const Value.absent(),
     this.visited = const Value.absent(),
     this.lastSynced = const Value.absent(),
@@ -826,6 +874,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
     this.stallCount = const Value.absent(),
     this.otherEvs = const Value.absent(),
     this.dateOpened = const Value.absent(),
+    this.firstOpened = const Value.absent(),
     this.hasCheckins = const Value.absent(),
     this.visited = const Value.absent(),
     this.lastSynced = const Value.absent(),
@@ -847,6 +896,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
     Expression<int>? stallCount,
     Expression<bool>? otherEvs,
     Expression<DateTime>? dateOpened,
+    Expression<DateTime>? firstOpened,
     Expression<bool>? hasCheckins,
     Expression<bool>? visited,
     Expression<DateTime>? lastSynced,
@@ -867,6 +917,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
       if (stallCount != null) 'stall_count': stallCount,
       if (otherEvs != null) 'other_evs': otherEvs,
       if (dateOpened != null) 'date_opened': dateOpened,
+      if (firstOpened != null) 'first_opened': firstOpened,
       if (hasCheckins != null) 'has_checkins': hasCheckins,
       if (visited != null) 'visited': visited,
       if (lastSynced != null) 'last_synced': lastSynced,
@@ -889,6 +940,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
     Value<int?>? stallCount,
     Value<bool>? otherEvs,
     Value<DateTime?>? dateOpened,
+    Value<DateTime?>? firstOpened,
     Value<bool>? hasCheckins,
     Value<bool>? visited,
     Value<DateTime?>? lastSynced,
@@ -909,6 +961,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
       stallCount: stallCount ?? this.stallCount,
       otherEvs: otherEvs ?? this.otherEvs,
       dateOpened: dateOpened ?? this.dateOpened,
+      firstOpened: firstOpened ?? this.firstOpened,
       hasCheckins: hasCheckins ?? this.hasCheckins,
       visited: visited ?? this.visited,
       lastSynced: lastSynced ?? this.lastSynced,
@@ -965,6 +1018,9 @@ class SitesCompanion extends UpdateCompanion<Site> {
     if (dateOpened.present) {
       map['date_opened'] = Variable<DateTime>(dateOpened.value);
     }
+    if (firstOpened.present) {
+      map['first_opened'] = Variable<DateTime>(firstOpened.value);
+    }
     if (hasCheckins.present) {
       map['has_checkins'] = Variable<bool>(hasCheckins.value);
     }
@@ -995,6 +1051,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
           ..write('stallCount: $stallCount, ')
           ..write('otherEvs: $otherEvs, ')
           ..write('dateOpened: $dateOpened, ')
+          ..write('firstOpened: $firstOpened, ')
           ..write('hasCheckins: $hasCheckins, ')
           ..write('visited: $visited, ')
           ..write('lastSynced: $lastSynced')
@@ -6424,6 +6481,7 @@ typedef $$SitesTableCreateCompanionBuilder =
       Value<int?> stallCount,
       Value<bool> otherEvs,
       Value<DateTime?> dateOpened,
+      Value<DateTime?> firstOpened,
       Value<bool> hasCheckins,
       Value<bool> visited,
       Value<DateTime?> lastSynced,
@@ -6445,6 +6503,7 @@ typedef $$SitesTableUpdateCompanionBuilder =
       Value<int?> stallCount,
       Value<bool> otherEvs,
       Value<DateTime?> dateOpened,
+      Value<DateTime?> firstOpened,
       Value<bool> hasCheckins,
       Value<bool> visited,
       Value<DateTime?> lastSynced,
@@ -6531,6 +6590,11 @@ class $$SitesTableFilterComposer extends Composer<_$AppDatabase, $SitesTable> {
 
   ColumnFilters<DateTime> get dateOpened => $composableBuilder(
     column: $table.dateOpened,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get firstOpened => $composableBuilder(
+    column: $table.firstOpened,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6634,6 +6698,11 @@ class $$SitesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get firstOpened => $composableBuilder(
+    column: $table.firstOpened,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get hasCheckins => $composableBuilder(
     column: $table.hasCheckins,
     builder: (column) => ColumnOrderings(column),
@@ -6710,6 +6779,11 @@ class $$SitesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<DateTime> get firstOpened => $composableBuilder(
+    column: $table.firstOpened,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get hasCheckins => $composableBuilder(
     column: $table.hasCheckins,
     builder: (column) => column,
@@ -6767,6 +6841,7 @@ class $$SitesTableTableManager
                 Value<int?> stallCount = const Value.absent(),
                 Value<bool> otherEvs = const Value.absent(),
                 Value<DateTime?> dateOpened = const Value.absent(),
+                Value<DateTime?> firstOpened = const Value.absent(),
                 Value<bool> hasCheckins = const Value.absent(),
                 Value<bool> visited = const Value.absent(),
                 Value<DateTime?> lastSynced = const Value.absent(),
@@ -6786,6 +6861,7 @@ class $$SitesTableTableManager
                 stallCount: stallCount,
                 otherEvs: otherEvs,
                 dateOpened: dateOpened,
+                firstOpened: firstOpened,
                 hasCheckins: hasCheckins,
                 visited: visited,
                 lastSynced: lastSynced,
@@ -6807,6 +6883,7 @@ class $$SitesTableTableManager
                 Value<int?> stallCount = const Value.absent(),
                 Value<bool> otherEvs = const Value.absent(),
                 Value<DateTime?> dateOpened = const Value.absent(),
+                Value<DateTime?> firstOpened = const Value.absent(),
                 Value<bool> hasCheckins = const Value.absent(),
                 Value<bool> visited = const Value.absent(),
                 Value<DateTime?> lastSynced = const Value.absent(),
@@ -6826,6 +6903,7 @@ class $$SitesTableTableManager
                 stallCount: stallCount,
                 otherEvs: otherEvs,
                 dateOpened: dateOpened,
+                firstOpened: firstOpened,
                 hasCheckins: hasCheckins,
                 visited: visited,
                 lastSynced: lastSynced,

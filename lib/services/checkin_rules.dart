@@ -2,20 +2,20 @@ import '../database/database.dart';
 import 'life_time.dart';
 import 'timezone_service.dart';
 
-/// True when [checkinAt] falls on a site-local calendar day before [Site.dateOpened].
+/// True when [checkinAt] precedes the earliest known site opening day.
 ///
 /// A null open date cannot be rejected. DATE_ONLY uses the stored calendar
 /// date as-is. TIMESTAMP is converted into the site's IANA zone first.
-/// `dateOpened` is compared on its own year, month, and day.
+/// The opening date is compared on its own year, month, and day.
 bool checkinPrecedesOpening(
   Site site,
   DateTime checkinAt, {
   CheckinPrecision precision = CheckinPrecision.timestamp,
 }) {
-  final opened = site.dateOpened;
+  final opened = site.firstOpeningDay;
   if (opened == null) return false;
 
-  // dateOpened is a date-only value stored as UTC midnight. Reading it back
+  // Opening dates are date-only values stored as UTC midnight. Reading them
   // in a negative offset shifts the local calendar to the previous day, so
   // the open day is the UTC year/month/day.
   final openDay = _calendarDay(opened.toUtc());
@@ -41,7 +41,7 @@ String? checkinOpeningRejection(
   if (!checkinPrecedesOpening(site, checkinAt, precision: precision)) {
     return null;
   }
-  final opened = site.dateOpened!.toUtc();
+  final opened = site.firstOpeningDay!.toUtc();
   return 'This site opens on ${formatCalendarDate(opened)}. '
       'A check-in before then is not valid.';
 }

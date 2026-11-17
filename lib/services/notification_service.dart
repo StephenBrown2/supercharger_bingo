@@ -359,19 +359,44 @@ class NotificationService {
     final lat = settings.lastLatitude;
     final lng = settings.lastLongitude;
     if (lat == null || lng == null || !settings.notifyFirstEligible) return;
-    final open = await _notifyFirstWindow(
+    await _notifyFirstWindow(
       lat,
       lng,
       settings.notificationRadiusKm,
       settings.unitSystem,
       repost: true,
     );
-    // Drop alerts whose window closed or no longer applies, such as a site
-    // the user has since visited.
-    for (final n in await _notifications.getActiveNotifications()) {
+  }
+
+  Future<void> _cancelClosedFirstWindows(Set<int> open) async {
+    bool isFirstId(int id, String? payload) {
+      if (payload == null || !payload.startsWith('site:')) return false;
+      final siteId = int.tryParse(payload.substring(5));
+      return siteId != null && id == siteId + 100000;
+    }
+
+    // Include scheduled follow-ups so an invalidated First cannot alert later.
+    List<PendingNotificationRequest> pending = const [];
+    List<ActiveNotification> active = const [];
+    try {
+      pending = await _notifications.pendingNotificationRequests();
+    } on UnimplementedError {
+      // Linux does not support listing scheduled notifications.
+    }
+    try {
+      active = await _notifications.getActiveNotifications();
+    } on UnimplementedError {
+      // Linux does not support listing active notifications.
+    }
+    for (final n in pending) {
+      if (isFirstId(n.id, n.payload) && !open.contains(n.id)) {
+        await _notifications.cancel(id: n.id);
+      }
+    }
+    for (final n in active) {
       final id = n.id;
-      if (n.channelId == firstEligibleChannelId &&
-          id != null &&
+      if (id != null &&
+          (n.channelId == firstEligibleChannelId || isFirstId(id, n.payload)) &&
           !open.contains(id)) {
         await _notifications.cancel(id: id);
       }
@@ -437,6 +462,7 @@ class NotificationService {
         );
       }
     }
+    await _cancelClosedFirstWindows(open);
     return open;
   }
 

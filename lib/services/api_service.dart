@@ -219,10 +219,15 @@ class ApiService {
   }
 
   /// Fetch check-in history from supercharging.life
-  Future<List<SiteCheckinsCompanion>> fetchCheckinHistory() async {
+  Future<List<SiteCheckinsCompanion>> fetchCheckinHistory({int? siteId}) async {
     final response = await _dio.get(
       '$superchargingLifeBaseUrl/supercharging/ajax.php',
-      queryParameters: {'content': 'first_checkin_history_list_for_datatables'},
+      queryParameters: {
+        'content': siteId == null
+            ? 'first_checkin_history_list_for_datatables'
+            : 'supercharger_checkin_history_list_for_datatables',
+        'id': ?siteId,
+      },
     );
 
     if (response.statusCode == 200) {
@@ -456,7 +461,15 @@ class ApiService {
       ),
       stallCount: Value(site.stallCount),
       otherEvs: Value(site.otherEVs),
-      dateOpened: Value(site.dateOpened),
+      dateOpened: Value(
+        site.dateOpened == null
+            ? null
+            : DateTime.utc(
+                site.dateOpened!.year,
+                site.dateOpened!.month,
+                site.dateOpened!.day,
+              ),
+      ),
       lastSynced: Value(DateTime.now()),
     );
   }
@@ -538,7 +551,8 @@ class ApiService {
   static SiteCheckinsCompanion parseSiteCheckin(Map<String, dynamic> json) {
     DateTime checkinDate;
     try {
-      checkinDate = DateTime.parse(json['checkin_date'] as String);
+      final parsed = DateTime.parse(json['checkin_date'] as String);
+      checkinDate = DateTime.utc(parsed.year, parsed.month, parsed.day);
     } catch (_) {
       checkinDate = DateTime.now();
     }

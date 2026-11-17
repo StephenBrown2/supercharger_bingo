@@ -94,8 +94,8 @@ class SyncService {
 
   /// Sync the user's region from supercharge.info.
   ///
-  /// The first pull pages `/sites` for that region and records the newest
-  /// change id. Later pulls apply only newer `/changes` rows. With no fix and
+  /// The first pull pages `/sites` and opening history for that region.
+  /// Later pulls apply only newer `/changes` rows. With no fix and
   /// no stored location, this does not download the full site list.
   Future<void> syncSites({double? latitude, double? longitude}) async {
     if (_isSyncingSites) return;
@@ -147,16 +147,9 @@ class SyncService {
   Future<void> _syncRegion(int regionId) async {
     final existing = await DatabaseService.getRegionSync(regionId);
     if (existing == null) {
-      final newest = await _apiService.fetchNewestChangeId(regionId);
       await _loadRegionSites(regionId);
-      // Include the snapshot change itself. A site page taken a moment later
-      // can still miss it, and re-applying the embedded site is idempotent.
-      final floor = newest == null ? 0 : newest - 1;
-      final maxApplied = await _applyNewerChanges(regionId, floor);
-      final cursor = newest == null
-          ? maxApplied
-          : (maxApplied > newest ? maxApplied : newest);
-      await DatabaseService.upsertRegionSync(regionId, cursor);
+      final maxApplied = await _applyNewerChanges(regionId, 0);
+      await DatabaseService.upsertRegionSync(regionId, maxApplied);
       return;
     }
 
@@ -198,6 +191,7 @@ class SyncService {
       if (page.results.isEmpty) return maxId;
 
       final batch = <SitesCompanion>[];
+      final openings = <int, DateTime>{};
       var reachedCursor = false;
       for (final change in page.results) {
         if (change.id <= cursor) {
@@ -208,9 +202,24 @@ class SyncService {
         if (seenSites.add(change.siteId)) {
           batch.add(ApiService.companionFor(change.site));
         }
+        if (change.siteStatus == Status.OPEN &&
+            change.prevStatus != Status.OPEN) {
+          final day = DateTime.utc(
+            change.date.year,
+            change.date.month,
+            change.date.day,
+          );
+          final previous = openings[change.siteId];
+          if (previous == null || day.isBefore(previous)) {
+            openings[change.siteId] = day;
+          }
+        }
       }
       if (batch.isNotEmpty) {
         await DatabaseService.upsertSites(batch);
+      }
+      if (openings.isNotEmpty) {
+        await DatabaseService.db.recordFirstOpeningDates(openings);
       }
       if (reachedCursor || page.results.length < ApiService.changePageLength) {
         return maxId;
@@ -299,6 +308,26 @@ class SyncService {
       }
 
       await DatabaseService.markSitesHaveCheckins(siteIdsWithCheckins);
+      // A newly opened site's premature First can be absent from the recent
+      // feed. Check it directly throughout its possible site-local First day.
+      final now = DateTime.now().toUtc();
+      final yesterday = DateTime.utc(now.year, now.month, now.day - 1);
+      for (final site in await DatabaseService.db.getAllSites()) {
+        final opened = site.firstOpeningDay?.toUtc();
+        if (site.status != SiteStatus.open ||
+            (checkinCounts[site.siteId] ?? 0) == 0 ||
+            opened == null ||
+            opened.isBefore(yesterday)) {
+          continue;
+        }
+        try {
+          await DatabaseService.upsertSiteCheckins(
+            await _apiService.fetchCheckinHistory(siteId: site.siteId),
+          );
+        } catch (e) {
+          debugPrint('Site First history failed for ${site.siteId}: $e');
+        }
+      }
       debugPrint('syncSuperchargerCheckinCounts: Database updated');
     } catch (e, stack) {
       debugPrint('syncSuperchargerCheckinCounts: Error: $e');

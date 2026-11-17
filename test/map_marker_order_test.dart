@@ -81,6 +81,27 @@ void main() {
           ),
         );
       }
+      // First colours require dated evidence, not just a community count.
+      for (final id in [5, 6, 7]) {
+        final now = DateTime.now().toUtc();
+        final day = DateTime.utc(
+          now.year,
+          now.month,
+          now.day,
+        ).subtract(Duration(days: id == 6 ? 1 : 0));
+        await db.upsertSiteCheckins([
+          SiteCheckinsCompanion.insert(
+            checkinId: id,
+            siteId: id,
+            odUserId: id,
+            username: 'user$id',
+            checkinDate: day,
+            checkinTime: day,
+            isFirstAtSupercharger: const Value(true),
+            syncedAt: now,
+          ),
+        ]);
+      }
       DatabaseService.bootstrapSites = await db.getAllSites();
       DatabaseService.bootstrapUserSettings = null;
       await tester.pumpWidget(const MaterialApp(home: MapScreen()));

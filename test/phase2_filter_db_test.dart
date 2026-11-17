@@ -43,7 +43,7 @@ void main() {
           siteId: 10,
           odUserId: 100,
           username: 'a',
-          checkinDate: DateTime(2026, 5, 2),
+          checkinDate: DateTime.utc(2026, 5, 2),
           checkinTime: DateTime(2026, 5, 2, 12),
           isFirstAtSupercharger: const Value(true),
           syncedAt: DateTime.now(),
@@ -53,7 +53,7 @@ void main() {
           siteId: 10,
           odUserId: 101,
           username: 'b',
-          checkinDate: DateTime(2026, 5, 1),
+          checkinDate: DateTime.utc(2026, 5, 1),
           checkinTime: DateTime(2026, 5, 1, 9),
           isFirstAtSupercharger: const Value(true),
           syncedAt: DateTime.now(),
@@ -66,22 +66,21 @@ void main() {
   );
 
   test(
-    'a site with community check-ins but no First history is taken',
+    'counts keep older sites claimed without inventing a First day',
     () async {
       await db.upsertSite(
         SitesCompanion.insert(
           siteId: 11,
           name: 'Older site',
-          dateOpened: Value(DateTime(2026, 10, 26)),
+          status: const Value(SiteStatus.open),
+          dateOpened: Value(DateTime.utc(2026, 10, 26)),
         ),
       );
       await seedSite(12);
       expect(await db.getEarliestCheckinDates([11, 12]), isEmpty);
 
       await db.markSitesHaveCheckins([11]);
-      expect(await db.getEarliestCheckinDates([11, 12]), {
-        11: DateTime(2026, 10, 26),
-      });
+      expect(await db.getEarliestCheckinDates([11, 12]), {11: DateTime(2000)});
     },
   );
 
@@ -110,7 +109,8 @@ void main() {
         SitesCompanion.insert(
           siteId: 10,
           name: 'New site',
-          dateOpened: Value(DateTime(2026, 5, 2)),
+          status: const Value(SiteStatus.open),
+          dateOpened: Value(DateTime.utc(2026, 5, 2)),
         ),
       );
       for (var day = 1; day <= 3; day++) {
@@ -120,7 +120,7 @@ void main() {
             siteId: 10,
             odUserId: 100,
             username: 'a',
-            checkinDate: DateTime(2026, 5, day),
+            checkinDate: DateTime.utc(2026, 5, day),
             checkinTime: DateTime(2026, 5, day, 12),
             isFirstAtSupercharger: const Value(true),
             syncedAt: DateTime.now(),
@@ -136,10 +136,14 @@ void main() {
         SitesCompanion.insert(
           siteId: 10,
           name: 'New site',
-          dateOpened: Value(DateTime(2026, 5, 4)),
+          status: const Value(SiteStatus.open),
+          dateOpened: Value(DateTime.utc(2026, 5, 4)),
         ),
       );
-      expect(await db.getEarliestCheckinDates([10]), isEmpty);
+      // A later listed opening can be a reopening, not a reason to revoke First.
+      expect(await db.getEarliestCheckinDates([10]), {
+        10: DateTime(2026, 5, 2),
+      });
     },
   );
 
@@ -151,7 +155,7 @@ void main() {
         siteId: 9928,
         odUserId: 50124,
         username: 'theflyer',
-        checkinDate: DateTime(2026, 6, 17),
+        checkinDate: DateTime.utc(2026, 6, 17),
         checkinTime: DateTime(2026, 6, 17, 12),
         isFirstAtSupercharger: Value(first),
         syncedAt: DateTime.now(),
@@ -176,7 +180,7 @@ void main() {
             siteId: 20,
             odUserId: id,
             username: name,
-            checkinDate: DateTime(2026, 11, day),
+            checkinDate: DateTime.utc(2026, 11, day),
             checkinTime: DateTime(2026, 11, day, 9 + id),
             isFirstAtSupercharger: Value(first),
             syncedAt: DateTime.now(),
