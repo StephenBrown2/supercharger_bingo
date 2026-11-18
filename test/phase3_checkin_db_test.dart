@@ -60,5 +60,23 @@ void main() {
         expect(pending.first.vehicleId, 'veh-1');
       },
     );
+
+    test('a send interrupted for 10 minutes is retried', () async {
+      final sentAt = DateTime(2026, 11, 18, 12);
+      await db.addPendingCheckin(
+        PendingCheckinsCompanion(
+          siteId: const Value(7),
+          checkinDate: Value(sentAt),
+          createdAt: Value(sentAt),
+          status: const Value(PendingStatus.submitting),
+          lastAttemptAt: Value(sentAt),
+        ),
+      );
+
+      final soon = sentAt.add(const Duration(minutes: 9));
+      expect(await db.getPendingCheckins(now: soon), isEmpty);
+      final later = sentAt.add(const Duration(minutes: 11));
+      expect(await db.getPendingCheckins(now: later), hasLength(1));
+    });
   });
 }

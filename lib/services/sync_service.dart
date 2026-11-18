@@ -542,111 +542,52 @@ class SyncService {
     }
   }
 
-  /// Submit a check-in, queueing offline if needed.
+  /// Save a check-in and send it right away. It stays pending only when the
+  /// send does not succeed (offline, signed out, network or server error), and
+  /// sync retries it later. Returns the row status after the attempt:
+  /// `completed` (accepted), `failed` (refused, never retried) or `pending`.
   ///
-  /// A date before the site opened is rejected: nothing is posted, queued, or
-  /// marked visited. Returns false both for that rejection and for a queued
-  /// check-in.
-  Future<bool> submitCheckin({
-    required int siteId,
-    required DateTime date,
-    double? latitude,
-    double? longitude,
-    double? accuracy,
-    String? notes,
-    String? notesPrivate,
-    CheckinPrecision precision = CheckinPrecision.timestamp,
+  /// The row is saved before sending, so an app kill mid-send still leaves it
+  /// queued. While online it is saved as `submitting`, so a concurrent sync
+  /// does not send it a second time.
+  Future<PendingStatus> submitCheckin(
+    PendingCheckinsCompanion pending, {
+    CheckinMethod method = CheckinMethod.manual,
   }) async {
-    final site = await DatabaseService.getSiteBySiteId(siteId);
-    if (site != null &&
-        checkinPrecedesOpening(site, date, precision: precision)) {
-      return false;
-    }
-
-    final hasNetwork = await hasConnectivity();
-    var queueStatus = PendingStatus.pending;
-    String? queueError;
-    var attempts = 0;
-    DateTime? lastAttemptAt;
-
-    if (hasNetwork) {
-      // Try to submit directly
-      try {
-        final draft = await _draftFor(
-          siteId: siteId,
-          date: date,
-          precision: precision,
-          latitude: latitude,
-          longitude: longitude,
-          accuracy: accuracy,
-          notes: notes,
-          notesPrivate: notesPrivate,
-        );
-        final result = await _writer.submit(draft);
-
-        if (result.outcome == WriteOutcome.accepted) {
-          await DatabaseService.markSiteVisited(siteId, true);
-          await DatabaseService.addVisit(
-            VisitsCompanion(
-              siteId: Value(siteId),
-              checkinDate: Value(date),
-              checkinTime: Value(date),
-              checkinPrecision: Value(precision),
-              isFirst: const Value(false),
-              method: Value(
-                latitude != null ? CheckinMethod.gps : CheckinMethod.manual,
-              ),
-              notesPublic: Value(notes),
-              notesPrivate: Value(notesPrivate),
-              geoDistanceAccuracy: Value(accuracy?.toInt()),
-              syncStatus: const Value(VisitSyncStatus.synced),
-              importedAt: Value(DateTime.now()),
-            ),
-          );
-          return true;
-        }
-        if (result.outcome == WriteOutcome.needsSignIn) {
-          await _markSessionExpired();
-          queueError = waitingForSignInMessage;
-        } else if (result.outcome == WriteOutcome.rejected) {
-          queueStatus = PendingStatus.failed;
-          queueError = result.message ?? WriteResult.rejected.message;
-        } else if (result.outcome == WriteOutcome.retry) {
-          queueError = result.message ?? WriteResult.retry.message;
-          attempts = 1;
-          lastAttemptAt = DateTime.now();
-        }
-      } catch (e) {
-        queueError = WriteResult.retry.message;
-        attempts = 1;
-        lastAttemptAt = DateTime.now();
-      }
-    }
-
-    await DatabaseService.saveQueuedCheckin(
-      pending: PendingCheckinsCompanion(
-        siteId: Value(siteId),
-        checkinDate: Value(date),
-        checkinPrecision: Value(precision),
-        createdAt: Value(DateTime.now()),
-        latitude: Value(latitude),
-        longitude: Value(longitude),
-        accuracy: Value(accuracy),
-        notesPublic: Value(notes),
-        notesPrivate: Value(notesPrivate),
-        status: Value(queueStatus),
-        lastError: Value(queueError),
-        attempts: Value(attempts),
-        lastAttemptAt: Value(lastAttemptAt),
-      ),
-      method: latitude != null ? CheckinMethod.gps : CheckinMethod.manual,
+    var online = false;
+    try {
+      online = !kIsWeb && await hasConnectivity();
+    } catch (_) {}
+    final now = DateTime.now();
+    final id = await DatabaseService.saveQueuedCheckin(
+      method: method,
+      pending: online
+          ? pending.copyWith(
+              status: const Value(PendingStatus.submitting),
+              lastAttemptAt: Value(now),
+            )
+          : pending,
     );
-
-    return false; // Indicates it was queued, not submitted
+    if (!online) return PendingStatus.pending;
+    final row = await DatabaseService.getPendingCheckin(id);
+    if (row != null) await _send(row, now);
+    return (await DatabaseService.getPendingCheckin(id))?.status ??
+        PendingStatus.pending;
   }
 
-  /// Sync pending check-ins
-  Future<void> syncPendingCheckins() async {
+  Future<void>? _flush;
+
+  /// Sync pending check-ins. Calls in this isolate run one after another, so a
+  /// sign-in flush and a connectivity flush never post the same row twice.
+  // ponytail: background isolates can still overlap; the official API's
+  // Idempotency-Key removes the duplicate (supercharging-life-api-app-changes.md).
+  Future<void> syncPendingCheckins() {
+    final run = (_flush ?? Future<void>.value()).then((_) => _syncPending());
+    _flush = run.catchError((_) {});
+    return run;
+  }
+
+  Future<void> _syncPending() async {
     if (kIsWeb) return;
     final hasNetwork = await hasConnectivity();
     if (!hasNetwork) return;
@@ -655,85 +596,98 @@ class SyncService {
 
     for (final checkin in pending) {
       final now = DateTime.now();
-      if (!pendingReadyToRetry(checkin.lastAttemptAt, checkin.attempts, now)) {
+      // A stale `submitting` row was interrupted, not refused, so it skips the
+      // failure backoff.
+      if (checkin.status == PendingStatus.pending &&
+          !pendingReadyToRetry(checkin.lastAttemptAt, checkin.attempts, now)) {
         continue;
       }
+      await _send(checkin, now);
+    }
+  }
 
-      try {
-        final site = await DatabaseService.getSiteBySiteId(checkin.siteId);
-        if (site != null &&
-            checkinPrecedesOpening(
-              site,
-              checkin.checkinDate,
-              precision: checkin.checkinPrecision,
-            )) {
-          await DatabaseService.updatePendingCheckin(
-            checkin.id,
-            const PendingCheckinsCompanion(
-              status: Value(PendingStatus.failed),
-              lastError: Value('Check-in date is before the site opened'),
-            ),
-          );
-          continue;
-        }
-
-        final session = await _apiService.getSessionCookie();
-        if (session == null || session.isEmpty) {
-          await DatabaseService.updatePendingCheckin(
-            checkin.id,
-            const PendingCheckinsCompanion(
-              status: Value(PendingStatus.pending),
-              lastError: Value(waitingForSignInMessage),
-            ),
-          );
-          sessionExpiredVersion.value++;
-          continue;
-        }
-
+  /// One send attempt for [checkin]. The result is written to its row; a send
+  /// that throws leaves it pending.
+  Future<void> _send(PendingCheckin checkin, DateTime now) async {
+    try {
+      final site = await DatabaseService.getSiteBySiteId(checkin.siteId);
+      if (site != null &&
+          checkinPrecedesOpening(
+            site,
+            checkin.checkinDate,
+            precision: checkin.checkinPrecision,
+          )) {
         await DatabaseService.updatePendingCheckin(
           checkin.id,
-          PendingCheckinsCompanion(
-            status: const Value(PendingStatus.submitting),
-            lastAttemptAt: Value(now),
-            attempts: Value(checkin.attempts + 1),
+          const PendingCheckinsCompanion(
+            status: Value(PendingStatus.failed),
+            lastError: Value('Check-in date is before the site opened'),
           ),
         );
-
-        final draft = await _draftFor(
-          siteId: checkin.siteId,
-          date: checkin.checkinDate,
-          precision: checkin.checkinPrecision,
-          latitude: checkin.latitude,
-          longitude: checkin.longitude,
-          accuracy: checkin.accuracy,
-          notes: checkin.notesPublic,
-          notesPrivate: checkin.notesPrivate,
-        );
-        final result = await _writer.submit(draft);
-        await _applyWriteResult(checkin.id, result);
-      } catch (e) {
-        await DatabaseService.updatePendingCheckin(
-          checkin.id,
-          PendingCheckinsCompanion(
-            status: const Value(PendingStatus.pending),
-            lastError: Value(WriteResult.retry.message),
-          ),
-        );
+        return;
       }
+
+      final session = await _apiService.getSessionCookie();
+      if (session == null || session.isEmpty) {
+        await DatabaseService.updatePendingCheckin(
+          checkin.id,
+          const PendingCheckinsCompanion(
+            status: Value(PendingStatus.pending),
+            lastError: Value(waitingForSignInMessage),
+            // Like needsSignIn: send as soon as the user signs in.
+            attempts: Value(0),
+            lastAttemptAt: Value(null),
+          ),
+        );
+        sessionExpiredVersion.value++;
+        return;
+      }
+
+      await DatabaseService.updatePendingCheckin(
+        checkin.id,
+        PendingCheckinsCompanion(
+          status: const Value(PendingStatus.submitting),
+          lastAttemptAt: Value(now),
+          attempts: Value(checkin.attempts + 1),
+        ),
+      );
+
+      final draft = await _draftFor(
+        siteId: checkin.siteId,
+        date: checkin.checkinDate,
+        precision: checkin.checkinPrecision,
+        latitude: checkin.latitude,
+        longitude: checkin.longitude,
+        accuracy: checkin.accuracy,
+        notes: checkin.notesPublic,
+        notesPrivate: checkin.notesPrivate,
+      );
+      final result = await _writer.submit(draft);
+      await _applyWriteResult(checkin.id, result);
+    } catch (e) {
+      await DatabaseService.updatePendingCheckin(
+        checkin.id,
+        PendingCheckinsCompanion(
+          status: const Value(PendingStatus.pending),
+          lastError: Value(WriteResult.retry.message),
+        ),
+      );
     }
   }
 
   Future<void> _applyWriteResult(int pendingId, WriteResult result) async {
     switch (result.outcome) {
       case WriteOutcome.accepted:
-        await DatabaseService.updatePendingCheckin(
-          pendingId,
-          const PendingCheckinsCompanion(
-            status: Value(PendingStatus.completed),
-            lastError: Value(null),
-          ),
-        );
-        await DatabaseService.db.markPendingVisitSynced(pendingId);
+        await DatabaseService.db.transaction(() async {
+          await DatabaseService.updatePendingCheckin(
+            pendingId,
+            const PendingCheckinsCompanion(
+              status: Value(PendingStatus.completed),
+              lastError: Value(null),
+            ),
+          );
+          await DatabaseService.db.markPendingVisitSynced(pendingId);
+        });
       case WriteOutcome.rejected:
         await DatabaseService.updatePendingCheckin(
           pendingId,

@@ -6,12 +6,14 @@ import '../database/database.dart';
 import '../services/checkin_rules.dart';
 import '../services/database_service.dart';
 import '../services/life_time.dart';
+import '../services/sync_service.dart';
 
 /// Check-in dialog modeled on the live supercharging.life form (SPEC Section 6):
 /// public note, private note, optional vehicle selector, and the user's most
-/// recent check-in at this site. Writes locally to the PendingCheckins outbox
-/// and never blocks on the network. Returns true if a check-in was queued.
-Future<bool> showCheckinDialog(
+/// recent check-in at this site. Saves to the PendingCheckins outbox and sends
+/// right away. Returns null if cancelled, otherwise the outbox status after the
+/// send: `completed`, `failed` (refused) or `pending` (retried later).
+Future<PendingStatus?> showCheckinDialog(
   BuildContext context, {
   required Site site,
   required double distanceKm,
@@ -21,9 +23,9 @@ Future<bool> showCheckinDialog(
   final lastVisit = await DatabaseService.db.getLastVisitDate(site.siteId);
   final settings = await DatabaseService.getUserSettings();
   final lastVehicleId = await DatabaseService.db.getLastUsedVehicleId();
-  if (!context.mounted) return false;
+  if (!context.mounted) return null;
 
-  final result = await showDialog<bool>(
+  return showDialog<PendingStatus>(
     context: context,
     builder: (context) => _CheckinDialog(
       site: site,
@@ -36,7 +38,6 @@ Future<bool> showCheckinDialog(
       lastVehicleId: lastVehicleId,
     ),
   );
-  return result ?? false;
 }
 
 String _formatDate(DateTime d) => formatCalendarDate(d);
@@ -99,98 +100,105 @@ class _CheckinDialogState extends State<_CheckinDialog> {
         : widget.distanceKm;
     final distanceUnit = imperial ? 'mi' : 'km';
 
-    return AlertDialog(
-      title: const Text('Check In'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(site.name, style: theme.textTheme.titleMedium),
-            Text(
-              '${distance.toStringAsFixed(1)} $distanceUnit away',
-              style: theme.textTheme.bodySmall,
-            ),
-            const SizedBox(height: 8),
-            // Most recent check-in indicator (SPEC Section 6, item 3).
-            Text(
-              formatLifeDateField(
-                _checkinAt,
-                precision: CheckinPrecision.timestamp,
+    // No dismissal mid-send: the result would be lost and the user could
+    // submit the same check-in again.
+    return PopScope(
+      canPop: !_submitting,
+      child: AlertDialog(
+        title: const Text('Check In'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(site.name, style: theme.textTheme.titleMedium),
+              Text(
+                '${distance.toStringAsFixed(1)} $distanceUnit away',
+                style: theme.textTheme.bodySmall,
               ),
-              style: theme.textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              widget.lastVisit != null
-                  ? 'Last check-in: ${_formatDate(widget.lastVisit!)}'
-                  : 'No previous check-in.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                fontStyle: FontStyle.italic,
-                color: theme.colorScheme.outline,
+              const SizedBox(height: 8),
+              // Most recent check-in indicator (SPEC Section 6, item 3).
+              Text(
+                formatLifeDateField(
+                  _checkinAt,
+                  precision: CheckinPrecision.timestamp,
+                ),
+                style: theme.textTheme.bodyMedium,
               ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _publicController,
-              decoration: const InputDecoration(
-                labelText: 'Public note (optional)',
-                border: OutlineInputBorder(),
+              const SizedBox(height: 8),
+              Text(
+                widget.lastVisit != null
+                    ? 'Last check-in: ${_formatDate(widget.lastVisit!)}'
+                    : 'No previous check-in.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontStyle: FontStyle.italic,
+                  color: theme.colorScheme.outline,
+                ),
               ),
-              maxLines: 2,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _privateController,
-              decoration: const InputDecoration(
-                labelText: 'Private note (optional)',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 2,
-            ),
-            if (widget.vehicles.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String?>(
-                initialValue: _selectedVehicleId,
+              const SizedBox(height: 16),
+              TextField(
+                controller: _publicController,
                 decoration: const InputDecoration(
-                  labelText: 'Vehicle (optional)',
+                  labelText: 'Public note (optional)',
                   border: OutlineInputBorder(),
                 ),
-                items: [
-                  const DropdownMenuItem<String?>(
-                    value: null,
-                    child: Text('None'),
-                  ),
-                  ...widget.vehicles.map(
-                    (v) => DropdownMenuItem<String?>(
-                      value: v.id,
-                      child: Text(v.label),
-                    ),
-                  ),
-                ],
-                onChanged: (value) =>
-                    setState(() => _selectedVehicleId = value),
+                maxLines: 2,
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _privateController,
+                decoration: const InputDecoration(
+                  labelText: 'Private note (optional)',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 2,
+              ),
+              if (widget.vehicles.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String?>(
+                  initialValue: _selectedVehicleId,
+                  decoration: const InputDecoration(
+                    labelText: 'Vehicle (optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('None'),
+                    ),
+                    ...widget.vehicles.map(
+                      (v) => DropdownMenuItem<String?>(
+                        value: v.id,
+                        child: Text(v.label),
+                      ),
+                    ),
+                  ],
+                  // Closed while sending: the dialog pops itself when the send ends.
+                  onChanged: _submitting
+                      ? null
+                      : (value) => setState(() => _selectedVehicleId = value),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
+        actions: [
+          TextButton(
+            onPressed: _submitting ? null : () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: _submitting ? null : _submit,
+            child: _submitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Check In'),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: _submitting ? null : () => Navigator.pop(context, false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: _submitting ? null : _submit,
-          child: _submitting
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Check In'),
-        ),
-      ],
     );
   }
 
@@ -225,9 +233,9 @@ class _CheckinDialogState extends State<_CheckinDialog> {
     }
 
     try {
-      await DatabaseService.saveQueuedCheckin(
+      final status = await SyncService.instance.submitCheckin(
         method: pos == null ? CheckinMethod.manual : CheckinMethod.gps,
-        pending: PendingCheckinsCompanion(
+        PendingCheckinsCompanion(
           siteId: Value(widget.site.siteId),
           checkinDate: Value(now),
           checkinPrecision: const Value(CheckinPrecision.timestamp),
@@ -245,7 +253,7 @@ class _CheckinDialogState extends State<_CheckinDialog> {
         ),
       );
 
-      if (mounted) Navigator.pop(context, true);
+      if (mounted) Navigator.pop(context, status);
     } catch (_) {
       if (mounted) {
         setState(() => _submitting = false);

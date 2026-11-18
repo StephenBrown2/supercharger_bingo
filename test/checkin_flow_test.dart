@@ -32,6 +32,12 @@ void main() {
   tearDownAll(() => db.close());
 
   Future<void> openCheckin(WidgetTester tester) async {
+    // Offline, so Check In only queues and these tests never post.
+    const channel = MethodChannel('dev.fluttercommunity.plus/connectivity');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (_) async => ['none']);
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
     await db.upsertSite(SitesCompanion.insert(siteId: 1, name: 'Test site'));
     final site = (await db.getSiteBySiteId(1))!;
     await tester.pumpWidget(

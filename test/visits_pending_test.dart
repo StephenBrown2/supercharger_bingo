@@ -17,13 +17,18 @@ import 'support/test_sqlite3.dart';
 
 class _DeleteApi extends ApiService {
   final WriteResult result;
+  final WriteResult submitResult;
   int? deletedId;
+  var submits = 0;
 
-  _DeleteApi(this.result) : super(sessionId: 'test');
+  _DeleteApi(this.result, {this.submitResult = WriteResult.accepted})
+    : super(sessionId: 'test');
 
   @override
-  Future<WriteResult> submitCheckin(CheckinDraft draft) async =>
-      WriteResult.accepted;
+  Future<WriteResult> submitCheckin(CheckinDraft draft) async {
+    submits++;
+    return submitResult;
+  }
 
   @override
   Future<Map<String, dynamic>?> fetchUserByUsername(String username) async => {
@@ -97,17 +102,16 @@ void main() {
         final api = _DeleteApi(WriteResult.accepted);
         final sync = SyncService(apiService: api);
         final date = DateTime.utc(2026, 11, 10, 15, 0, 0, 123);
+        final pending = PendingCheckinsCompanion(
+          siteId: const Value(7),
+          checkinDate: Value(date),
+          createdAt: Value(date),
+        );
         if (queued) {
-          await DatabaseService.saveQueuedCheckin(
-            pending: PendingCheckinsCompanion(
-              siteId: const Value(7),
-              checkinDate: Value(date),
-              createdAt: Value(date),
-            ),
-          );
+          await DatabaseService.saveQueuedCheckin(pending: pending);
           await sync.syncPendingCheckins();
         } else {
-          expect(await sync.submitCheckin(siteId: 7, date: date), isTrue);
+          expect(await sync.submitCheckin(pending), PendingStatus.completed);
         }
         final original = (await db.getAllVisits()).single;
         expect(original.checkinId, isNull);
@@ -125,6 +129,101 @@ void main() {
       },
     );
   }
+
+  test('overlapping syncs post a pending check-in once', () async {
+    const channel = MethodChannel('dev.fluttercommunity.plus/connectivity');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (_) async => ['wifi']);
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    await db.upsertSite(
+      SitesCompanion.insert(siteId: 7, name: 'Upper Sandusky'),
+    );
+    final date = DateTime.utc(2026, 11, 10, 15);
+    await DatabaseService.saveQueuedCheckin(
+      pending: PendingCheckinsCompanion(
+        siteId: const Value(7),
+        checkinDate: Value(date),
+        createdAt: Value(date),
+      ),
+    );
+    final api = _DeleteApi(WriteResult.accepted);
+    final sync = SyncService(apiService: api);
+
+    await Future.wait([sync.syncPendingCheckins(), sync.syncPendingCheckins()]);
+
+    expect(api.submits, 1);
+  });
+
+  for (final (result, status) in [
+    (WriteResult.retry, PendingStatus.pending),
+    (WriteResult.rejected, PendingStatus.failed),
+  ]) {
+    test('a direct check-in answered ${result.outcome.name} is '
+        '${status.name}', () async {
+      const channel = MethodChannel('dev.fluttercommunity.plus/connectivity');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(channel, (_) async => ['wifi']);
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      await db.upsertSite(
+        SitesCompanion.insert(siteId: 7, name: 'Upper Sandusky'),
+      );
+      final date = DateTime.utc(2026, 11, 10, 15);
+      final sync = SyncService(
+        apiService: _DeleteApi(WriteResult.accepted, submitResult: result),
+      );
+
+      expect(
+        await sync.submitCheckin(
+          PendingCheckinsCompanion(
+            siteId: const Value(7),
+            checkinDate: Value(date),
+            createdAt: Value(date),
+          ),
+        ),
+        status,
+      );
+      expect(
+        (await db.getAllVisits()).single.syncStatus,
+        VisitSyncStatus.pending,
+      );
+    });
+  }
+
+  test(
+    'a send cut off on its third attempt is sent again after 10 minutes',
+    () async {
+      const channel = MethodChannel('dev.fluttercommunity.plus/connectivity');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(channel, (_) async => ['wifi']);
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      await db.upsertSite(
+        SitesCompanion.insert(siteId: 7, name: 'Upper Sandusky'),
+      );
+      final cutOff = DateTime.now().subtract(const Duration(minutes: 11));
+      await DatabaseService.saveQueuedCheckin(
+        pending: PendingCheckinsCompanion(
+          siteId: const Value(7),
+          checkinDate: Value(cutOff),
+          createdAt: Value(cutOff),
+          status: const Value(PendingStatus.submitting),
+          attempts: const Value(3),
+          lastAttemptAt: Value(cutOff),
+        ),
+      );
+
+      await SyncService(
+        apiService: _DeleteApi(WriteResult.accepted),
+      ).syncPendingCheckins();
+
+      expect(
+        (await db.getAllVisits()).single.syncStatus,
+        VisitSyncStatus.synced,
+      );
+    },
+  );
 
   for (final result in [
     WriteResult.accepted,

@@ -199,11 +199,11 @@ class DatabaseService {
   }
 
   /// Queue a check-in and a visits row that shows as pending until sync.
-  static Future<void> saveQueuedCheckin({
+  static Future<int> saveQueuedCheckin({
     required PendingCheckinsCompanion pending,
     CheckinMethod method = CheckinMethod.manual,
   }) async {
-    await db.transaction(() async {
+    final id = await db.transaction(() async {
       final pendingId = await db.addPendingCheckin(pending);
       await db.addVisit(
         VisitsCompanion(
@@ -226,8 +226,10 @@ class DatabaseService {
         ),
       );
       await db.markSiteVisited(pending.siteId.value, true);
+      return pendingId;
     });
     bootstrapSites = null;
+    return id;
   }
 
   /// Update a pending check-in

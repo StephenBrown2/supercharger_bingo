@@ -153,8 +153,9 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     final pending = await DatabaseService.getPendingCheckins();
     final needs = pending.any(
       (row) =>
-          row.lastError == signInAgainMessage ||
-          row.lastError == waitingForSignInMessage,
+          row.status == PendingStatus.pending &&
+          (row.lastError == signInAgainMessage ||
+              row.lastError == waitingForSignInMessage),
     );
     if (mounted && needs) setState(() => _needsSignIn = true);
   }
@@ -1411,17 +1412,22 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   Future<void> _handleCheckin(SiteWithDistance siteWithDist) async {
     final site = siteWithDist.site;
     final messenger = ScaffoldMessenger.of(context);
-    final queued = await showCheckinDialog(
+    final status = await showCheckinDialog(
       context,
       site: site,
       distanceKm: siteWithDist.distanceKm,
       position: _userPosition,
     );
-    if (!queued) return;
+    if (status == null) return;
 
     messenger.showSnackBar(
       SnackBar(
-        content: Text('Checked in to ${site.name}. Pending until it syncs.'),
+        content: Text(switch (status) {
+          PendingStatus.completed => 'Checked in to ${site.name}.',
+          PendingStatus.failed =>
+            'supercharging.life did not accept the check-in to ${site.name}.',
+          _ => 'Checked in to ${site.name}. Pending until it syncs.',
+        }),
       ),
     );
     _closeDrawer();

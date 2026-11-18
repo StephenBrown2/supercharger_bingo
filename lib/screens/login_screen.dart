@@ -82,6 +82,9 @@ class _LoginScreenState extends State<LoginScreen> {
           displayName: found ? const Value.absent() : Value(displayName),
         ),
       );
+      // Send check-ins that were waiting for sign-in now, not at the next
+      // network change. Failures stay queued for the next sync.
+      SyncService.instance.syncPendingCheckins().ignore();
       _finish();
     } catch (e) {
       if (mounted) {

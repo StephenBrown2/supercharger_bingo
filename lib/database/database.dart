@@ -1042,10 +1042,20 @@ class AppDatabase extends _$AppDatabase {
     )..where((t) => t.id.equals(id))).getSingleOrNull();
   }
 
-  Future<List<PendingCheckin>> getPendingCheckins() {
-    return (select(
-      pendingCheckins,
-    )..where((t) => t.status.equals(PendingStatus.pending.name))).get();
+  /// Rows waiting to send. A row still `submitting` 10 minutes after its last
+  /// attempt was interrupted (the app was killed mid-send) and is sent again.
+  // ponytail: the unofficial endpoint has no idempotency key, so a send that
+  // landed before the kill becomes a duplicate; the official API's
+  // Idempotency-Key removes that (docs/supercharging-life-api-app-changes.md).
+  Future<List<PendingCheckin>> getPendingCheckins({DateTime? now}) {
+    final stale = (now ?? DateTime.now()).subtract(const Duration(minutes: 10));
+    return (select(pendingCheckins)..where(
+          (t) =>
+              t.status.equals(PendingStatus.pending.name) |
+              (t.status.equals(PendingStatus.submitting.name) &
+                  t.lastAttemptAt.isSmallerOrEqualValue(stale)),
+        ))
+        .get();
   }
 
   Future<int> addPendingCheckin(PendingCheckinsCompanion checkin) {
