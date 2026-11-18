@@ -1,0 +1,9 @@
+What this change does: A counted operational site with no cached First date stays claimed. The marker is 1 Jan 2000, which is already past, so the pin is the ordinary open pin and no countdown starts. A cached visit dated before the site opened still blocks that marker, so a new site whose only rows are premature stays up for grabs and keeps those rows. During that site's First day, sync also reads that site's own history and stores whatever the same parser already understands.
+
+P3 is resolved. Reynoldsburg 10381, Heath 11358, and Upper Sandusky 6571 have counts and no row in the 115-row feed, so they take the 2000 marker. Barstow 8906 opens 2026-11-17 and its saved per-site history is the 2025-07-19 First, which this window fetches and which does not become an award.
+
+Looks good. Ship.
+
+Checked: `getEarliestCheckinDates` and `_getFirstCheckins` in `lib/database/database.dart`, `fetchCheckinHistory` in `lib/services/api_service.dart`, and the new loop in `syncSuperchargerCheckinCounts`. Callers are the map pins, the check-in list (`containsKey` hides "FIRST eligible" once the 2000 marker is present), and `isInFirstWindow` in notifications. The fetch window is UTC yesterday through any later opening date. That covers a local First day from UTC-12 through UTC+14, and a future listed opening. One failed site lookup is skipped; the count flag is already saved, so the 2000 marker holds until a later sync. Assumed load is one phone, one region, poll from 15 minutes to 24 hours. `getAllSites` is one read. Extra requests are serial and only for open sites with a positive count whose first opening day is inside that window. The saved Barstow history payload uses the same string fields as `parseSiteCheckin`. The new tests cover the 2000 marker, an unflagged premature visit, and the per-site fetch that leaves the row in place.
+
+Not checked: the Pixel UI (parent owns the device), a fresh test run, and a live download.

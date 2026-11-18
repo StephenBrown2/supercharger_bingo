@@ -1,0 +1,735 @@
+{
+  "5827": {
+    "id": "5827",
+    "location_id": "26834",
+    "name": "Tysons, VA",
+    "status": "CLOSED_TEMP",
+    "address_street": "1911 Chain Bridge Road",
+    "address_city": "McLean",
+    "address_state": "VA",
+    "address_zip": "22102",
+    "address_country": "USA",
+    "address_region": "North America",
+    "latitude": "38.9153758",
+    "longitude": "-77.225194",
+    "c_original_stalls": "20",
+    "c_date_add": "2023-01-21",
+    "c_date_permit": "2023-01-21",
+    "c_date_construction": "2023-02-02",
+    "c_date_open": "2023-06-30",
+    "c_date_v3upgrade": null,
+    "c_date_stallupgrade": null,
+    "c_date_closed": "2026-11-08",
+    "c_type": "V3",
+    "stall_count": "20",
+    "scilastimport_missing": "N",
+    "url_discuss_flag": "Y",
+    "checkin_qty": "22",
+    "c_date_magicdock": null,
+    "otherevs": "N",
+    "stalls": [
+      {
+        "supercharger_id": "5827",
+        "stall_type": "v3",
+        "stall_qty": "20"
+      }
+    ],
+    "plugs": [
+      {
+        "supercharger_id": "5827",
+        "plug_type": "nacs",
+        "plug_qty": "0"
+      },
+      {
+        "supercharger_id": "5827",
+        "plug_type": "tpc",
+        "plug_qty": "20"
+      }
+    ]
+  },
+  "2182": {
+    "id": "2182",
+    "location_id": "southpadretxsupercharger",
+    "name": "South Padre Island, TX",
+    "status": "CLOSED_PERM",
+    "address_street": "100 Padre Blvd",
+    "address_city": "South Padre Island",
+    "address_state": "TX",
+    "address_zip": "78597",
+    "address_country": "USA",
+    "address_region": "North America",
+    "latitude": "26.081782",
+    "longitude": "-97.161202",
+    "c_original_stalls": "2",
+    "c_date_add": "2019-11-12",
+    "c_date_permit": null,
+    "c_date_construction": null,
+    "c_date_open": "2019-11-12",
+    "c_date_v3upgrade": null,
+    "c_date_stallupgrade": null,
+    "c_date_closed": "2026-10-31",
+    "c_type": "Urban",
+    "stall_count": "2",
+    "scilastimport_missing": "N",
+    "url_discuss_flag": "Y",
+    "checkin_qty": "26",
+    "c_date_magicdock": null,
+    "otherevs": "N",
+    "stalls": [
+      {
+        "supercharger_id": "2182",
+        "stall_type": "urban",
+        "stall_qty": "2"
+      }
+    ],
+    "plugs": [
+      {
+        "supercharger_id": "2182",
+        "plug_type": "tpc",
+        "plug_qty": "2"
+      }
+    ]
+  },
+  "242": {
+    "id": "242",
+    "location_id": "chattanoogasupercharger",
+    "name": "Chattanooga, TN",
+    "status": "CLOSED_PERM",
+    "address_street": "1001 Airport Rd",
+    "address_city": "Chattanooga",
+    "address_state": "TN",
+    "address_zip": "37421",
+    "address_country": "USA",
+    "address_region": "North America",
+    "latitude": "35.038644",
+    "longitude": "-85.19593",
+    "c_original_stalls": "6",
+    "c_date_add": "2014-05-22",
+    "c_date_permit": "2014-05-22",
+    "c_date_construction": "2014-07-31",
+    "c_date_open": "2014-09-04",
+    "c_date_v3upgrade": null,
+    "c_date_stallupgrade": null,
+    "c_date_closed": "2026-03-11",
+    "c_type": "V2",
+    "stall_count": "6",
+    "scilastimport_missing": "N",
+    "url_discuss_flag": "Y",
+    "checkin_qty": "45",
+    "c_date_magicdock": null,
+    "otherevs": "N",
+    "stalls": [
+      {
+        "supercharger_id": "242",
+        "stall_type": "v2",
+        "stall_qty": "6"
+      }
+    ],
+    "plugs": [
+      {
+        "supercharger_id": "242",
+        "plug_type": "tpc",
+        "plug_qty": "6"
+      }
+    ]
+  },
+  "4236": {
+    "id": "4236",
+    "location_id": null,
+    "name": "Iowa, LA",
+    "status": "CLOSED_PERM",
+    "address_street": "800 V F Factory Outlet Dr",
+    "address_city": "Iowa",
+    "address_state": "LA",
+    "address_zip": "70647",
+    "address_country": "USA",
+    "address_region": "North America",
+    "latitude": "30.247262",
+    "longitude": "-93.010598",
+    "c_original_stalls": "8",
+    "c_date_add": "2022-05-08",
+    "c_date_permit": null,
+    "c_date_construction": null,
+    "c_date_open": "2022-05-08",
+    "c_date_v3upgrade": null,
+    "c_date_stallupgrade": null,
+    "c_date_closed": "2022-12-28",
+    "c_type": "V3",
+    "stall_count": "8",
+    "scilastimport_missing": "N",
+    "url_discuss_flag": "Y",
+    "checkin_qty": "9",
+    "c_date_magicdock": null,
+    "otherevs": "N",
+    "stalls": [
+      {
+        "supercharger_id": "4236",
+        "stall_type": "v3",
+        "stall_qty": "8"
+      }
+    ],
+    "plugs": [
+      {
+        "supercharger_id": "4236",
+        "plug_type": "nacs",
+        "plug_qty": "0"
+      },
+      {
+        "supercharger_id": "4236",
+        "plug_type": "tpc",
+        "plug_qty": "8"
+      }
+    ]
+  },
+  "1964": {
+    "id": "1964",
+    "location_id": "watsonvillecasupercharger",
+    "name": "Watsonville, CA",
+    "status": "CLOSED_TEMP",
+    "address_street": "1415 Main St",
+    "address_city": "Watsonville",
+    "address_state": "CA",
+    "address_zip": "95076",
+    "address_country": "USA",
+    "address_region": "North America",
+    "latitude": "36.915613",
+    "longitude": "-121.773509",
+    "c_original_stalls": "14",
+    "c_date_add": "2019-05-10",
+    "c_date_permit": null,
+    "c_date_construction": "2019-05-10",
+    "c_date_open": "2019-07-24",
+    "c_date_v3upgrade": null,
+    "c_date_stallupgrade": "2022-12-12",
+    "c_date_closed": "2026-06-07",
+    "c_type": "Urban",
+    "stall_count": "18",
+    "scilastimport_missing": "N",
+    "url_discuss_flag": "Y",
+    "checkin_qty": "34",
+    "c_date_magicdock": null,
+    "otherevs": "N",
+    "stalls": [
+      {
+        "supercharger_id": "1964",
+        "stall_type": "urban",
+        "stall_qty": "18"
+      }
+    ],
+    "plugs": [
+      {
+        "supercharger_id": "1964",
+        "plug_type": "tpc",
+        "plug_qty": "18"
+      }
+    ]
+  },
+  "988": {
+    "id": "988",
+    "location_id": null,
+    "name": "Van Horn, TX",
+    "status": "CLOSED_PERM",
+    "address_street": "1921 SW Frontage Rd",
+    "address_city": "Van Horn",
+    "address_state": "TX",
+    "address_zip": "79855",
+    "address_country": "USA",
+    "address_region": "North America",
+    "latitude": "31.03448",
+    "longitude": "-104.861431",
+    "c_original_stalls": "8",
+    "c_date_add": "2016-12-04",
+    "c_date_permit": "2016-12-04",
+    "c_date_construction": "2016-12-27",
+    "c_date_open": "2017-02-20",
+    "c_date_v3upgrade": null,
+    "c_date_stallupgrade": null,
+    "c_date_closed": "2023-07-09",
+    "c_type": "V2",
+    "stall_count": "8",
+    "scilastimport_missing": "N",
+    "url_discuss_flag": "Y",
+    "checkin_qty": "42",
+    "c_date_magicdock": null,
+    "otherevs": "N",
+    "stalls": [
+      {
+        "supercharger_id": "988",
+        "stall_type": "v2",
+        "stall_qty": "8"
+      }
+    ],
+    "plugs": [
+      {
+        "supercharger_id": "988",
+        "plug_type": "tpc",
+        "plug_qty": "8"
+      }
+    ]
+  },
+  "3376": {
+    "id": "3376",
+    "location_id": null,
+    "name": "Houston, TX - W Alabama St",
+    "status": "CLOSED_PERM",
+    "address_street": "1701 W Alabama St",
+    "address_city": "Houston",
+    "address_state": "TX",
+    "address_zip": "77098",
+    "address_country": "USA",
+    "address_region": "North America",
+    "latitude": "29.736538",
+    "longitude": "-95.402318",
+    "c_original_stalls": "8",
+    "c_date_add": "2021-05-12",
+    "c_date_permit": "2021-05-12",
+    "c_date_construction": "2022-01-29",
+    "c_date_open": "2022-05-09",
+    "c_date_v3upgrade": null,
+    "c_date_stallupgrade": null,
+    "c_date_closed": "2023-10-10",
+    "c_type": "V3",
+    "stall_count": "8",
+    "scilastimport_missing": "N",
+    "url_discuss_flag": "Y",
+    "checkin_qty": "21",
+    "c_date_magicdock": null,
+    "otherevs": "N",
+    "stalls": [
+      {
+        "supercharger_id": "3376",
+        "stall_type": "v3",
+        "stall_qty": "8"
+      }
+    ],
+    "plugs": [
+      {
+        "supercharger_id": "3376",
+        "plug_type": "nacs",
+        "plug_qty": "0"
+      },
+      {
+        "supercharger_id": "3376",
+        "plug_type": "tpc",
+        "plug_qty": "8"
+      }
+    ]
+  },
+  "754": {
+    "id": "754",
+    "location_id": "wythevillesupercharger",
+    "name": "Wytheville, VA",
+    "status": "CLOSED_PERM",
+    "address_street": "165 Malin Dr",
+    "address_city": "Wytheville",
+    "address_state": "VA",
+    "address_zip": "24382",
+    "address_country": "USA",
+    "address_region": "North America",
+    "latitude": "36.945795",
+    "longitude": "-81.054406",
+    "c_original_stalls": "6",
+    "c_date_add": "2015-11-24",
+    "c_date_permit": "2015-11-24",
+    "c_date_construction": "2015-12-14",
+    "c_date_open": "2015-12-30",
+    "c_date_v3upgrade": null,
+    "c_date_stallupgrade": null,
+    "c_date_closed": "2026-11-06",
+    "c_type": "V2",
+    "stall_count": "6",
+    "scilastimport_missing": "N",
+    "url_discuss_flag": "Y",
+    "checkin_qty": "53",
+    "c_date_magicdock": null,
+    "otherevs": "N",
+    "stalls": [
+      {
+        "supercharger_id": "754",
+        "stall_type": "v2",
+        "stall_qty": "6"
+      }
+    ],
+    "plugs": [
+      {
+        "supercharger_id": "754",
+        "plug_type": "tpc",
+        "plug_qty": "6"
+      }
+    ]
+  },
+  "1022": {
+    "id": "1022",
+    "location_id": "elpasosupercharger",
+    "name": "El Paso, TX",
+    "status": "CLOSED_PERM",
+    "address_street": "6401 Desert Blvd",
+    "address_city": "El Paso",
+    "address_state": "TX",
+    "address_zip": "79932",
+    "address_country": "USA",
+    "address_region": "North America",
+    "latitude": "31.8839",
+    "longitude": "-106.58379",
+    "c_original_stalls": "8",
+    "c_date_add": "2017-01-15",
+    "c_date_permit": "2017-01-15",
+    "c_date_construction": "2017-03-16",
+    "c_date_open": "2017-04-22",
+    "c_date_v3upgrade": null,
+    "c_date_stallupgrade": null,
+    "c_date_closed": "2025-10-02",
+    "c_type": "V2",
+    "stall_count": "8",
+    "scilastimport_missing": "N",
+    "url_discuss_flag": "Y",
+    "checkin_qty": "50",
+    "c_date_magicdock": null,
+    "otherevs": "N",
+    "stalls": [
+      {
+        "supercharger_id": "1022",
+        "stall_type": "accessible",
+        "stall_qty": "1"
+      },
+      {
+        "supercharger_id": "1022",
+        "stall_type": "trailerFriendly",
+        "stall_qty": "0"
+      },
+      {
+        "supercharger_id": "1022",
+        "stall_type": "v2",
+        "stall_qty": "8"
+      }
+    ],
+    "plugs": [
+      {
+        "supercharger_id": "1022",
+        "plug_type": "tpc",
+        "plug_qty": "8"
+      }
+    ]
+  },
+  "9342": {
+    "id": "9342",
+    "location_id": "4008869",
+    "name": "Greenfield, CA - Walnut Ave",
+    "status": "PLAN",
+    "address_street": "345 Walnut Ave",
+    "address_city": "Greenfield",
+    "address_state": "CA",
+    "address_zip": "93927",
+    "address_country": "USA",
+    "address_region": "North America",
+    "latitude": "36.330891",
+    "longitude": "-121.240868",
+    "c_original_stalls": "16",
+    "c_date_add": "2024-12-01",
+    "c_date_permit": null,
+    "c_date_construction": null,
+    "c_date_open": null,
+    "c_date_v3upgrade": null,
+    "c_date_stallupgrade": null,
+    "c_date_closed": null,
+    "c_type": "V4",
+    "stall_count": "16",
+    "scilastimport_missing": "N",
+    "url_discuss_flag": "Y",
+    "checkin_qty": "1",
+    "c_date_magicdock": null,
+    "otherevs": "N",
+    "stalls": [
+      {
+        "supercharger_id": "9342",
+        "stall_type": "accessible",
+        "stall_qty": "1"
+      },
+      {
+        "supercharger_id": "9342",
+        "stall_type": "trailerFriendly",
+        "stall_qty": "0"
+      },
+      {
+        "supercharger_id": "9342",
+        "stall_type": "v4",
+        "stall_qty": "16"
+      }
+    ],
+    "plugs": [
+      {
+        "supercharger_id": "9342",
+        "plug_type": "nacs",
+        "plug_qty": "16"
+      }
+    ]
+  },
+  "607": {
+    "id": "607",
+    "location_id": "riviereduloupsupercharger",
+    "name": "Rivière-du-Loup, QC",
+    "status": "CLOSED_PERM",
+    "address_street": "311 boul. Hôtel-de-Ville",
+    "address_city": "Rivière-du-Loup",
+    "address_state": "QC",
+    "address_zip": "G5R 5S4",
+    "address_country": "Canada",
+    "address_region": "North America",
+    "latitude": "47.82017",
+    "longitude": "-69.558776",
+    "c_original_stalls": "8",
+    "c_date_add": "2015-04-21",
+    "c_date_permit": "2015-04-21",
+    "c_date_construction": "2016-08-11",
+    "c_date_open": "2016-09-22",
+    "c_date_v3upgrade": null,
+    "c_date_stallupgrade": null,
+    "c_date_closed": "2026-05-11",
+    "c_type": "V2",
+    "stall_count": "8",
+    "scilastimport_missing": "N",
+    "url_discuss_flag": "Y",
+    "checkin_qty": "18",
+    "c_date_magicdock": null,
+    "otherevs": "N",
+    "stalls": [
+      {
+        "supercharger_id": "607",
+        "stall_type": "accessible",
+        "stall_qty": "0"
+      },
+      {
+        "supercharger_id": "607",
+        "stall_type": "trailerFriendly",
+        "stall_qty": "0"
+      },
+      {
+        "supercharger_id": "607",
+        "stall_type": "v2",
+        "stall_qty": "8"
+      }
+    ],
+    "plugs": [
+      {
+        "supercharger_id": "607",
+        "plug_type": "tpc",
+        "plug_qty": "8"
+      }
+    ]
+  },
+  "644": {
+    "id": "644",
+    "location_id": "northhouston",
+    "name": "Houston, TX",
+    "status": "CLOSED_PERM",
+    "address_street": "14820 North Fwy",
+    "address_city": "Houston",
+    "address_state": "TX",
+    "address_zip": "77090",
+    "address_country": "USA",
+    "address_region": "North America",
+    "latitude": "29.980741",
+    "longitude": "-95.421697",
+    "c_original_stalls": "6",
+    "c_date_add": "2015-06-25",
+    "c_date_permit": null,
+    "c_date_construction": "2015-06-25",
+    "c_date_open": "2015-07-09",
+    "c_date_v3upgrade": "2022-08-03",
+    "c_date_stallupgrade": "2022-08-03",
+    "c_date_closed": "2024-05-19",
+    "c_type": "V2",
+    "stall_count": "6",
+    "scilastimport_missing": "N",
+    "url_discuss_flag": "Y",
+    "checkin_qty": "43",
+    "c_date_magicdock": null,
+    "otherevs": "N",
+    "stalls": [
+      {
+        "supercharger_id": "644",
+        "stall_type": "v2",
+        "stall_qty": "6"
+      }
+    ],
+    "plugs": [
+      {
+        "supercharger_id": "644",
+        "plug_type": "tpc",
+        "plug_qty": "6"
+      }
+    ]
+  },
+  "816": {
+    "id": "816",
+    "location_id": null,
+    "name": "Pearl, MS (old)",
+    "status": "CLOSED_PERM",
+    "address_street": "200 Bass Pro Dr",
+    "address_city": "Pearl",
+    "address_state": "MS",
+    "address_zip": "39208",
+    "address_country": "USA",
+    "address_region": "North America",
+    "latitude": "32.274159",
+    "longitude": "-90.151048",
+    "c_original_stalls": "8",
+    "c_date_add": "2016-03-31",
+    "c_date_permit": null,
+    "c_date_construction": null,
+    "c_date_open": "2016-03-31",
+    "c_date_v3upgrade": null,
+    "c_date_stallupgrade": "2026-02-19",
+    "c_date_closed": "2026-03-31",
+    "c_type": "V2",
+    "stall_count": "8",
+    "scilastimport_missing": "N",
+    "url_discuss_flag": "Y",
+    "checkin_qty": "35",
+    "c_date_magicdock": null,
+    "otherevs": "Y",
+    "stalls": [
+      {
+        "supercharger_id": "816",
+        "stall_type": "v2",
+        "stall_qty": "8"
+      }
+    ],
+    "plugs": [
+      {
+        "supercharger_id": "816",
+        "plug_type": "tpc",
+        "plug_qty": "8"
+      }
+    ]
+  },
+  "8906": {
+    "id": "8906",
+    "location_id": "401329",
+    "name": "Barstow, CA - 1540 E Main St",
+    "status": "OPEN",
+    "address_street": "1540 E Main St",
+    "address_city": "Barstow",
+    "address_state": "CA",
+    "address_zip": "92311",
+    "address_country": "USA",
+    "address_region": "North America",
+    "latitude": "34.89169",
+    "longitude": "-117.0017",
+    "c_original_stalls": "16",
+    "c_date_add": "2024-09-28",
+    "c_date_permit": null,
+    "c_date_construction": "2026-07-28",
+    "c_date_open": "2026-11-17",
+    "c_date_v3upgrade": null,
+    "c_date_stallupgrade": null,
+    "c_date_closed": null,
+    "c_type": "Unknown",
+    "stall_count": "16",
+    "scilastimport_missing": "N",
+    "url_discuss_flag": "Y",
+    "checkin_qty": "1",
+    "c_date_magicdock": null,
+    "otherevs": "Y",
+    "stalls": [
+      {
+        "supercharger_id": "8906",
+        "stall_type": "v4",
+        "stall_qty": "16"
+      }
+    ],
+    "plugs": [
+      {
+        "supercharger_id": "8906",
+        "plug_type": "nacs",
+        "plug_qty": "16"
+      }
+    ]
+  },
+  "450": {
+    "id": "450",
+    "location_id": "marathonsupercharger",
+    "name": "Marathon, FL",
+    "status": "CLOSED_PERM",
+    "address_street": "9400 Overseas Hwy",
+    "address_city": "Marathon",
+    "address_state": "FL",
+    "address_zip": "33050",
+    "address_country": "USA",
+    "address_region": "North America",
+    "latitude": "24.726042",
+    "longitude": "-81.047958",
+    "c_original_stalls": "4",
+    "c_date_add": "2014-11-23",
+    "c_date_permit": "2014-11-23",
+    "c_date_construction": "2015-03-22",
+    "c_date_open": "2015-05-02",
+    "c_date_v3upgrade": null,
+    "c_date_stallupgrade": null,
+    "c_date_closed": "2024-11-02",
+    "c_type": "V2",
+    "stall_count": "4",
+    "scilastimport_missing": "N",
+    "url_discuss_flag": "Y",
+    "checkin_qty": "32",
+    "c_date_magicdock": null,
+    "otherevs": "N",
+    "stalls": [
+      {
+        "supercharger_id": "450",
+        "stall_type": "v2",
+        "stall_qty": "4"
+      }
+    ],
+    "plugs": [
+      {
+        "supercharger_id": "450",
+        "plug_type": "tpc",
+        "plug_qty": "4"
+      }
+    ]
+  },
+  "136": {
+    "id": "136",
+    "location_id": null,
+    "name": "Fort Myers, FL (old)",
+    "status": "CLOSED_PERM",
+    "address_street": "9903 Gulf Coast Main St",
+    "address_city": "Fort Myers",
+    "address_state": "FL",
+    "address_zip": "33913",
+    "address_country": "USA",
+    "address_region": "North America",
+    "latitude": "26.48564",
+    "longitude": "-81.787136",
+    "c_original_stalls": "8",
+    "c_date_add": "2013-07-25",
+    "c_date_permit": null,
+    "c_date_construction": null,
+    "c_date_open": "2013-07-25",
+    "c_date_v3upgrade": null,
+    "c_date_stallupgrade": null,
+    "c_date_closed": "2021-08-26",
+    "c_type": "V2",
+    "stall_count": "8",
+    "scilastimport_missing": "N",
+    "url_discuss_flag": "Y",
+    "checkin_qty": "33",
+    "c_date_magicdock": null,
+    "otherevs": "N",
+    "stalls": [
+      {
+        "supercharger_id": "136",
+        "stall_type": "v2",
+        "stall_qty": "8"
+      }
+    ],
+    "plugs": [
+      {
+        "supercharger_id": "136",
+        "plug_type": "tpc",
+        "plug_qty": "8"
+      }
+    ]
+  }
+}

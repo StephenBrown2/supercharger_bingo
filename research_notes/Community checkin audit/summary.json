@@ -1,0 +1,27 @@
+{
+  "retrieved": "2026-11-17",
+  "users": 155,
+  "checkins": 90453,
+  "distinct_user_site_visits": 88130,
+  "all_profile_totals_match": true,
+  "site_total_matches": true,
+  "all_individual_site_totals_match": true,
+  "flagged_rows": 96,
+  "flagged_users": 47,
+  "by_triage": {
+    "hold: verify site dates or operation": 64,
+    "location correction request": 6,
+    "retain: contemporaneous charging evidence": 2,
+    "hold: conflicting opening sources": 9,
+    "date verification request": 2,
+    "no deletion request: closure-day timing unknown": 9,
+    "maintainer: legacy site mapping review": 4
+  },
+  "by_reason": {
+    "inside recorded closure interval": 58,
+    "after listed closure": 4,
+    "before listed opening": 28,
+    "on listed closure day": 10,
+    "never-opened site": 1
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "id": "50202",
+  "displayname": "gbrgbr",
+  "region": "USA-Southwest",
+  "checkin_qty": "536",
+  "checkin_date_min": "2018-06-28",
+  "checkin_date_max": "2026-11-14",
+  "days_with_checkins": "172",
+  "days_since_min_checkin": "3064",
+  "days_since_max_checkin": "3",
+  "badges": [
+    {
+      "id": "90",
+      "name": "Lower 48 States + DC Visited",
+      "sort_order": "2",
+      "badge_id": "2"
+    }
+  ]
+}
