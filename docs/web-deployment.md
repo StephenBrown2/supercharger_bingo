@@ -5,7 +5,7 @@
 The current release uses local browser storage without real login. Visits remain
 pending and are not sent to supercharging.life. Account and community history sync
 are unavailable. Clearing browser data removes saved visits. Live authentication
-is deferred; see [the future integration request](supercharging-life-web-integration.md).
+is deferred; see [the future integration request](supercharging-life-api.md).
 Completed checks and remaining coverage are recorded in the
 [verification report](web-verification-2026-11-18.md).
 

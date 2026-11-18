@@ -24,7 +24,7 @@ Four additional Hjørring records need a maintainer mapping review, rather than 
 | [S-19910](https://supercharging.life/supercharging/user.php?id=50105) | [#28155](https://supercharging.life/supercharging/checkin_detail.php?id=28155) | 2015-09-23 |
 | [StefanSarzio](https://supercharging.life/supercharging/user.php?id=50114) | [#22286](https://supercharging.life/supercharging/checkin_detail.php?id=22286) | 2021-06-03 |
 
-Bredo also has a later 2026 visit to site 11126; preserve both visits rather than blindly enforcing one visit per site. [Detailed mapping evidence](</home/stephen/Projects/supercharger_bingo/research_notes/Community checkin audit/hjorring-review.md>).
+Bredo also has a later 2026 visit to site 11126; preserve both visits rather than blindly enforcing one visit per site. [Detailed mapping evidence](</home/stephen/Projects/supercharger_bingo/docs/research/Community checkin audit/hjorring-review.md>).
 
 Do not remove the April 15, 2025 Montebello visits: [contemporaneous charging evidence](https://teslamotorsclub.com/tmc/threads/supercharger-montebello-ca-north-wilcox-avenue-live-15-may-2025-68-v4-stalls.334295/#post-8684844) supports them. Other one-day mismatches, conflicting opening dates, temporary-closure intervals and closure-day legacy dates were deliberately excluded from this high-confidence handoff.
 

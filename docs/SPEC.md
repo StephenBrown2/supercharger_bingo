@@ -200,7 +200,7 @@ Target state is shared authentication with supercharging.life, which uses GitHub
 The current public web release proceeds without real login. Users continue
 locally, and visits remain pending in browser storage. Browser account and
 community history sync are unavailable. Live authentication and remote submission
-are deferred to the [upstream integration](docs/supercharging-life-web-integration.md).
+are deferred to the [upstream API changes](supercharging-life-api.md).
 
 ### VIN
 
@@ -222,21 +222,9 @@ Status: Complete for the POC. Pending posts retry with backoff. A rejected post 
 
 ### Provisional API contract (to request of supercharging.life)
 
-Status: Deferred. This contract is for coordination with supercharging.life. The app does not call these routes.
+Status: Deferred. The app does not call these routes yet.
 
-This is not a contract supercharging.life offers today. It is what the app needs from them, stated up front so it can drive implementation coordination once they build the official API. Auth is assumed to be the shared GitHub/Google social login (Section 8).
-
-```
-POST   /v1/auth/oauth/{provider}/callback   exchange social login for a session
-GET    /v1/sites?region={region}&since={cursor}   region-scoped site deltas
-GET    /v1/sites/{id}                        single-site backfill of richer metadata
-GET    /v1/checkins?since={cursor}           community First data (site, date, time, is_first)
-POST   /v1/checkins                          submit a check-in, idempotent on client id
-PATCH  /v1/checkins/{id}                      edit notes
-GET    /v1/users/me/checkins                  personal history (replaces XLSX import)
-```
-
-The two endpoints that retire the current workarounds are `GET /v1/checkins` (replaces best-effort XLSX polling for community data) and `GET /v1/users/me/checkins` (replaces the XLSX personal-history import).
+The full request to supercharging.life, covering the OAuth authorization layer on top of the existing GitHub and Google login, the `/api/v1` endpoints, CORS and idempotency, is in [supercharging.life API changes](supercharging-life-api.md). Site data stays with supercharge.info, so the request has no site endpoints. `GET /api/v1/checkins` replaces best-effort community polling and `GET /api/v1/me/checkins` replaces the XLSX personal-history import.
 
 ## 10. Notifications
 
@@ -291,7 +279,7 @@ Status: Complete. CheckinWriter returns a distinct result for accepted, rejected
 
 Status: Complete. An expired or missing SCLSESSION clears the cookie, clears isAuthenticated, leaves lastLoginAt in place, and the map asks the user to sign in.
 
-**Ongoing, in parallel:** the Section 9 provisional API contract is the artifact to take to supercharging.life for coordination; it doesn't block any of the phases above and can start immediately.
+**Ongoing, in parallel:** [the supercharging.life API request](supercharging-life-api.md) is the artifact to take to supercharging.life for coordination; it doesn't block any of the phases above and can start immediately.
 
 Status: Deferred. The provisional contract is not app work.
 

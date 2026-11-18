@@ -47,6 +47,9 @@ flutter run -d chrome
 For release hosting, browser checks and the live authentication release gate, see
 [Web deployment](docs/web-deployment.md).
 
+The spec, the supercharging.life API request, reports and research notes are all
+under [docs/](docs/README.md).
+
 ## Architecture
 
 - **Frontend**: Flutter with Material Design 3

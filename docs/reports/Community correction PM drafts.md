@@ -2,7 +2,7 @@
 
 Drafts only. No messages have been sent. Review original evidence before sending. Location correction drafts are for the six stronger replacement-site cases; date verification drafts are for the two larger unexplained date discrepancies. All other paragraphs are held verification drafts, not deletion requests. Nine closure-day-only records, two supported Montebello visits, four Hjørring mapping cases and nine conflicting opening-date cases are excluded from these drafts and retained in the audit ledger. Drafts cover 42 users: seven have correction or date-verification requests, and the remaining 35 have held verification drafts only.
 
-The original gbrgbr message is also available in [Checkin correction PM drafts](</home/stephen/Projects/supercharger_bingo/reports/Checkin correction PM drafts.md>).
+The original gbrgbr message is also available in [Checkin correction PM drafts](</home/stephen/Projects/supercharger_bingo/docs/reports/Checkin correction PM drafts.md>).
 
 ## Correction or date verification drafts
 

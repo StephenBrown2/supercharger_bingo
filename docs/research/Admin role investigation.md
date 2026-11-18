@@ -34,7 +34,7 @@ A menu hint, username, user ID, or absence of a role field is not sufficient evi
 
 ## Check-in report files
 
-The Signal-ready list is `reports/Admin checkin correction handoff.md`. Detailed evidence from its earlier version is preserved in `research_notes/Community checkin audit/admin-handoff-evidence.md`. Both use previously audited data; this formatting pass did not recheck live records. Keep reports and research notes out of the app-code commit unless explicitly requested.
+The Signal-ready list is `docs/reports/Admin checkin correction handoff.md`. Detailed evidence from its earlier version is preserved in `docs/research/Community checkin audit/admin-handoff-evidence.md`. Both use previously audited data; this formatting pass did not recheck live records. Keep reports and research notes out of the app-code commit unless explicitly requested.
 
 ## Release restored
 
