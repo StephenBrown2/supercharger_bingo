@@ -8,6 +8,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../services/life_auth.dart';
+import '../../services/life_role_diagnostics.dart';
 // Import Linux/Windows implementation - registers itself as platform implementation
 // ignore: unused_import
 import 'package:webview_win_floating/webview_win_floating.dart';
@@ -96,6 +97,17 @@ class _NativeWebViewState extends State<_NativeWebView> {
   }
 
   Future<void> _extractCookies() async {
+    if (lifeRoleDiagnosticsEnabled) {
+      try {
+        final result = await _controller.runJavaScriptReturningResult(
+          lifeRoleProbeScript,
+        );
+        final safe = formatLifeRoleDiagnostics(result.toString());
+        if (safe != null) debugPrint('[life-role] $safe');
+      } catch (_) {
+        debugPrint('[life-role] probe unavailable');
+      }
+    }
     try {
       final cookieResult = await _controller.runJavaScriptReturningResult(
         lifePageProbeScript,
