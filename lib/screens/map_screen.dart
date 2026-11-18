@@ -1387,7 +1387,11 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     );
 
     _mapController.fitCamera(
-      CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(20)),
+      CameraFit.bounds(
+        bounds: bounds,
+        padding: const EdgeInsets.all(20),
+        maxZoom: 16,
+      ),
     );
   }
 

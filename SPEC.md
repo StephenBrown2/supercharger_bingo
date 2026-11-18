@@ -197,10 +197,10 @@ Status: Complete. GitHub and Google open supercharging.life oauth.php and store 
 
 Target state is shared authentication with supercharging.life, which uses GitHub and Google social login. The app uses those same providers. Until the official API exists, sign-in opens supercharging.life's own GitHub and Google buttons (`oauth.php`) in an in-app webview and stores the `SCLSESSION` cookie that page sets. That cookie is what lets the unofficial check-in writer post. If the provider blocks the in-app browser, or this platform has no webview, the same GitHub or Google choice is stored on the device only. Check-ins then stay local and show as pending. A separate hosted backend is deferred.
 
-Public web release requires live supercharging.life sign-in and confirmed remote
-check-in submission. The current local browser fallback does not satisfy that
-release gate. The upstream integration must be agreed and implemented first;
-see [the maintainer request](docs/supercharging-life-web-integration.md).
+The current public web release proceeds without real login. Users continue
+locally, and visits remain pending in browser storage. Browser account and
+community history sync are unavailable. Live authentication and remote submission
+are deferred to the [upstream integration](docs/supercharging-life-web-integration.md).
 
 ### VIN
 

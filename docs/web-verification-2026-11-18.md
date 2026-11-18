@@ -1,7 +1,8 @@
 # Web verification, 2026-11-18
 
-Status: frontend hosting prepared; public release blocked on the
-[supercharging.life integration](supercharging-life-web-integration.md).
+This records the initial verification. The subsequent approved release scope
+defers real login and uses local pending check-ins. Live authentication is no
+longer a release gate; the remaining upstream constraints below still apply.
 
 ## Passed
 
@@ -45,3 +46,34 @@ Status: frontend hosting prepared; public release blocked on the
   Plugin; a future Flutter version will require its migration. This build passed.
 
 No public deployment or DNS changes were made.
+
+## Local-only release follow-up
+
+All unfinished work was committed in `bdb7dae` before this follow-up began.
+The user then approved proceeding without real login. Web now uses Continue
+locally, identifies browser storage in Settings, disables unsupported account
+sync controls, and keeps check-ins pending without attempting account requests.
+The upstream integration request is retained for future work.
+
+The exact-location browser fixture exposed an unbounded camera fit when the user
+and the nearest charger share coordinates. Capping its zoom at 16 restored a
+responsive map. The web regression also creates a local visit, checks pending
+status, reloads, verifies the pending visit survived, then deletes it locally.
+This lifecycle uses a controlled supercharge.info response rather than creating
+a real remote visit. Other viewport profiles retain real site-data requests.
+
+The web build now bundles rendering resources using
+`flutter build web --release --no-web-resources-cdn`, so its renderer does not
+need a separate Google CDN connection. External site data and map tiles still
+need a network connection. The Cloudflare dry run accepted all 68 asset files.
+
+Final Android build 4004 was installed on Pixel 9 and Pixel 8a, both Android 17.0.
+Both loaded 3,657 sites and opened the nearby drawer with two sites. Screenshots
+confirmed the map and controls rendered. The prior build 4003 also verified that
+native Settings still opens the GitHub/Google sign-in screen. Native real login
+and remote submission were not exercised.
+
+Flutter analysis reported no issues and all 142 Flutter tests passed after the
+map fix. All 11 final browser checks passed across the nine sizes, including the
+local visit lifecycle and assertions that no supercharging.life requests occur.
+Real Tesla hardware, production HTTPS and DNS are still unverified.

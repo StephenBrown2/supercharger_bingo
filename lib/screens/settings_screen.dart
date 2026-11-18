@@ -263,7 +263,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             child: const Text('Log out'),
                           )
                         : null,
-                    onTap: _settings?.isAuthenticated != true
+                    onTap: !kIsWeb && _settings?.isAuthenticated != true
                         ? _handleLogin
                         : null,
                   ),
@@ -466,7 +466,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           : 'Import visits from supercharging.life',
                     ),
                     trailing: const Icon(Icons.chevron_right),
-                    onTap: _handleSyncHistory,
+                    enabled: !kIsWeb,
+                    onTap: kIsWeb ? null : _handleSyncHistory,
                   ),
                   ListTile(
                     leading: const Icon(Icons.delete_forever),
@@ -510,7 +511,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.chevron_right),
-                    onTap: _isSyncingSites ? null : _handleSyncCheckinCounts,
+                    enabled: !kIsWeb,
+                    onTap: kIsWeb || _isSyncingSites
+                        ? null
+                        : _handleSyncCheckinCounts,
                   ),
                   ListTile(
                     leading: const Icon(Icons.person_search),
@@ -527,7 +531,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.chevron_right),
-                    onTap: (_isSyncingSites || _settings?.username == null)
+                    enabled: !kIsWeb,
+                    onTap:
+                        (kIsWeb ||
+                            _isSyncingSites ||
+                            _settings?.username == null)
                         ? null
                         : _handleResyncUserData,
                   ),
@@ -580,6 +588,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   String get _accountTitle {
+    if (kIsWeb) return 'Local browser storage';
     final username = _settings?.username;
     if (username != null && username.isNotEmpty) return username;
     if (_settings?.authProvider != null) return 'On this device';
@@ -587,6 +596,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   String get _accountSubtitle {
+    if (kIsWeb) {
+      return 'Check-ins stay here as pending. Account sync is unavailable';
+    }
     final provider = _settings?.authProvider;
     final label = provider == null ? null : authProviderLabel(provider);
     if (_settings?.isAuthenticated == true) {
@@ -599,7 +611,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   bool get _showLogout =>
-      _settings?.isAuthenticated == true || _settings?.authProvider != null;
+      !kIsWeb &&
+      (_settings?.isAuthenticated == true || _settings?.authProvider != null);
 
   void _handleLogin() {
     Navigator.of(context).push(
@@ -1017,10 +1030,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 await _loadSiteCount();
 
                 // Sync check-in counts
-                await SyncService.instance.syncSuperchargerCheckinCounts();
+                if (!kIsWeb) {
+                  await SyncService.instance.syncSuperchargerCheckinCounts();
+                }
 
                 // Re-sync user data if we had a username
-                if (currentUsername != null && currentUsername.isNotEmpty) {
+                if (!kIsWeb &&
+                    currentUsername != null &&
+                    currentUsername.isNotEmpty) {
                   await SyncService.instance.syncUserByUsername(
                     currentUsername,
                   );

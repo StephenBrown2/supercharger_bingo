@@ -2,9 +2,10 @@
 
 ## Release status
 
-Public release is blocked on live supercharging.life authentication and confirmed
-remote check-in submission. A successful Flutter build and local pending check-ins
-do not satisfy that gate. See [the maintainer integration request](supercharging-life-web-integration.md).
+The current release uses local browser storage without real login. Visits remain
+pending and are not sent to supercharging.life. Account and community history sync
+are unavailable. Clearing browser data removes saved visits. Live authentication
+is deferred; see [the future integration request](supercharging-life-web-integration.md).
 Completed checks and remaining coverage are recorded in the
 [verification report](web-verification-2026-11-18.md).
 
@@ -14,7 +15,7 @@ Completed checks and remaining coverage are recorded in the
 flutter pub get
 flutter analyze
 flutter test
-flutter build web --release
+flutter build web --release --no-web-resources-cdn
 npm ci
 npx playwright install chromium --only-shell
 npx wrangler dev
@@ -26,7 +27,7 @@ The checks exercise the actual release build and SQLite assets. The viewport
 matrix and manual verification requirements are in [AGENTS.md](../AGENTS.md).
 Headless Chromium does not prove compatibility with Tesla hardware or firmware.
 
-Use the default JavaScript build initially. Both `web/sqlite3.wasm` and
+Use the JavaScript build with rendering resources bundled locally. Both `web/sqlite3.wasm` and
 `web/drift_worker.js` must ship beside the Flutter bootstrap files. Do not enable
 cross-origin isolation headers without retesting external map resources and login.
 The database has browser storage fallbacks and must be checked on the real car.
@@ -50,7 +51,7 @@ After all release gates pass, authenticate with `npx wrangler login`, deploy wit
 Routes settings. Keep the registrar and activate the DNS zone on Cloudflare;
 preserve existing email and other DNS records when changing nameservers.
 Cloudflare provisions HTTPS for the custom domain. Check the real HTTPS origin
-for location permissions, storage persistence, login, check-in and reload behavior.
+for location permissions, local check-in, deletion and reload persistence.
 
 Static asset requests and storage are currently free. Any later authentication
 Worker or proxy has separate request limits. Check [Cloudflare's billing docs](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/)

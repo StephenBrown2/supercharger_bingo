@@ -204,7 +204,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Text(
-                        live
+                        kIsWeb
+                            ? 'Check-ins stay in this browser and show as pending. Account sync and community history are unavailable for now. Clearing browser data removes your saved visits.'
+                            : live
                             ? 'Sign in with GitHub or Google through supercharging.life. If that page cannot finish, the same choice stays on this device and check-ins show as pending.'
                             : 'GitHub and Google stay on this device. Check-ins show as pending until a supercharging.life session is available.',
                         style: theme.textTheme.bodySmall,
@@ -222,25 +224,27 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 16),
                   ],
-                  FilledButton.icon(
-                    onPressed: _isLoading
-                        ? null
-                        : () => _signIn(AuthProvider.github),
-                    icon: const Icon(Icons.code),
-                    label: const Text('Login with GitHub'),
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton.icon(
-                    onPressed: _isLoading
-                        ? null
-                        : () => _signIn(AuthProvider.google),
-                    icon: const Icon(Icons.account_circle_outlined),
-                    label: const Text('Login with Google'),
-                  ),
-                  const SizedBox(height: 12),
+                  if (!kIsWeb) ...[
+                    FilledButton.icon(
+                      onPressed: _isLoading
+                          ? null
+                          : () => _signIn(AuthProvider.github),
+                      icon: const Icon(Icons.code),
+                      label: const Text('Login with GitHub'),
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: _isLoading
+                          ? null
+                          : () => _signIn(AuthProvider.google),
+                      icon: const Icon(Icons.account_circle_outlined),
+                      label: const Text('Login with Google'),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   TextButton(
                     onPressed: _isLoading ? null : _skipForNow,
-                    child: const Text('Skip for now'),
+                    child: Text(kIsWeb ? 'Continue locally' : 'Skip for now'),
                   ),
                 ],
               ),

@@ -38,8 +38,10 @@ height for the keyboard, and unavailable network. Verify on actual Intel and AMD
 Tesla browsers before claiming in-car compatibility; desktop emulation only
 verifies layout. Report unavailable devices and flows explicitly.
 
-Public web release requires working supercharging.life sign-in and confirmed
-remote check-in submission. Local pending rows do not satisfy this requirement.
+The current web release is local only. Real login and remote check-in submission
+are deferred. Verify that visits stay pending, survive reload and can be deleted
+locally. Explain that clearing browser data removes them. Do not present local
+continuation as GitHub or Google authentication.
 
 # Flutter and Dart upgrades
 
