@@ -1,0 +1,781 @@
+openapi: 3.1.0
+info:
+  title: supercharging.life official API (proposal)
+  version: 0.2.0-proposal
+  summary: Proposed OAuth 2.0 authorization server and /api/v1 JSON API for supercharging.life.
+  description: |
+    Machine-readable companion to `docs/supercharging-life-api.md`. Section
+    numbers in descriptions refer to that document. Nothing here exists yet:
+    paths, field names, lifetimes and limits are proposals for the
+    supercharging.life maintainer to accept or change.
+
+    ## Rules for every `/api/v1` endpoint (section 5.1)
+
+    - **Auth.** `Authorization: Bearer <access_token>` only. `SCLSESSION` is
+      never accepted, so the API needs no CSRF tokens. Public endpoints ignore
+      any `Authorization` header, so an expired token never causes a 401 there.
+    - **Scopes.** `checkins` (every user) and `admin` (only accounts that can
+      edit and delete any user's check-ins). A refresh can drop `admin` but
+      never add it; gaining the permission takes a new sign-in. The
+      token response's `scope` is the app's one source of admin status.
+    - **Errors.** Always JSON (`Error` schema), never HTML and never a redirect
+      to `login.php`. Another user's check-in is a 404, never a 403.
+    - **CORS.** Every `/api/v1`, `/oauth/token` and `/oauth/revoke` response,
+      errors included, sends `Access-Control-Allow-Origin: *` and
+      `Access-Control-Expose-Headers: Retry-After, WWW-Authenticate, ETag`.
+      `OPTIONS` preflights are answered before any auth check, never with 401,
+      with `Access-Control-Allow-Methods: GET, POST, DELETE`,
+      `Access-Control-Allow-Headers: Authorization, Content-Type, Idempotency-Key, If-None-Match`
+      and `Access-Control-Max-Age: 600`. `Access-Control-Allow-Credentials` is
+      never sent.
+    - **Cookies.** No API response sets `SCLSESSION` or any other cookie.
+    - **Lists.** Full snapshots with an `ETag`. A matching `If-None-Match`
+      returns 304 with no body. Deletions show up as absence; there are no
+      cursors or tombstones.
+    - **Caching.** Public reads: `Cache-Control: public, max-age=60`.
+      `GET /api/v1/me/checkins`: `Cache-Control: private, no-cache`. Every
+      other authenticated response: `Cache-Control: no-store`.
+    - **Times.** RFC 3339 with offset. Check-ins carry a `precision` of
+      `timestamp` or `date`; a `date` value is local midnight at the site.
+      Calendar dates (`first_date`) are `YYYY-MM-DD` in site-local time.
+    - **IDs.** Integers matching the site's existing check-in, user and
+      supercharger ids. Supercharger ids are supercharge.info site ids.
+    - **Rate limits.** Per token, and per IP for anonymous reads. Exceeding
+      them returns 429 with `Retry-After`.
+  contact:
+    name: Supercharger Bingo
+    url: https://supercharger.bingo
+servers:
+  - url: https://supercharging.life
+tags:
+  - name: Existing login
+    description: The only change to existing pages (section 3).
+  - name: OAuth
+    description: Authorization server (section 4).
+  - name: Account
+    description: Signed-in user (section 5.2).
+  - name: Community
+    description: Public reads, no token needed (section 5.3).
+  - name: My check-ins
+    description: The user's own check-ins (section 5.4).
+
+paths:
+  /login.php:
+    get:
+      tags: [Existing login]
+      summary: Existing login page, plus a `return` parameter
+      description: |
+        Unchanged except for `return`. A valid value is stored in the server
+        session before the GitHub or Google round trip and used as the
+        redirect target once the session exists. An invalid value is ignored
+        and the usual landing page is used.
+      parameters:
+        - $ref: '#/components/parameters/ReturnTo'
+      responses:
+        '200':
+          description: Login page (HTML).
+          content:
+            text/html: {}
+  /oauth.php:
+    get:
+      tags: [Existing login]
+      summary: Existing provider sign-in, plus a `return` parameter
+      description: |
+        Same behavior as today for `provider=GitHub` and `provider=Google`.
+        `return` follows the same rules as on `/login.php`.
+      parameters:
+        - name: provider
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [GitHub, Google]
+        - $ref: '#/components/parameters/ReturnTo'
+      responses:
+        '302':
+          description: Redirect to the provider, or after sign-in to `return` (or the usual landing page).
+          headers:
+            Location:
+              schema: {type: string}
+
+  /oauth/authorize:
+    get:
+      tags: [OAuth]
+      summary: Start authorization (code grant with PKCE S256)
+      description: |
+        Evaluated in this order (section 4.3):
+
+        1. Unknown or disabled `client_id`, or a `redirect_uri` not registered
+           for it: **400 HTML error page**, never a redirect. Redirect URIs
+           match byte for byte. The desktop client's loopback URI is parsed
+           instead: scheme `http`, host exactly `127.0.0.1`, path exactly
+           `/auth/callback`, no userinfo, query or fragment, any port.
+           `localhost` is rejected.
+        2. Missing `state` or `code_challenge`, `response_type` not `code`, or
+           `code_challenge_method` not `S256`: redirect with
+           `error=invalid_request`. A scope list without `checkins`, or with
+           anything other than `checkins` and `admin`: `error=invalid_scope`.
+           (Errors here still redirect, because the client and redirect URI
+           were verified in step 1.)
+        3. No valid `SCLSESSION`: 302 to `/login.php?return=<this request URL, percent-encoded>`.
+        4. Desktop loopback client: 200 consent page every time (RFC 8252
+           section 8.6). Its POST carries a CSRF token, and the page sends
+           `Content-Security-Policy: frame-ancestors 'none'`, and is bound to
+           the exact client, redirect URI, scope, state and code challenge it
+           shows, usable once. Deny redirects with `error=access_denied`. Web
+           and mobile clients skip consent.
+        5. Grant `checkins`, plus `admin` if requested and the account can
+           edit and delete any user's check-ins. Issue a code (at least 128
+           random bits, single use, valid 60 seconds, bound to user, client,
+           exact redirect URI, granted scopes and code challenge) and redirect
+           with `code`, `state` and `iss`.
+
+        Every redirect back to a verified client, success or error, includes
+        `iss=https://supercharging.life` (RFC 9207), and includes `state`
+        whenever the request supplied one. The client checks both.
+      parameters:
+        - name: response_type
+          in: query
+          required: true
+          schema: {type: string, const: code}
+        - name: client_id
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [supercharger-bingo-web, supercharger-bingo-mobile, supercharger-bingo-desktop, supercharger-bingo-web-dev]
+          description: '`supercharger-bingo-web-dev` exists only on a staging host.'
+        - name: scope
+          in: query
+          required: true
+          description: Space-separated. The app always sends `checkins admin`.
+          schema: {type: string}
+          example: checkins admin
+        - name: redirect_uri
+          in: query
+          required: true
+          schema: {type: string, format: uri}
+          example: https://supercharger.bingo/auth/callback
+        - name: state
+          in: query
+          required: true
+          description: Opaque client value, returned unchanged.
+          schema: {type: string, minLength: 1}
+        - name: code_challenge
+          in: query
+          required: true
+          description: BASE64URL(SHA256(code_verifier)), no padding, 43 characters.
+          schema: {type: string, pattern: '^[A-Za-z0-9_-]{43}$'}
+        - name: code_challenge_method
+          in: query
+          required: true
+          schema: {type: string, const: S256}
+      responses:
+        '200':
+          description: Consent page (HTML), desktop loopback client only.
+          content:
+            text/html: {}
+        '302':
+          description: |
+            One of: redirect to `/login.php?return=...`; success
+            (`redirect_uri?code=...&state=...&iss=...`); or error
+            (`redirect_uri?error=...&error_description=...[&state=...]&iss=...`,
+            `state` only when the request supplied it,
+            where `error` is `invalid_request`, `invalid_scope`,
+            `access_denied` or `server_error`).
+          headers:
+            Location:
+              schema: {type: string, format: uri-reference}
+        '400':
+          description: Unknown or disabled client, or unregistered redirect URI (HTML error page, no redirect).
+          content:
+            text/html: {}
+
+  /oauth/token:
+    post:
+      tags: [OAuth]
+      summary: Exchange a code or refresh token
+      description: |
+        Public clients only; no client secret. Responses send
+        `Cache-Control: no-store`.
+
+        **authorization_code**: the code must exist, be unexpired and unused,
+        and match `client_id` and `redirect_uri`, and
+        `BASE64URL(SHA256(code_verifier))` must equal the stored challenge. The
+        code is marked used in the same transaction that issues tokens.
+        Presenting a used code again fails with `invalid_grant` and revokes
+        every token that code produced.
+
+        **refresh_token**: the token must belong to `client_id`. Rotates on
+        every use. The family stores its current scopes, starting with what
+        the authorization granted. Every refresh, including the grace path,
+        grants those minus `admin` if the account no longer has that
+        permission and saves the result to the family, so scopes only shrink;
+        restoring the permission takes a new sign-in.
+        For 60 seconds after rotation, the immediately replaced refresh token
+        is accepted once more: it issues a fresh pair in the same family and
+        revokes the pair issued before, so a lost response does not sign the
+        user out and nothing has to be stored in plaintext. The whole family
+        is revoked (`invalid_grant`) when a replaced refresh token is
+        presented after the window or a second time, or when a token revoked
+        by the grace path is presented. Rotation, the grace path and
+        revocation run in one transaction that locks the token family.
+
+        Lifetimes (proposed): access token 3600 seconds; refresh token 90 days,
+        sliding on each rotation. Opaque tokens stored as SHA-256 hashes are
+        recommended; with JWT access tokens a revoked access token keeps
+        working until it expires.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/AuthorizationCodeGrant'
+                - $ref: '#/components/schemas/RefreshTokenGrant'
+              discriminator:
+                propertyName: grant_type
+                mapping:
+                  authorization_code: '#/components/schemas/AuthorizationCodeGrant'
+                  refresh_token: '#/components/schemas/RefreshTokenGrant'
+      responses:
+        '200':
+          description: Tokens issued.
+          headers:
+            Cache-Control:
+              schema: {type: string, const: no-store}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: |
+            `invalid_request` (missing or duplicate parameter),
+            `invalid_grant` (bad, expired, used or replaced code or token, or
+            verifier mismatch), `unsupported_grant_type`.
+          headers:
+            Cache-Control:
+              schema: {type: string, const: no-store}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+        '401':
+          description: '`invalid_client`: unknown or disabled `client_id`.'
+          headers:
+            Cache-Control:
+              schema: {type: string, const: no-store}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+        '429':
+          description: '`rate_limited`.'
+          headers:
+            Retry-After: {$ref: '#/components/headers/RetryAfter'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+
+  /oauth/revoke:
+    post:
+      tags: [OAuth]
+      summary: Revoke a token (RFC 7009)
+      description: |
+        200 for any token, including unknown, expired or already revoked
+        ones. Revoking a refresh token revokes its whole family. The app calls
+        this on sign-out.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [token, client_id]
+              properties:
+                token: {type: string}
+                token_type_hint:
+                  type: string
+                  enum: [access_token, refresh_token]
+                client_id: {type: string}
+      responses:
+        '200':
+          description: Revoked, or nothing to revoke. Empty body.
+        '503':
+          description: Revocation could not be stored. The client retries.
+          headers:
+            Retry-After: {$ref: '#/components/headers/RetryAfter'}
+
+  /api/v1/me:
+    get:
+      tags: [Account]
+      summary: The signed-in user
+      description: Admin status is not repeated here; it is the `admin` scope in the token response.
+      security:
+        - oauth: [checkins]
+      responses:
+        '200':
+          description: The user.
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+
+  /api/v1/superchargers/summary:
+    get:
+      tags: [Community]
+      summary: Counts and Firsts for every site (replaces first_checkin_history and checkin_qty)
+      description: |
+        One row per site with at least one valid check-in; an absent site has
+        none. A timestamped check-in's site-local date comes from converting
+        `checked_in_at` to the site's IANA timezone, not from its stored
+        offset (archived check-in 63684 is stored as `2024-02-15 00:45:21-05`
+        but happened on 14 February at the site). A `date` precision
+        check-in keeps its recorded date. A check-in is valid if its
+        site-local date is on or after the site's earliest opening date (a
+        reopening never invalidates earlier visits); with no known opening
+        date every check-in is valid. `first_date` is the date of the earliest
+        valid check-in, and every valid check-in on that date is a First.
+        `checkin_count` counts valid check-ins. Computed on read, so backdated
+        check-ins, corrections and deletions are always reflected.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Full snapshot.
+          headers:
+            ETag: {$ref: '#/components/headers/ETag'}
+            Cache-Control: {$ref: '#/components/headers/PublicCache'}
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: '#/components/schemas/SiteSummary'}
+        '304': {$ref: '#/components/responses/NotModified'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+
+  /api/v1/superchargers/{id}/checkins:
+    get:
+      tags: [Community]
+      summary: Public check-ins at one site (replaces supercharger_checkin_history_list_for_datatables)
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: supercharge.info site id.
+          schema: {type: integer, minimum: 1}
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Every public check-in at the site, oldest first, including ones dated before it opened (`is_first` false). Empty for a site with none.
+          headers:
+            ETag: {$ref: '#/components/headers/ETag'}
+            Cache-Control: {$ref: '#/components/headers/PublicCache'}
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: '#/components/schemas/PublicCheckin'}
+        '304': {$ref: '#/components/responses/NotModified'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+
+  /api/v1/me/checkins:
+    get:
+      tags: [My check-ins]
+      summary: The user's own check-ins (replaces the XLSX export)
+      security:
+        - oauth: [checkins]
+      parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Full snapshot, including private notes and coordinates.
+          headers:
+            ETag: {$ref: '#/components/headers/ETag'}
+            Cache-Control:
+              schema: {type: string, const: 'private, no-cache'}
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: '#/components/schemas/OwnCheckin'}
+        '304': {$ref: '#/components/responses/NotModified'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+
+  /api/v1/checkins:
+    post:
+      tags: [My check-ins]
+      summary: Create a check-in (replaces checkin.php)
+      description: |
+        The owner is the token's user. Validation matches the current web
+        form: supercharger exists, `checked_in_at` not in the future, its
+        site-local date (see the summary endpoint) not before the site's
+        earliest opening date, note length limits,
+        coordinate ranges and duplicate-visit rules. Each failure is listed in
+        `fields`. The app sends `checked_in_at` in the site's local offset.
+
+        **Idempotency.** A permanent table
+        `checkin_keys(user_id, client_uuid, checkin_id)` with
+        `UNIQUE(user_id, client_uuid)`; rows are never deleted, so no delete
+        path needs to change. The `Idempotency-Key` header is checked first
+        (400 if not a UUID); then the create transaction inserts the key row
+        before parsing or validating the body.
+        - Insert succeeds (new key): parse and validate the body, create,
+          store the check-in id on the key row, 201. A malformed body (400) or
+          validation failure (422) rolls the key back too.
+        - Unique violation (key already used): the body is not parsed or
+          compared; 200 with the check-in as stored now, if it still exists
+          and belongs to the caller.
+        - Otherwise (the check-in was deleted): 410 `gone`, so a late retry
+          never recreates it. The owner check guards against databases that
+          reuse a deleted row's id after a restart (MySQL before 8.0); the
+          same applies where `client_uuid` is joined in for `/me/checkins`.
+        - Same key at once: the second insert waits on the unique index
+          until the first commits or rolls back, then follows these rules.
+      security:
+        - oauth: [checkins]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: UUID generated once per pending check-in and reused on every retry.
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckinCreate'
+      responses:
+        '201':
+          description: Created. Includes the id and `is_first`.
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OwnCheckin'
+        '200':
+          description: Key already used; the existing check-in.
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OwnCheckin'
+        '400':
+          description: '`invalid_request`: missing or malformed `Idempotency-Key`, or a body that is not JSON.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '410':
+          description: '`gone`: this key created a check-in that has since been deleted. The client treats the pending check-in as finished.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        '422': {$ref: '#/components/responses/ValidationFailed'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+
+  /api/v1/checkins/{id}:
+    delete:
+      tags: [My check-ins]
+      summary: Delete an own check-in (replaces misc.php?action=delete_checkin)
+      description: |
+        Deleting the caller's own already deleted check-in returns 204 again
+        if `checkin_keys` shows it was theirs, otherwise 404; the app treats a
+        404 for one of its own known ids as deleted. A check-in
+        that never existed or belongs to someone else returns 404. Deletion
+        may change `first_date` and Firsts at the site.
+      security:
+        - oauth: [checkins]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: integer, minimum: 1}
+      responses:
+        '204':
+          description: Deleted, or already deleted by the owner.
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+
+components:
+  securitySchemes:
+    oauth:
+      type: oauth2
+      description: |
+        Authorization code grant with PKCE (`S256` required) for public
+        clients. Access tokens are sent as `Authorization: Bearer`.
+      flows:
+        authorizationCode:
+          authorizationUrl: https://supercharging.life/oauth/authorize
+          tokenUrl: https://supercharging.life/oauth/token
+          refreshUrl: https://supercharging.life/oauth/token
+          scopes:
+            checkins: Read the account and the user's own check-ins, including private notes; create and delete them. Granted to every user.
+            admin: Marks an account that can edit and delete any user's check-ins. Granted only to such accounts at sign-in; a refresh drops it if the permission is gone and never adds it. No admin endpoints yet.
+
+  parameters:
+    ReturnTo:
+      name: return
+      in: query
+      required: false
+      description: |
+        Percent-encoded by the caller and decoded once. Accepted only as a
+        relative path starting with `/oauth/authorize?` with no control
+        characters and no backslashes; anything else is ignored.
+      schema:
+        type: string
+        pattern: '^/oauth/authorize\?[^\\\x00-\x1F\x7F]*$'
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      required: false
+      description: '`ETag` from the previous response. A match returns 304.'
+      schema: {type: string}
+
+  headers:
+    ETag:
+      description: Validator for the whole snapshot.
+      schema: {type: string}
+    PublicCache:
+      schema: {type: string, const: 'public, max-age=60'}
+    NoStore:
+      schema: {type: string, const: no-store}
+    RetryAfter:
+      description: Seconds to wait before retrying.
+      schema: {type: integer, minimum: 0}
+    WWWAuthenticate:
+      description: For example `Bearer error="invalid_token"`.
+      schema: {type: string}
+
+  responses:
+    NotModified:
+      description: The snapshot matches `If-None-Match`. No body.
+      headers:
+        ETag: {$ref: '#/components/headers/ETag'}
+    Unauthorized:
+      description: |
+        Missing, expired or revoked access token (`invalid_token`). The client
+        refreshes once, then asks the user to sign in again.
+      headers:
+        WWW-Authenticate: {$ref: '#/components/headers/WWWAuthenticate'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+          example: {error: invalid_token, message: The access token has expired.}
+    NotFound:
+      description: Unknown, or not the caller's (`not_found`).
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    ValidationFailed:
+      description: '`validation_failed`, with one entry in `fields` per problem.'
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+          example:
+            error: validation_failed
+            message: The check-in could not be saved.
+            fields:
+              checked_in_at: Date is before the site's earliest opening date.
+              user_id: Unknown field.
+    RateLimited:
+      description: '`rate_limited`.'
+      headers:
+        Retry-After: {$ref: '#/components/headers/RetryAfter'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: Stable machine code.
+          enum:
+            - invalid_request
+            - invalid_token
+            - not_found
+            - gone
+            - validation_failed
+            - rate_limited
+            - server_error
+        message:
+          type: string
+          description: Human-readable text; may change, do not parse.
+        fields:
+          type: object
+          description: Present on `validation_failed`. Field name to problem.
+          additionalProperties: {type: string}
+
+    OAuthError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          enum: [invalid_request, invalid_client, invalid_grant, unsupported_grant_type, invalid_scope]
+        error_description: {type: string}
+
+    AuthorizationCodeGrant:
+      type: object
+      required: [grant_type, code, redirect_uri, client_id, code_verifier]
+      properties:
+        grant_type: {type: string, const: authorization_code}
+        code: {type: string}
+        redirect_uri:
+          type: string
+          description: Must equal the value sent to `/oauth/authorize`.
+        client_id: {type: string}
+        code_verifier:
+          type: string
+          description: RFC 7636 verifier.
+          pattern: '^[A-Za-z0-9._~-]{43,128}$'
+
+    RefreshTokenGrant:
+      type: object
+      required: [grant_type, refresh_token, client_id]
+      properties:
+        grant_type: {type: string, const: refresh_token}
+        refresh_token: {type: string}
+        client_id: {type: string}
+
+    TokenResponse:
+      type: object
+      required: [access_token, token_type, expires_in, refresh_token, scope]
+      properties:
+        access_token: {type: string}
+        token_type: {type: string, const: Bearer}
+        expires_in: {type: integer, example: 3600}
+        refresh_token:
+          type: string
+          description: A new value on every grant. The previous refresh token is replaced.
+        scope:
+          type: string
+          description: Granted scopes, space-separated. Contains `admin` only for accounts that can edit and delete any user's check-ins; the app's one source of admin status.
+          enum: [checkins, checkins admin]
+
+    Me:
+      type: object
+      required: [id, display_name, profile_url]
+      properties:
+        id: {type: integer, example: 50202}
+        display_name: {type: string, example: example}
+        profile_url:
+          type: string
+          format: uri
+          example: https://supercharging.life/supercharging/user.php?id=50202
+
+    Precision:
+      type: string
+      enum: [timestamp, date]
+      description: '`date` means only the calendar date is known; `checked_in_at` is then local midnight at the site.'
+
+    FirstCheckin:
+      type: object
+      required: [id, user_id, user_display_name, checked_in_at, precision]
+      properties:
+        id: {type: integer}
+        user_id: {type: integer}
+        user_display_name: {type: string}
+        checked_in_at:
+          type: string
+          format: date-time
+          example: '2026-11-10T00:05:53-05:00'
+        precision: {$ref: '#/components/schemas/Precision'}
+
+    SiteSummary:
+      type: object
+      required: [supercharger_id, checkin_count, first_date, firsts]
+      properties:
+        supercharger_id: {type: integer}
+        checkin_count: {type: integer, minimum: 1}
+        first_date:
+          type: string
+          format: date
+          description: Site-local date of the earliest valid check-in.
+        firsts:
+          type: array
+          minItems: 1
+          items: {$ref: '#/components/schemas/FirstCheckin'}
+
+    PublicCheckin:
+      allOf:
+        - $ref: '#/components/schemas/FirstCheckin'
+        - type: object
+          required: [is_first, notes_public]
+          properties:
+            is_first: {type: boolean}
+            notes_public: {type: [string, 'null']}
+
+    OwnCheckin:
+      type: object
+      required: [id, client_uuid, supercharger_id, checked_in_at, precision, is_first, notes_public, notes_private, latitude, longitude, accuracy_m, created_at]
+      properties:
+        id: {type: integer}
+        client_uuid:
+          type: [string, 'null']
+          format: uuid
+          description: The `Idempotency-Key` that created it, from `checkin_keys` rows whose user is the caller; null for check-ins made on the website.
+        supercharger_id: {type: integer}
+        checked_in_at: {type: string, format: date-time}
+        precision: {$ref: '#/components/schemas/Precision'}
+        is_first: {type: boolean}
+        notes_public: {type: [string, 'null']}
+        notes_private: {type: [string, 'null']}
+        latitude: {type: [number, 'null'], minimum: -90, maximum: 90}
+        longitude: {type: [number, 'null'], minimum: -180, maximum: 180}
+        accuracy_m: {type: [number, 'null'], minimum: 0}
+        created_at: {type: string, format: date-time}
+
+    CheckinCreate:
+      type: object
+      required: [supercharger_id, checked_in_at]
+      additionalProperties: false
+      description: Unknown properties, including `user_id`, fail with 422.
+      properties:
+        supercharger_id: {type: integer, minimum: 1, example: 2419}
+        checked_in_at:
+          type: string
+          format: date-time
+          description: In the site's local offset. Not in the future; its site-local date not before the site's earliest opening date.
+          example: '2026-11-10T00:05:53-05:00'
+        precision:
+          allOf: [{$ref: '#/components/schemas/Precision'}]
+          default: timestamp
+        notes_public: {type: [string, 'null']}
+        notes_private: {type: [string, 'null']}
+        latitude: {type: number, minimum: -90, maximum: 90, example: 34.9}
+        longitude: {type: number, minimum: -180, maximum: 180, example: -117.0}
+        accuracy_m: {type: number, minimum: 0, example: 12.5}
+      dependentRequired:
+        latitude: [longitude]
+        longitude: [latitude]
+        accuracy_m: [latitude, longitude]

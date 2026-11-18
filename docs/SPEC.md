@@ -224,7 +224,7 @@ Status: Complete for the POC. Pending posts retry with backoff. A rejected post 
 
 Status: Deferred. The app does not call these routes yet.
 
-The full request to supercharging.life, covering the OAuth authorization layer on top of the existing GitHub and Google login, the `/api/v1` endpoints, CORS and idempotency, is in [supercharging.life API changes](supercharging-life-api.md). Site data stays with supercharge.info, so the request has no site endpoints. `GET /api/v1/checkins` replaces best-effort community polling and `GET /api/v1/me/checkins` replaces the XLSX personal-history import.
+The full request to supercharging.life, covering the OAuth authorization layer on top of the existing GitHub and Google login, the `/api/v1` endpoints, CORS and idempotency, is in [supercharging.life API changes](supercharging-life-api.md). Site data stays with supercharge.info, so the request only covers check-ins. `GET /api/v1/superchargers/summary` and the per-site history replace best-effort community polling, `GET /api/v1/me/checkins` replaces the XLSX personal-history import, and an `admin` token scope tells the app whether the user can edit and delete any check-in.
 
 ## 10. Notifications
 
