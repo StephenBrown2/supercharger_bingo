@@ -1,0 +1,57 @@
+# Web deployment
+
+## Release status
+
+Public release is blocked on live supercharging.life authentication and confirmed
+remote check-in submission. A successful Flutter build and local pending check-ins
+do not satisfy that gate. See [the maintainer integration request](supercharging-life-web-integration.md).
+Completed checks and remaining coverage are recorded in the
+[verification report](web-verification-2026-11-18.md).
+
+## Build and test
+
+```sh
+flutter pub get
+flutter analyze
+flutter test
+flutter build web --release
+npm ci
+npx playwright install chromium --only-shell
+npx wrangler dev
+```
+
+In a second terminal, run `npm run test:web`. The default URL is
+`http://localhost:8787`; `BINGO_BASE_URL` can select a deployed staging URL.
+The checks exercise the actual release build and SQLite assets. The viewport
+matrix and manual verification requirements are in [AGENTS.md](../AGENTS.md).
+Headless Chromium does not prove compatibility with Tesla hardware or firmware.
+
+Use the default JavaScript build initially. Both `web/sqlite3.wasm` and
+`web/drift_worker.js` must ship beside the Flutter bootstrap files. Do not enable
+cross-origin isolation headers without retesting external map resources and login.
+The database has browser storage fallbacks and must be checked on the real car.
+Browser data belongs to its origin, so staging data will not migrate automatically
+to supercharger.bingo. Clearing browser data removes local visits and settings.
+
+## Cloudflare
+
+`wrangler.jsonc` serves `build/web` as static assets with SPA route fallback.
+No Worker script or paid server is required for the frontend. `_headers` avoids
+long caching of entry points so a reload can pick up a new app version.
+
+Validate the upload without publishing:
+
+```sh
+npx wrangler deploy --dry-run --outdir /tmp/supercharger-bingo-worker
+```
+
+After all release gates pass, authenticate with `npx wrangler login`, deploy with
+`npx wrangler deploy`, and add `supercharger.bingo` under the Worker's Domains &
+Routes settings. Keep the registrar and activate the DNS zone on Cloudflare;
+preserve existing email and other DNS records when changing nameservers.
+Cloudflare provisions HTTPS for the custom domain. Check the real HTTPS origin
+for location permissions, storage persistence, login, check-in and reload behavior.
+
+Static asset requests and storage are currently free. Any later authentication
+Worker or proxy has separate request limits. Check [Cloudflare's billing docs](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/)
+before enabling backend services. [Custom domain docs](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/).

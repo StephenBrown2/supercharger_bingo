@@ -44,6 +44,9 @@ flutter run -d linux
 flutter run -d chrome
 ```
 
+For release hosting, browser checks and the live authentication release gate, see
+[Web deployment](docs/web-deployment.md).
+
 ## Architecture
 
 - **Frontend**: Flutter with Material Design 3

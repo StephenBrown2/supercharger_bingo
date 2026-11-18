@@ -94,7 +94,9 @@ class _SetupScreenState extends State<SetupScreen> {
 
   Future<void> _load() async {
     final settings = await DatabaseService.getUserSettings();
-    final location = _isPhone ? await Geolocator.checkPermission() : null;
+    final location = _isPhone || kIsWeb
+        ? await Geolocator.checkPermission()
+        : null;
     if (!mounted) return;
     setState(() {
       _location = location;
@@ -108,7 +110,7 @@ class _SetupScreenState extends State<SetupScreen> {
 
   /// Foreground first. Android 11+ only grants background as a second ask.
   Future<void> _askLocation() async {
-    if (_location == LocationPermission.denied) {
+    if (kIsWeb || _location == LocationPermission.denied) {
       await Geolocator.requestPermission();
     } else {
       await LocationService.instance.requestBackgroundAccess();
@@ -247,7 +249,11 @@ class _SetupScreenState extends State<SetupScreen> {
     };
     final action = switch (_location) {
       LocationPermission.denied => ('Allow location', _askLocation),
-      LocationPermission.whileInUse => ('Allow all the time', _askLocation),
+      LocationPermission.whileInUse when !kIsWeb => (
+        'Allow all the time',
+        _askLocation,
+      ),
+      LocationPermission.deniedForever when kIsWeb => null,
       LocationPermission.deniedForever => (
         'Open settings',
         Geolocator.openAppSettings,
@@ -258,9 +264,12 @@ class _SetupScreenState extends State<SetupScreen> {
       ..._header(
         theme,
         'Location',
-        'Supercharger Bingo finds the sites near you for check-ins. '
-            'Allow it all the time so alerts follow you while the app is '
-            'closed. On Android, choose "Allow all the time" on the next page.',
+        kIsWeb
+            ? 'Allow location while this page is open to find nearby Superchargers. '
+                  'If it is blocked, change the location permission in your browser settings.'
+            : 'Supercharger Bingo finds the sites near you for check-ins. '
+                  'Allow it all the time so alerts follow you while the app is '
+                  'closed. On Android, choose "Allow all the time" on the next page.',
       ),
       ListTile(
         contentPadding: EdgeInsets.zero,
@@ -356,7 +365,9 @@ class _SetupScreenState extends State<SetupScreen> {
     ..._header(
       theme,
       'Alerts',
-      'The app checks in the background for sites near you.',
+      kIsWeb
+          ? 'Browser alerts cannot run after this page is closed.'
+          : 'The app checks in the background for sites near you.',
     ),
     if (_isPhone)
       ListTile(

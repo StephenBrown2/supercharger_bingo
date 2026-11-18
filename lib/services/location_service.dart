@@ -173,7 +173,8 @@ class LocationService {
             );
       } catch (e) {
         debugPrint('LocationService: Geolocator failed/timeout: $e');
-        position = await _getPositionFromIP();
+        // IP location is too imprecise for the car and this endpoint is HTTP.
+        if (!kIsWeb) position = await _getPositionFromIP();
       }
     }
 

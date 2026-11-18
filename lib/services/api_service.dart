@@ -48,7 +48,7 @@ class ApiService {
             connectTimeout: const Duration(seconds: 30),
             receiveTimeout: const Duration(seconds: 30),
             headers: {
-              'User-Agent': 'SuperchargerBingo/1.0 (Flutter)',
+              if (!kIsWeb) 'User-Agent': 'SuperchargerBingo/1.0 (Flutter)',
               'Accept': 'application/json',
             },
           ),
