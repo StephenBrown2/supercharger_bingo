@@ -147,6 +147,66 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _stallsV2Meta = const VerificationMeta(
+    'stallsV2',
+  );
+  @override
+  late final GeneratedColumn<int> stallsV2 = GeneratedColumn<int>(
+    'stalls_v2',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _stallsV3Meta = const VerificationMeta(
+    'stallsV3',
+  );
+  @override
+  late final GeneratedColumn<int> stallsV3 = GeneratedColumn<int>(
+    'stalls_v3',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _stallsV4Meta = const VerificationMeta(
+    'stallsV4',
+  );
+  @override
+  late final GeneratedColumn<int> stallsV4 = GeneratedColumn<int>(
+    'stalls_v4',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _stallsUrbanMeta = const VerificationMeta(
+    'stallsUrban',
+  );
+  @override
+  late final GeneratedColumn<int> stallsUrban = GeneratedColumn<int>(
+    'stalls_urban',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _stallsOtherMeta = const VerificationMeta(
+    'stallsOther',
+  );
+  @override
+  late final GeneratedColumn<int> stallsOther = GeneratedColumn<int>(
+    'stalls_other',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _otherEvsMeta = const VerificationMeta(
     'otherEvs',
   );
@@ -240,6 +300,11 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
     region,
     timezone,
     stallCount,
+    stallsV2,
+    stallsV3,
+    stallsV4,
+    stallsUrban,
+    stallsOther,
     otherEvs,
     dateOpened,
     firstOpened,
@@ -330,6 +395,42 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
       context.handle(
         _stallCountMeta,
         stallCount.isAcceptableOrUnknown(data['stall_count']!, _stallCountMeta),
+      );
+    }
+    if (data.containsKey('stalls_v2')) {
+      context.handle(
+        _stallsV2Meta,
+        stallsV2.isAcceptableOrUnknown(data['stalls_v2']!, _stallsV2Meta),
+      );
+    }
+    if (data.containsKey('stalls_v3')) {
+      context.handle(
+        _stallsV3Meta,
+        stallsV3.isAcceptableOrUnknown(data['stalls_v3']!, _stallsV3Meta),
+      );
+    }
+    if (data.containsKey('stalls_v4')) {
+      context.handle(
+        _stallsV4Meta,
+        stallsV4.isAcceptableOrUnknown(data['stalls_v4']!, _stallsV4Meta),
+      );
+    }
+    if (data.containsKey('stalls_urban')) {
+      context.handle(
+        _stallsUrbanMeta,
+        stallsUrban.isAcceptableOrUnknown(
+          data['stalls_urban']!,
+          _stallsUrbanMeta,
+        ),
+      );
+    }
+    if (data.containsKey('stalls_other')) {
+      context.handle(
+        _stallsOtherMeta,
+        stallsOther.isAcceptableOrUnknown(
+          data['stalls_other']!,
+          _stallsOtherMeta,
+        ),
       );
     }
     if (data.containsKey('other_evs')) {
@@ -437,6 +538,26 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
         DriftSqlType.int,
         data['${effectivePrefix}stall_count'],
       ),
+      stallsV2: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}stalls_v2'],
+      )!,
+      stallsV3: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}stalls_v3'],
+      )!,
+      stallsV4: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}stalls_v4'],
+      )!,
+      stallsUrban: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}stalls_urban'],
+      )!,
+      stallsOther: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}stalls_other'],
+      )!,
       otherEvs: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}other_evs'],
@@ -490,8 +611,13 @@ class Site extends DataClass implements Insertable<Site> {
   /// Drives the site-local "First" day boundary.
   final String? timezone;
   final int? stallCount;
+  final int stallsV2;
+  final int stallsV3;
+  final int stallsV4;
+  final int stallsUrban;
+  final int stallsOther;
 
-  /// Open to non-Tesla vehicles. supercharging.life calls this NACS.
+  /// Open to non-Tesla vehicles.
   final bool otherEvs;
   final DateTime? dateOpened;
 
@@ -500,7 +626,7 @@ class Site extends DataClass implements Insertable<Site> {
   final DateTime? firstOpened;
 
   /// Cache of "community check-in count > 0" from the counts endpoint.
-  /// getEarliestCheckinDates uses it when the First history has no date.
+  /// Only undated operational sites use it as a conservative taken fallback.
   final bool hasCheckins;
 
   /// Whether the current user has visited this site
@@ -520,6 +646,11 @@ class Site extends DataClass implements Insertable<Site> {
     required this.region,
     this.timezone,
     this.stallCount,
+    required this.stallsV2,
+    required this.stallsV3,
+    required this.stallsV4,
+    required this.stallsUrban,
+    required this.stallsOther,
     required this.otherEvs,
     this.dateOpened,
     this.firstOpened,
@@ -557,6 +688,11 @@ class Site extends DataClass implements Insertable<Site> {
     if (!nullToAbsent || stallCount != null) {
       map['stall_count'] = Variable<int>(stallCount);
     }
+    map['stalls_v2'] = Variable<int>(stallsV2);
+    map['stalls_v3'] = Variable<int>(stallsV3);
+    map['stalls_v4'] = Variable<int>(stallsV4);
+    map['stalls_urban'] = Variable<int>(stallsUrban);
+    map['stalls_other'] = Variable<int>(stallsOther);
     map['other_evs'] = Variable<bool>(otherEvs);
     if (!nullToAbsent || dateOpened != null) {
       map['date_opened'] = Variable<DateTime>(dateOpened);
@@ -595,6 +731,11 @@ class Site extends DataClass implements Insertable<Site> {
       stallCount: stallCount == null && nullToAbsent
           ? const Value.absent()
           : Value(stallCount),
+      stallsV2: Value(stallsV2),
+      stallsV3: Value(stallsV3),
+      stallsV4: Value(stallsV4),
+      stallsUrban: Value(stallsUrban),
+      stallsOther: Value(stallsOther),
       otherEvs: Value(otherEvs),
       dateOpened: dateOpened == null && nullToAbsent
           ? const Value.absent()
@@ -631,6 +772,11 @@ class Site extends DataClass implements Insertable<Site> {
       region: serializer.fromJson<String>(json['region']),
       timezone: serializer.fromJson<String?>(json['timezone']),
       stallCount: serializer.fromJson<int?>(json['stallCount']),
+      stallsV2: serializer.fromJson<int>(json['stallsV2']),
+      stallsV3: serializer.fromJson<int>(json['stallsV3']),
+      stallsV4: serializer.fromJson<int>(json['stallsV4']),
+      stallsUrban: serializer.fromJson<int>(json['stallsUrban']),
+      stallsOther: serializer.fromJson<int>(json['stallsOther']),
       otherEvs: serializer.fromJson<bool>(json['otherEvs']),
       dateOpened: serializer.fromJson<DateTime?>(json['dateOpened']),
       firstOpened: serializer.fromJson<DateTime?>(json['firstOpened']),
@@ -658,6 +804,11 @@ class Site extends DataClass implements Insertable<Site> {
       'region': serializer.toJson<String>(region),
       'timezone': serializer.toJson<String?>(timezone),
       'stallCount': serializer.toJson<int?>(stallCount),
+      'stallsV2': serializer.toJson<int>(stallsV2),
+      'stallsV3': serializer.toJson<int>(stallsV3),
+      'stallsV4': serializer.toJson<int>(stallsV4),
+      'stallsUrban': serializer.toJson<int>(stallsUrban),
+      'stallsOther': serializer.toJson<int>(stallsOther),
       'otherEvs': serializer.toJson<bool>(otherEvs),
       'dateOpened': serializer.toJson<DateTime?>(dateOpened),
       'firstOpened': serializer.toJson<DateTime?>(firstOpened),
@@ -681,6 +832,11 @@ class Site extends DataClass implements Insertable<Site> {
     String? region,
     Value<String?> timezone = const Value.absent(),
     Value<int?> stallCount = const Value.absent(),
+    int? stallsV2,
+    int? stallsV3,
+    int? stallsV4,
+    int? stallsUrban,
+    int? stallsOther,
     bool? otherEvs,
     Value<DateTime?> dateOpened = const Value.absent(),
     Value<DateTime?> firstOpened = const Value.absent(),
@@ -701,6 +857,11 @@ class Site extends DataClass implements Insertable<Site> {
     region: region ?? this.region,
     timezone: timezone.present ? timezone.value : this.timezone,
     stallCount: stallCount.present ? stallCount.value : this.stallCount,
+    stallsV2: stallsV2 ?? this.stallsV2,
+    stallsV3: stallsV3 ?? this.stallsV3,
+    stallsV4: stallsV4 ?? this.stallsV4,
+    stallsUrban: stallsUrban ?? this.stallsUrban,
+    stallsOther: stallsOther ?? this.stallsOther,
     otherEvs: otherEvs ?? this.otherEvs,
     dateOpened: dateOpened.present ? dateOpened.value : this.dateOpened,
     firstOpened: firstOpened.present ? firstOpened.value : this.firstOpened,
@@ -727,6 +888,15 @@ class Site extends DataClass implements Insertable<Site> {
       stallCount: data.stallCount.present
           ? data.stallCount.value
           : this.stallCount,
+      stallsV2: data.stallsV2.present ? data.stallsV2.value : this.stallsV2,
+      stallsV3: data.stallsV3.present ? data.stallsV3.value : this.stallsV3,
+      stallsV4: data.stallsV4.present ? data.stallsV4.value : this.stallsV4,
+      stallsUrban: data.stallsUrban.present
+          ? data.stallsUrban.value
+          : this.stallsUrban,
+      stallsOther: data.stallsOther.present
+          ? data.stallsOther.value
+          : this.stallsOther,
       otherEvs: data.otherEvs.present ? data.otherEvs.value : this.otherEvs,
       dateOpened: data.dateOpened.present
           ? data.dateOpened.value
@@ -760,6 +930,11 @@ class Site extends DataClass implements Insertable<Site> {
           ..write('region: $region, ')
           ..write('timezone: $timezone, ')
           ..write('stallCount: $stallCount, ')
+          ..write('stallsV2: $stallsV2, ')
+          ..write('stallsV3: $stallsV3, ')
+          ..write('stallsV4: $stallsV4, ')
+          ..write('stallsUrban: $stallsUrban, ')
+          ..write('stallsOther: $stallsOther, ')
           ..write('otherEvs: $otherEvs, ')
           ..write('dateOpened: $dateOpened, ')
           ..write('firstOpened: $firstOpened, ')
@@ -771,7 +946,7 @@ class Site extends DataClass implements Insertable<Site> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     siteId,
     locationId,
@@ -785,13 +960,18 @@ class Site extends DataClass implements Insertable<Site> {
     region,
     timezone,
     stallCount,
+    stallsV2,
+    stallsV3,
+    stallsV4,
+    stallsUrban,
+    stallsOther,
     otherEvs,
     dateOpened,
     firstOpened,
     hasCheckins,
     visited,
     lastSynced,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -809,6 +989,11 @@ class Site extends DataClass implements Insertable<Site> {
           other.region == this.region &&
           other.timezone == this.timezone &&
           other.stallCount == this.stallCount &&
+          other.stallsV2 == this.stallsV2 &&
+          other.stallsV3 == this.stallsV3 &&
+          other.stallsV4 == this.stallsV4 &&
+          other.stallsUrban == this.stallsUrban &&
+          other.stallsOther == this.stallsOther &&
           other.otherEvs == this.otherEvs &&
           other.dateOpened == this.dateOpened &&
           other.firstOpened == this.firstOpened &&
@@ -831,6 +1016,11 @@ class SitesCompanion extends UpdateCompanion<Site> {
   final Value<String> region;
   final Value<String?> timezone;
   final Value<int?> stallCount;
+  final Value<int> stallsV2;
+  final Value<int> stallsV3;
+  final Value<int> stallsV4;
+  final Value<int> stallsUrban;
+  final Value<int> stallsOther;
   final Value<bool> otherEvs;
   final Value<DateTime?> dateOpened;
   final Value<DateTime?> firstOpened;
@@ -851,6 +1041,11 @@ class SitesCompanion extends UpdateCompanion<Site> {
     this.region = const Value.absent(),
     this.timezone = const Value.absent(),
     this.stallCount = const Value.absent(),
+    this.stallsV2 = const Value.absent(),
+    this.stallsV3 = const Value.absent(),
+    this.stallsV4 = const Value.absent(),
+    this.stallsUrban = const Value.absent(),
+    this.stallsOther = const Value.absent(),
     this.otherEvs = const Value.absent(),
     this.dateOpened = const Value.absent(),
     this.firstOpened = const Value.absent(),
@@ -872,6 +1067,11 @@ class SitesCompanion extends UpdateCompanion<Site> {
     this.region = const Value.absent(),
     this.timezone = const Value.absent(),
     this.stallCount = const Value.absent(),
+    this.stallsV2 = const Value.absent(),
+    this.stallsV3 = const Value.absent(),
+    this.stallsV4 = const Value.absent(),
+    this.stallsUrban = const Value.absent(),
+    this.stallsOther = const Value.absent(),
     this.otherEvs = const Value.absent(),
     this.dateOpened = const Value.absent(),
     this.firstOpened = const Value.absent(),
@@ -894,6 +1094,11 @@ class SitesCompanion extends UpdateCompanion<Site> {
     Expression<String>? region,
     Expression<String>? timezone,
     Expression<int>? stallCount,
+    Expression<int>? stallsV2,
+    Expression<int>? stallsV3,
+    Expression<int>? stallsV4,
+    Expression<int>? stallsUrban,
+    Expression<int>? stallsOther,
     Expression<bool>? otherEvs,
     Expression<DateTime>? dateOpened,
     Expression<DateTime>? firstOpened,
@@ -915,6 +1120,11 @@ class SitesCompanion extends UpdateCompanion<Site> {
       if (region != null) 'region': region,
       if (timezone != null) 'timezone': timezone,
       if (stallCount != null) 'stall_count': stallCount,
+      if (stallsV2 != null) 'stalls_v2': stallsV2,
+      if (stallsV3 != null) 'stalls_v3': stallsV3,
+      if (stallsV4 != null) 'stalls_v4': stallsV4,
+      if (stallsUrban != null) 'stalls_urban': stallsUrban,
+      if (stallsOther != null) 'stalls_other': stallsOther,
       if (otherEvs != null) 'other_evs': otherEvs,
       if (dateOpened != null) 'date_opened': dateOpened,
       if (firstOpened != null) 'first_opened': firstOpened,
@@ -938,6 +1148,11 @@ class SitesCompanion extends UpdateCompanion<Site> {
     Value<String>? region,
     Value<String?>? timezone,
     Value<int?>? stallCount,
+    Value<int>? stallsV2,
+    Value<int>? stallsV3,
+    Value<int>? stallsV4,
+    Value<int>? stallsUrban,
+    Value<int>? stallsOther,
     Value<bool>? otherEvs,
     Value<DateTime?>? dateOpened,
     Value<DateTime?>? firstOpened,
@@ -959,6 +1174,11 @@ class SitesCompanion extends UpdateCompanion<Site> {
       region: region ?? this.region,
       timezone: timezone ?? this.timezone,
       stallCount: stallCount ?? this.stallCount,
+      stallsV2: stallsV2 ?? this.stallsV2,
+      stallsV3: stallsV3 ?? this.stallsV3,
+      stallsV4: stallsV4 ?? this.stallsV4,
+      stallsUrban: stallsUrban ?? this.stallsUrban,
+      stallsOther: stallsOther ?? this.stallsOther,
       otherEvs: otherEvs ?? this.otherEvs,
       dateOpened: dateOpened ?? this.dateOpened,
       firstOpened: firstOpened ?? this.firstOpened,
@@ -1012,6 +1232,21 @@ class SitesCompanion extends UpdateCompanion<Site> {
     if (stallCount.present) {
       map['stall_count'] = Variable<int>(stallCount.value);
     }
+    if (stallsV2.present) {
+      map['stalls_v2'] = Variable<int>(stallsV2.value);
+    }
+    if (stallsV3.present) {
+      map['stalls_v3'] = Variable<int>(stallsV3.value);
+    }
+    if (stallsV4.present) {
+      map['stalls_v4'] = Variable<int>(stallsV4.value);
+    }
+    if (stallsUrban.present) {
+      map['stalls_urban'] = Variable<int>(stallsUrban.value);
+    }
+    if (stallsOther.present) {
+      map['stalls_other'] = Variable<int>(stallsOther.value);
+    }
     if (otherEvs.present) {
       map['other_evs'] = Variable<bool>(otherEvs.value);
     }
@@ -1049,6 +1284,11 @@ class SitesCompanion extends UpdateCompanion<Site> {
           ..write('region: $region, ')
           ..write('timezone: $timezone, ')
           ..write('stallCount: $stallCount, ')
+          ..write('stallsV2: $stallsV2, ')
+          ..write('stallsV3: $stallsV3, ')
+          ..write('stallsV4: $stallsV4, ')
+          ..write('stallsUrban: $stallsUrban, ')
+          ..write('stallsOther: $stallsOther, ')
           ..write('otherEvs: $otherEvs, ')
           ..write('dateOpened: $dateOpened, ')
           ..write('firstOpened: $firstOpened, ')
@@ -6479,6 +6719,11 @@ typedef $$SitesTableCreateCompanionBuilder =
       Value<String> region,
       Value<String?> timezone,
       Value<int?> stallCount,
+      Value<int> stallsV2,
+      Value<int> stallsV3,
+      Value<int> stallsV4,
+      Value<int> stallsUrban,
+      Value<int> stallsOther,
       Value<bool> otherEvs,
       Value<DateTime?> dateOpened,
       Value<DateTime?> firstOpened,
@@ -6501,6 +6746,11 @@ typedef $$SitesTableUpdateCompanionBuilder =
       Value<String> region,
       Value<String?> timezone,
       Value<int?> stallCount,
+      Value<int> stallsV2,
+      Value<int> stallsV3,
+      Value<int> stallsV4,
+      Value<int> stallsUrban,
+      Value<int> stallsOther,
       Value<bool> otherEvs,
       Value<DateTime?> dateOpened,
       Value<DateTime?> firstOpened,
@@ -6580,6 +6830,31 @@ class $$SitesTableFilterComposer extends Composer<_$AppDatabase, $SitesTable> {
 
   ColumnFilters<int> get stallCount => $composableBuilder(
     column: $table.stallCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get stallsV2 => $composableBuilder(
+    column: $table.stallsV2,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get stallsV3 => $composableBuilder(
+    column: $table.stallsV3,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get stallsV4 => $composableBuilder(
+    column: $table.stallsV4,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get stallsUrban => $composableBuilder(
+    column: $table.stallsUrban,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get stallsOther => $composableBuilder(
+    column: $table.stallsOther,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6688,6 +6963,31 @@ class $$SitesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get stallsV2 => $composableBuilder(
+    column: $table.stallsV2,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get stallsV3 => $composableBuilder(
+    column: $table.stallsV3,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get stallsV4 => $composableBuilder(
+    column: $table.stallsV4,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get stallsUrban => $composableBuilder(
+    column: $table.stallsUrban,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get stallsOther => $composableBuilder(
+    column: $table.stallsOther,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get otherEvs => $composableBuilder(
     column: $table.otherEvs,
     builder: (column) => ColumnOrderings(column),
@@ -6771,6 +7071,25 @@ class $$SitesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get stallsV2 =>
+      $composableBuilder(column: $table.stallsV2, builder: (column) => column);
+
+  GeneratedColumn<int> get stallsV3 =>
+      $composableBuilder(column: $table.stallsV3, builder: (column) => column);
+
+  GeneratedColumn<int> get stallsV4 =>
+      $composableBuilder(column: $table.stallsV4, builder: (column) => column);
+
+  GeneratedColumn<int> get stallsUrban => $composableBuilder(
+    column: $table.stallsUrban,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get stallsOther => $composableBuilder(
+    column: $table.stallsOther,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get otherEvs =>
       $composableBuilder(column: $table.otherEvs, builder: (column) => column);
 
@@ -6839,6 +7158,11 @@ class $$SitesTableTableManager
                 Value<String> region = const Value.absent(),
                 Value<String?> timezone = const Value.absent(),
                 Value<int?> stallCount = const Value.absent(),
+                Value<int> stallsV2 = const Value.absent(),
+                Value<int> stallsV3 = const Value.absent(),
+                Value<int> stallsV4 = const Value.absent(),
+                Value<int> stallsUrban = const Value.absent(),
+                Value<int> stallsOther = const Value.absent(),
                 Value<bool> otherEvs = const Value.absent(),
                 Value<DateTime?> dateOpened = const Value.absent(),
                 Value<DateTime?> firstOpened = const Value.absent(),
@@ -6859,6 +7183,11 @@ class $$SitesTableTableManager
                 region: region,
                 timezone: timezone,
                 stallCount: stallCount,
+                stallsV2: stallsV2,
+                stallsV3: stallsV3,
+                stallsV4: stallsV4,
+                stallsUrban: stallsUrban,
+                stallsOther: stallsOther,
                 otherEvs: otherEvs,
                 dateOpened: dateOpened,
                 firstOpened: firstOpened,
@@ -6881,6 +7210,11 @@ class $$SitesTableTableManager
                 Value<String> region = const Value.absent(),
                 Value<String?> timezone = const Value.absent(),
                 Value<int?> stallCount = const Value.absent(),
+                Value<int> stallsV2 = const Value.absent(),
+                Value<int> stallsV3 = const Value.absent(),
+                Value<int> stallsV4 = const Value.absent(),
+                Value<int> stallsUrban = const Value.absent(),
+                Value<int> stallsOther = const Value.absent(),
                 Value<bool> otherEvs = const Value.absent(),
                 Value<DateTime?> dateOpened = const Value.absent(),
                 Value<DateTime?> firstOpened = const Value.absent(),
@@ -6901,6 +7235,11 @@ class $$SitesTableTableManager
                 region: region,
                 timezone: timezone,
                 stallCount: stallCount,
+                stallsV2: stallsV2,
+                stallsV3: stallsV3,
+                stallsV4: stallsV4,
+                stallsUrban: stallsUrban,
+                stallsOther: stallsOther,
                 otherEvs: otherEvs,
                 dateOpened: dateOpened,
                 firstOpened: firstOpened,

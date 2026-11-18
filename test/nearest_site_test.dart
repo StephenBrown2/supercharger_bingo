@@ -20,6 +20,11 @@ void main() {
         country: 'US',
         region: 'NA',
         otherEvs: false,
+        stallsV2: 0,
+        stallsV3: 0,
+        stallsV4: 0,
+        stallsUrban: 0,
+        stallsOther: 0,
         hasCheckins: false,
         visited: false,
       );

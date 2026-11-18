@@ -1,3 +1,10 @@
+# Android verification
+
+Always verify changes on both a Pixel 9 Android emulator and a Pixel 8a Android
+emulator, each running Android 17, before declaring the work complete. Install
+the updated app on each emulator and exercise the affected flows. Report the
+results for both devices and any verification that could not be completed.
+
 # Flutter and Dart upgrades
 
 You are authorized to upgrade the Flutter SDK, the Dart SDK, Kotlin, and this

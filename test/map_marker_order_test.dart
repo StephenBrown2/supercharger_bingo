@@ -70,6 +70,8 @@ void main() {
             longitude: const Value(-100),
             hasCheckins: Value(id == 2 || id >= 5),
             visited: Value(id == 7),
+            otherEvs: Value(id == 1 || id == 7),
+            stallsV3: Value([1, 3, 7].contains(id) ? 4 : 0),
             timezone: const Value('UTC'),
             dateOpened: Value(
               id >= 5
@@ -196,6 +198,80 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       expect(find.text('Site 2'), findsOneWidget);
       expect(find.byType(BottomSheet, skipOffstage: false), findsOneWidget);
+      await tester.tap(find.text('Close'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      DatabaseService.bootstrapSites = null;
+      tester.view.physicalSize = const Size(411, 923);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pump();
+
+      Future<void> finishLoad() async {
+        await tester.runAsync(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        });
+        await tester.pump();
+      }
+
+      Future<void> selectStatus(String label) async {
+        final chip = find.descendant(
+          of: find.byType(FilterChip),
+          matching: find.text(label),
+        );
+        await tester.ensureVisible(chip);
+        await tester.tap(chip);
+        await finishLoad();
+      }
+
+      Set<int> markerIds() {
+        final map = tester.widget<FlutterMap>(find.byType(FlutterMap));
+        final markers = map.children
+            .whereType<MarkerLayer>()
+            .expand((layer) => layer.markers)
+            .toList();
+        if (clustered) {
+          markers.addAll(
+            tester
+                .widget<MarkerClusterLayerWidget>(
+                  find.byType(MarkerClusterLayerWidget),
+                )
+                .options
+                .markers,
+          );
+        }
+        return markers
+            .map((marker) => (marker.key as ValueKey<int>).value)
+            .toSet();
+      }
+
+      await selectStatus('All');
+      await tester.tap(find.text('All types'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Not specified'), findsNothing);
+      await tester.tap(find.text('V3').last);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await finishLoad();
+      expect(markerIds(), {1, 3, 7});
+      await selectStatus('Visited');
+      expect(markerIds(), {7});
+      await selectStatus('Tesla EV (Open)');
+      expect(markerIds(), {1});
+      await selectStatus('Open + Construction');
+      expect(markerIds(), {1, 3});
+      await selectStatus('Non-Tesla EV (Open)');
+      expect(markerIds(), {1});
+      await selectStatus('All');
+      await tester.tap(find.text('V3').first);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.tap(find.text('Unknown').last);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await finishLoad();
+      expect(markerIds(), {2, 4, 5, 6});
       await tester.pumpWidget(const SizedBox());
       await tester.pump();
     });

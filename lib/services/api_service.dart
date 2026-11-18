@@ -460,6 +460,11 @@ class ApiService {
         ),
       ),
       stallCount: Value(site.stallCount),
+      stallsV2: Value(site.stalls?.v2 ?? 0),
+      stallsV3: Value(site.stalls?.v3 ?? 0),
+      stallsV4: Value(site.stalls?.v4 ?? 0),
+      stallsUrban: Value(site.stalls?.urban ?? 0),
+      stallsOther: Value(site.stalls?.other ?? 0),
       otherEvs: Value(site.otherEVs),
       dateOpened: Value(
         site.dateOpened == null

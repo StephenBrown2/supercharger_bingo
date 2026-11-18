@@ -40,6 +40,17 @@ Map<String, dynamic> _siteJson({
 }
 
 void main() {
+  test('site ingestion retains mixed stall types including other', () {
+    final json = _siteJson()
+      ..['stalls'] = {'v2': 2, 'v3': 4, 'v4': 6, 'urban': 8, 'other': 1};
+    final site = ApiService.parseSiteRecord(json)!;
+    expect(site.stallsV2.value, 2);
+    expect(site.stallsV3.value, 4);
+    expect(site.stallsV4.value, 6);
+    expect(site.stallsUrban.value, 8);
+    expect(site.stallsOther.value, 1);
+  });
+
   test('Uruguay site with null plugs maps to a companion', () {
     final parsed = ApiService.parseSiteRecord(_siteJson(includePlugs: false));
     expect(parsed, isNotNull);
@@ -50,6 +61,11 @@ void main() {
     expect(parsed.status.value, SiteStatus.open);
     expect(parsed.stallCount.value, 8);
     expect(parsed.otherEvs.value, isTrue);
+    expect(parsed.stallsV2.value, 0);
+    expect(parsed.stallsV3.value, 0);
+    expect(parsed.stallsV4.value, 0);
+    expect(parsed.stallsUrban.value, 0);
+    expect(parsed.stallsOther.value, 0);
     expect(parsed.dateOpened.value, DateTime.utc(2024, 1, 15));
     expect(parsed.latitude.value, -34.9);
   });

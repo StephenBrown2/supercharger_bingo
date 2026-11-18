@@ -15,6 +15,56 @@ void main() {
     setUp(() => db = AppDatabase(NativeDatabase.memory()));
     tearDown(() => db.close());
 
+    test(
+      'v19 upgrade retains sites and reloads regions for stall types',
+      () async {
+        await db.upsertSite(
+          SitesCompanion.insert(
+            siteId: 42,
+            name: 'Existing',
+            visited: const Value(true),
+          ),
+        );
+        await db.upsertRegionSync(100, 123);
+        final names =
+            (await db
+                    .customSelect("SELECT name FROM pragma_table_info('sites')")
+                    .get())
+                .map((row) => row.read<String>('name'))
+                .toSet();
+        for (final name in [
+          'stalls_v2',
+          'stalls_v3',
+          'stalls_v4',
+          'stalls_urban',
+          'stalls_other',
+        ]) {
+          if (names.contains(name)) {
+            await db.customStatement('ALTER TABLE sites DROP COLUMN $name');
+          }
+        }
+        await db.migration.onUpgrade(Migrator(db), 18, 19);
+        final columns =
+            (await db
+                    .customSelect("SELECT name FROM pragma_table_info('sites')")
+                    .get())
+                .map((row) => row.read<String>('name'));
+        expect(
+          columns,
+          containsAll([
+            'stalls_v2',
+            'stalls_v3',
+            'stalls_v4',
+            'stalls_urban',
+            'stalls_other',
+          ]),
+        );
+        expect((await db.getSiteBySiteId(42))!.visited, isTrue);
+        expect(await db.getRegionSync(100), isNull);
+        await db.migration.onUpgrade(Migrator(db), 18, 19);
+      },
+    );
+
     test('schemaVersion is bumped past the prototype (>= 4)', () {
       expect(db.schemaVersion, greaterThanOrEqualTo(4));
     });

@@ -40,8 +40,8 @@ String pollingIntervalLabel(PollingInterval interval) => switch (interval) {
   PollingInterval.hours24 => '24 hours',
 };
 
-/// My Map filters on supercharging.life, in the order that page shows them.
-/// Unvisited (Open) is the default. NACS is supercharge.info `otherEVs`.
+/// My Map filters. Names remain stable for stored settings.
+/// Tesla EV (Open) is the default; non-Tesla support uses `otherEVs`.
 enum MapFilter {
   openUnvisited,
   all,
@@ -118,8 +118,13 @@ class Sites extends Table {
   /// Drives the site-local "First" day boundary.
   TextColumn get timezone => text().nullable()();
   IntColumn get stallCount => integer().nullable()();
+  IntColumn get stallsV2 => integer().withDefault(const Constant(0))();
+  IntColumn get stallsV3 => integer().withDefault(const Constant(0))();
+  IntColumn get stallsV4 => integer().withDefault(const Constant(0))();
+  IntColumn get stallsUrban => integer().withDefault(const Constant(0))();
+  IntColumn get stallsOther => integer().withDefault(const Constant(0))();
 
-  /// Open to non-Tesla vehicles. supercharging.life calls this NACS.
+  /// Open to non-Tesla vehicles.
   BoolColumn get otherEvs => boolean().withDefault(const Constant(false))();
   DateTimeColumn get dateOpened => dateTime().nullable()();
 
@@ -360,7 +365,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 18;
+  int get schemaVersion => 19;
 
   @override
   MigrationStrategy get migration {
@@ -609,6 +614,21 @@ class AppDatabase extends _$AppDatabase {
               );
             }
           }
+        }
+        if (from < 19 && to >= 19) {
+          for (final column in [
+            sites.stallsV2,
+            sites.stallsV3,
+            sites.stallsV4,
+            sites.stallsUrban,
+            sites.stallsOther,
+          ]) {
+            if (!await _columnExists('sites', column.name)) {
+              await m.addColumn(sites, column);
+            }
+          }
+          // Reload cached sites once to populate their stall types.
+          await customStatement('DELETE FROM region_syncs');
         }
       },
     );

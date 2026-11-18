@@ -18,6 +18,7 @@ import '../services/write_result.dart';
 import 'checkin_dialog.dart';
 import 'login_screen.dart';
 import 'map_marker_style.dart';
+import 'map_site_type.dart';
 
 /// Full-screen map with filter controls and accessible markers
 /// Can show a bottom drawer with nearby sites for check-in
@@ -42,6 +43,7 @@ class MapScreen extends StatefulWidget {
 class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   MapFilter _currentFilter = MapFilter.openUnvisited;
+  MapSiteType _currentType = MapSiteType.all;
   List<Site> _sites = [];
   // Earliest community check-in date per site, used to derive First state.
   Map<int, DateTime> _firstDates = {};
@@ -235,6 +237,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           sites = await DatabaseService.getSites();
           break;
       }
+      sites = sites.where(_currentType.matches).toList();
       // Derive First state inputs for the operational sites on screen.
       final operationalIds = sites
           .where((s) => isOperational(s.status))
@@ -552,24 +555,54 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildFilterChips(ThemeData theme) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          _filterChip('Unvisited (Open)', MapFilter.openUnvisited),
-          const SizedBox(width: 8),
-          _filterChip('All', MapFilter.all),
-          const SizedBox(width: 8),
-          _filterChip('Visited', MapFilter.visited),
-          const SizedBox(width: 8),
-          _filterChip('Unvisited NACS (Open)', MapFilter.unvisitedNacs),
-          const SizedBox(width: 8),
-          _filterChip(
-            'Unvisited (Open+Construction)',
-            MapFilter.openUnvisitedConstruction,
+    return Row(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _filterChip('Tesla EV (Open)', MapFilter.openUnvisited),
+                const SizedBox(width: 8),
+                _filterChip('Non-Tesla EV (Open)', MapFilter.unvisitedNacs),
+                const SizedBox(width: 8),
+                _filterChip(
+                  'Open + Construction',
+                  MapFilter.openUnvisitedConstruction,
+                ),
+                const SizedBox(width: 8),
+                _filterChip('Visited', MapFilter.visited),
+                const SizedBox(width: 8),
+                _filterChip('All', MapFilter.all),
+              ],
+            ),
           ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 8),
+        Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Tooltip(
+              message: 'Charger type',
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<MapSiteType>(
+                  value: _currentType,
+                  items: [
+                    for (final type in MapSiteType.values)
+                      DropdownMenuItem(value: type, child: Text(type.label)),
+                  ],
+                  onChanged: (type) {
+                    if (type == null || type == _currentType) return;
+                    setState(() => _currentType = type);
+                    _loadSites();
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

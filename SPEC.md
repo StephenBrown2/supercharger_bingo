@@ -120,7 +120,7 @@ Status: Complete. The filter list below is the written target. The app follows s
 
 ### Status to behavior
 
-Status: Complete. OPEN and EXPANDING stay operational for check-in and pin color. The Unvisited (Open) and NACS map filters are OPEN only, matching supercharging.life.
+Status: Complete. OPEN and EXPANDING stay operational for check-in and pin color. The Tesla EV (Open) and Non-Tesla EV (Open) map filters are OPEN only, matching supercharging.life.
 
 The 8 statuses map to behavior as follows:
 
@@ -132,14 +132,17 @@ The 8 statuses map to behavior as follows:
 
 ### Filters
 
-Status: Complete. Chips match supercharging.life My Map, in this order: Unvisited (Open), All, Visited, Unvisited NACS (Open), Unvisited (Open+Construction). Unvisited (Open) is OPEN and not visited. NACS is OPEN, not visited, and otherEVs. Open+Construction adds CONSTRUCTION and does not add EXPANDING.
+Status: Complete. Chips match supercharging.life My Map: Tesla EV (Open), Non-Tesla EV (Open), Open + Construction, Visited, All. Tesla EV (Open) is the default. The three unvisited filters retain their matching rules.
 
-Four top-level filters. The original "Show Visited" option is restored, since the prototype dropped it:
+Five top-level filters:
 
-- **Unvisited (default):** operational sites (OPEN, EXPANDING) with no check-in by the current user. This is the launch view.
-- **Unvisited + Construction:** operational plus CONSTRUCTION sites with no check-in. Does not include PERMIT, PLAN, or VOTING by default.
+- **Tesla EV (Open), default:** OPEN sites with no check-in by the current user.
+- **Non-Tesla EV (Open):** OPEN, unvisited sites with `otherEVs` enabled.
+- **Open + Construction:** OPEN or CONSTRUCTION sites with no check-in. Does not include EXPANDING, PERMIT, PLAN, or VOTING.
 - **Visited:** any site the current user has checked into, regardless of status.
 - **All:** every site regardless of status, including PERMIT, PLAN, VOTING, and both closed states.
+
+The independent charger type selector offers All types (default), V2, V3, V4, Urban, and Unknown. It combines with every top-level filter. A site matches each type with a positive stall count. Unknown includes sites with positive `stalls.other` counts and sites with no positive named type counts, including missing type data. Type selections are not persisted. The v19 database migration refreshes cached regions to populate stall types.
 
 ### Pin color and shape
 
