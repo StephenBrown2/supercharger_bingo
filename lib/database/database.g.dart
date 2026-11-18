@@ -1450,27 +1450,6 @@ class $VisitsTable extends Visits with TableInfo<$VisitsTable, Visit> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
-  @override
-  late final GeneratedColumnWithTypeConverter<VisitSyncStatus, String>
-  syncStatus = GeneratedColumn<String>(
-    'sync_status',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: Constant(VisitSyncStatus.synced.name),
-  ).withConverter<VisitSyncStatus>($VisitsTable.$convertersyncStatus);
-  static const VerificationMeta _pendingIdMeta = const VerificationMeta(
-    'pendingId',
-  );
-  @override
-  late final GeneratedColumn<int> pendingId = GeneratedColumn<int>(
-    'pending_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
   static const VerificationMeta _importedAtMeta = const VerificationMeta(
     'importedAt',
   );
@@ -1497,8 +1476,6 @@ class $VisitsTable extends Visits with TableInfo<$VisitsTable, Visit> {
     vehicleId,
     geoDistanceAccuracy,
     geoDistance,
-    syncStatus,
-    pendingId,
     importedAt,
   ];
   @override
@@ -1600,12 +1577,6 @@ class $VisitsTable extends Visits with TableInfo<$VisitsTable, Visit> {
         ),
       );
     }
-    if (data.containsKey('pending_id')) {
-      context.handle(
-        _pendingIdMeta,
-        pendingId.isAcceptableOrUnknown(data['pending_id']!, _pendingIdMeta),
-      );
-    }
     if (data.containsKey('imported_at')) {
       context.handle(
         _importedAtMeta,
@@ -1679,16 +1650,6 @@ class $VisitsTable extends Visits with TableInfo<$VisitsTable, Visit> {
         DriftSqlType.int,
         data['${effectivePrefix}geo_distance'],
       ),
-      syncStatus: $VisitsTable.$convertersyncStatus.fromSql(
-        attachedDatabase.typeMapping.read(
-          DriftSqlType.string,
-          data['${effectivePrefix}sync_status'],
-        )!,
-      ),
-      pendingId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}pending_id'],
-      ),
       importedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}imported_at'],
@@ -1707,10 +1668,6 @@ class $VisitsTable extends Visits with TableInfo<$VisitsTable, Visit> {
   );
   static JsonTypeConverter2<CheckinMethod, String, String> $convertermethod =
       const EnumNameConverter<CheckinMethod>(CheckinMethod.values);
-  static JsonTypeConverter2<VisitSyncStatus, String, String>
-  $convertersyncStatus = const EnumNameConverter<VisitSyncStatus>(
-    VisitSyncStatus.values,
-  );
 }
 
 class Visit extends DataClass implements Insertable<Visit> {
@@ -1735,12 +1692,6 @@ class Visit extends DataClass implements Insertable<Visit> {
   final String? vehicleId;
   final int? geoDistanceAccuracy;
   final int? geoDistance;
-
-  /// Pending until the unofficial writer accepts the check-in.
-  final VisitSyncStatus syncStatus;
-
-  /// Matches [PendingCheckins.id] while this row is still in the outbox.
-  final int? pendingId;
   final DateTime importedAt;
   const Visit({
     required this.id,
@@ -1756,8 +1707,6 @@ class Visit extends DataClass implements Insertable<Visit> {
     this.vehicleId,
     this.geoDistanceAccuracy,
     this.geoDistance,
-    required this.syncStatus,
-    this.pendingId,
     required this.importedAt,
   });
   @override
@@ -1796,14 +1745,6 @@ class Visit extends DataClass implements Insertable<Visit> {
     if (!nullToAbsent || geoDistance != null) {
       map['geo_distance'] = Variable<int>(geoDistance);
     }
-    {
-      map['sync_status'] = Variable<String>(
-        $VisitsTable.$convertersyncStatus.toSql(syncStatus),
-      );
-    }
-    if (!nullToAbsent || pendingId != null) {
-      map['pending_id'] = Variable<int>(pendingId);
-    }
     map['imported_at'] = Variable<DateTime>(importedAt);
     return map;
   }
@@ -1835,10 +1776,6 @@ class Visit extends DataClass implements Insertable<Visit> {
       geoDistance: geoDistance == null && nullToAbsent
           ? const Value.absent()
           : Value(geoDistance),
-      syncStatus: Value(syncStatus),
-      pendingId: pendingId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(pendingId),
       importedAt: Value(importedAt),
     );
   }
@@ -1868,10 +1805,6 @@ class Visit extends DataClass implements Insertable<Visit> {
         json['geoDistanceAccuracy'],
       ),
       geoDistance: serializer.fromJson<int?>(json['geoDistance']),
-      syncStatus: $VisitsTable.$convertersyncStatus.fromJson(
-        serializer.fromJson<String>(json['syncStatus']),
-      ),
-      pendingId: serializer.fromJson<int?>(json['pendingId']),
       importedAt: serializer.fromJson<DateTime>(json['importedAt']),
     );
   }
@@ -1896,10 +1829,6 @@ class Visit extends DataClass implements Insertable<Visit> {
       'vehicleId': serializer.toJson<String?>(vehicleId),
       'geoDistanceAccuracy': serializer.toJson<int?>(geoDistanceAccuracy),
       'geoDistance': serializer.toJson<int?>(geoDistance),
-      'syncStatus': serializer.toJson<String>(
-        $VisitsTable.$convertersyncStatus.toJson(syncStatus),
-      ),
-      'pendingId': serializer.toJson<int?>(pendingId),
       'importedAt': serializer.toJson<DateTime>(importedAt),
     };
   }
@@ -1918,8 +1847,6 @@ class Visit extends DataClass implements Insertable<Visit> {
     Value<String?> vehicleId = const Value.absent(),
     Value<int?> geoDistanceAccuracy = const Value.absent(),
     Value<int?> geoDistance = const Value.absent(),
-    VisitSyncStatus? syncStatus,
-    Value<int?> pendingId = const Value.absent(),
     DateTime? importedAt,
   }) => Visit(
     id: id ?? this.id,
@@ -1937,8 +1864,6 @@ class Visit extends DataClass implements Insertable<Visit> {
         ? geoDistanceAccuracy.value
         : this.geoDistanceAccuracy,
     geoDistance: geoDistance.present ? geoDistance.value : this.geoDistance,
-    syncStatus: syncStatus ?? this.syncStatus,
-    pendingId: pendingId.present ? pendingId.value : this.pendingId,
     importedAt: importedAt ?? this.importedAt,
   );
   Visit copyWithCompanion(VisitsCompanion data) {
@@ -1970,10 +1895,6 @@ class Visit extends DataClass implements Insertable<Visit> {
       geoDistance: data.geoDistance.present
           ? data.geoDistance.value
           : this.geoDistance,
-      syncStatus: data.syncStatus.present
-          ? data.syncStatus.value
-          : this.syncStatus,
-      pendingId: data.pendingId.present ? data.pendingId.value : this.pendingId,
       importedAt: data.importedAt.present
           ? data.importedAt.value
           : this.importedAt,
@@ -1996,8 +1917,6 @@ class Visit extends DataClass implements Insertable<Visit> {
           ..write('vehicleId: $vehicleId, ')
           ..write('geoDistanceAccuracy: $geoDistanceAccuracy, ')
           ..write('geoDistance: $geoDistance, ')
-          ..write('syncStatus: $syncStatus, ')
-          ..write('pendingId: $pendingId, ')
           ..write('importedAt: $importedAt')
           ..write(')'))
         .toString();
@@ -2018,8 +1937,6 @@ class Visit extends DataClass implements Insertable<Visit> {
     vehicleId,
     geoDistanceAccuracy,
     geoDistance,
-    syncStatus,
-    pendingId,
     importedAt,
   );
   @override
@@ -2039,8 +1956,6 @@ class Visit extends DataClass implements Insertable<Visit> {
           other.vehicleId == this.vehicleId &&
           other.geoDistanceAccuracy == this.geoDistanceAccuracy &&
           other.geoDistance == this.geoDistance &&
-          other.syncStatus == this.syncStatus &&
-          other.pendingId == this.pendingId &&
           other.importedAt == this.importedAt);
 }
 
@@ -2058,8 +1973,6 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
   final Value<String?> vehicleId;
   final Value<int?> geoDistanceAccuracy;
   final Value<int?> geoDistance;
-  final Value<VisitSyncStatus> syncStatus;
-  final Value<int?> pendingId;
   final Value<DateTime> importedAt;
   const VisitsCompanion({
     this.id = const Value.absent(),
@@ -2075,8 +1988,6 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
     this.vehicleId = const Value.absent(),
     this.geoDistanceAccuracy = const Value.absent(),
     this.geoDistance = const Value.absent(),
-    this.syncStatus = const Value.absent(),
-    this.pendingId = const Value.absent(),
     this.importedAt = const Value.absent(),
   });
   VisitsCompanion.insert({
@@ -2093,8 +2004,6 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
     this.vehicleId = const Value.absent(),
     this.geoDistanceAccuracy = const Value.absent(),
     this.geoDistance = const Value.absent(),
-    this.syncStatus = const Value.absent(),
-    this.pendingId = const Value.absent(),
     required DateTime importedAt,
   }) : siteId = Value(siteId),
        checkinDate = Value(checkinDate),
@@ -2114,8 +2023,6 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
     Expression<String>? vehicleId,
     Expression<int>? geoDistanceAccuracy,
     Expression<int>? geoDistance,
-    Expression<String>? syncStatus,
-    Expression<int>? pendingId,
     Expression<DateTime>? importedAt,
   }) {
     return RawValuesInsertable({
@@ -2133,8 +2040,6 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
       if (geoDistanceAccuracy != null)
         'geo_distance_accuracy': geoDistanceAccuracy,
       if (geoDistance != null) 'geo_distance': geoDistance,
-      if (syncStatus != null) 'sync_status': syncStatus,
-      if (pendingId != null) 'pending_id': pendingId,
       if (importedAt != null) 'imported_at': importedAt,
     });
   }
@@ -2153,8 +2058,6 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
     Value<String?>? vehicleId,
     Value<int?>? geoDistanceAccuracy,
     Value<int?>? geoDistance,
-    Value<VisitSyncStatus>? syncStatus,
-    Value<int?>? pendingId,
     Value<DateTime>? importedAt,
   }) {
     return VisitsCompanion(
@@ -2171,8 +2074,6 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
       vehicleId: vehicleId ?? this.vehicleId,
       geoDistanceAccuracy: geoDistanceAccuracy ?? this.geoDistanceAccuracy,
       geoDistance: geoDistance ?? this.geoDistance,
-      syncStatus: syncStatus ?? this.syncStatus,
-      pendingId: pendingId ?? this.pendingId,
       importedAt: importedAt ?? this.importedAt,
     );
   }
@@ -2223,14 +2124,6 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
     if (geoDistance.present) {
       map['geo_distance'] = Variable<int>(geoDistance.value);
     }
-    if (syncStatus.present) {
-      map['sync_status'] = Variable<String>(
-        $VisitsTable.$convertersyncStatus.toSql(syncStatus.value),
-      );
-    }
-    if (pendingId.present) {
-      map['pending_id'] = Variable<int>(pendingId.value);
-    }
     if (importedAt.present) {
       map['imported_at'] = Variable<DateTime>(importedAt.value);
     }
@@ -2253,77 +2146,39 @@ class VisitsCompanion extends UpdateCompanion<Visit> {
           ..write('vehicleId: $vehicleId, ')
           ..write('geoDistanceAccuracy: $geoDistanceAccuracy, ')
           ..write('geoDistance: $geoDistance, ')
-          ..write('syncStatus: $syncStatus, ')
-          ..write('pendingId: $pendingId, ')
           ..write('importedAt: $importedAt')
           ..write(')'))
         .toString();
   }
 }
 
-class $PendingCheckinsTable extends PendingCheckins
-    with TableInfo<$PendingCheckinsTable, PendingCheckin> {
+class $OutboxEntriesTable extends OutboxEntries
+    with TableInfo<$OutboxEntriesTable, OutboxEntry> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $PendingCheckinsTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  $OutboxEntriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _visitIdMeta = const VerificationMeta(
+    'visitId',
+  );
   @override
-  late final GeneratedColumn<int> id = GeneratedColumn<int>(
-    'id',
+  late final GeneratedColumn<int> visitId = GeneratedColumn<int>(
+    'visit_id',
     aliasedName,
     false,
-    hasAutoIncrement: true,
     type: DriftSqlType.int,
     requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'PRIMARY KEY AUTOINCREMENT',
-    ),
-  );
-  static const VerificationMeta _siteIdMeta = const VerificationMeta('siteId');
-  @override
-  late final GeneratedColumn<int> siteId = GeneratedColumn<int>(
-    'site_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _checkinDateMeta = const VerificationMeta(
-    'checkinDate',
   );
   @override
-  late final GeneratedColumn<DateTime> checkinDate = GeneratedColumn<DateTime>(
-    'checkin_date',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  @override
-  late final GeneratedColumnWithTypeConverter<CheckinPrecision, String>
-  checkinPrecision =
+  late final GeneratedColumnWithTypeConverter<OutboxState, String> state =
       GeneratedColumn<String>(
-        'checkin_precision',
+        'state',
         aliasedName,
         false,
         type: DriftSqlType.string,
         requiredDuringInsert: false,
-        defaultValue: Constant(CheckinPrecision.timestamp.name),
-      ).withConverter<CheckinPrecision>(
-        $PendingCheckinsTable.$convertercheckinPrecision,
-      );
-  static const VerificationMeta _createdAtMeta = const VerificationMeta(
-    'createdAt',
-  );
-  @override
-  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
-    'created_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
+        defaultValue: Constant(OutboxState.waiting.name),
+      ).withConverter<OutboxState>($OutboxEntriesTable.$converterstate);
   static const VerificationMeta _latitudeMeta = const VerificationMeta(
     'latitude',
   );
@@ -2357,49 +2212,6 @@ class $PendingCheckinsTable extends PendingCheckins
     type: DriftSqlType.double,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _notesPublicMeta = const VerificationMeta(
-    'notesPublic',
-  );
-  @override
-  late final GeneratedColumn<String> notesPublic = GeneratedColumn<String>(
-    'notes_public',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _notesPrivateMeta = const VerificationMeta(
-    'notesPrivate',
-  );
-  @override
-  late final GeneratedColumn<String> notesPrivate = GeneratedColumn<String>(
-    'notes_private',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _vehicleIdMeta = const VerificationMeta(
-    'vehicleId',
-  );
-  @override
-  late final GeneratedColumn<String> vehicleId = GeneratedColumn<String>(
-    'vehicle_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  @override
-  late final GeneratedColumnWithTypeConverter<PendingStatus, String> status =
-      GeneratedColumn<String>(
-        'status',
-        aliasedName,
-        false,
-        type: DriftSqlType.string,
-        requiredDuringInsert: false,
-        defaultValue: Constant(PendingStatus.pending.name),
-      ).withConverter<PendingStatus>($PendingCheckinsTable.$converterstatus);
   static const VerificationMeta _attemptsMeta = const VerificationMeta(
     'attempts',
   );
@@ -2437,18 +2249,11 @@ class $PendingCheckinsTable extends PendingCheckins
   );
   @override
   List<GeneratedColumn> get $columns => [
-    id,
-    siteId,
-    checkinDate,
-    checkinPrecision,
-    createdAt,
+    visitId,
+    state,
     latitude,
     longitude,
     accuracy,
-    notesPublic,
-    notesPrivate,
-    vehicleId,
-    status,
     attempts,
     lastAttemptAt,
     lastError,
@@ -2457,43 +2262,19 @@ class $PendingCheckinsTable extends PendingCheckins
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'pending_checkins';
+  static const String $name = 'outbox_entries';
   @override
   VerificationContext validateIntegrity(
-    Insertable<PendingCheckin> instance, {
+    Insertable<OutboxEntry> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
-    if (data.containsKey('id')) {
-      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
-    }
-    if (data.containsKey('site_id')) {
+    if (data.containsKey('visit_id')) {
       context.handle(
-        _siteIdMeta,
-        siteId.isAcceptableOrUnknown(data['site_id']!, _siteIdMeta),
+        _visitIdMeta,
+        visitId.isAcceptableOrUnknown(data['visit_id']!, _visitIdMeta),
       );
-    } else if (isInserting) {
-      context.missing(_siteIdMeta);
-    }
-    if (data.containsKey('checkin_date')) {
-      context.handle(
-        _checkinDateMeta,
-        checkinDate.isAcceptableOrUnknown(
-          data['checkin_date']!,
-          _checkinDateMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_checkinDateMeta);
-    }
-    if (data.containsKey('created_at')) {
-      context.handle(
-        _createdAtMeta,
-        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_createdAtMeta);
     }
     if (data.containsKey('latitude')) {
       context.handle(
@@ -2511,30 +2292,6 @@ class $PendingCheckinsTable extends PendingCheckins
       context.handle(
         _accuracyMeta,
         accuracy.isAcceptableOrUnknown(data['accuracy']!, _accuracyMeta),
-      );
-    }
-    if (data.containsKey('notes_public')) {
-      context.handle(
-        _notesPublicMeta,
-        notesPublic.isAcceptableOrUnknown(
-          data['notes_public']!,
-          _notesPublicMeta,
-        ),
-      );
-    }
-    if (data.containsKey('notes_private')) {
-      context.handle(
-        _notesPrivateMeta,
-        notesPrivate.isAcceptableOrUnknown(
-          data['notes_private']!,
-          _notesPrivateMeta,
-        ),
-      );
-    }
-    if (data.containsKey('vehicle_id')) {
-      context.handle(
-        _vehicleIdMeta,
-        vehicleId.isAcceptableOrUnknown(data['vehicle_id']!, _vehicleIdMeta),
       );
     }
     if (data.containsKey('attempts')) {
@@ -2562,34 +2319,21 @@ class $PendingCheckinsTable extends PendingCheckins
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {id};
+  Set<GeneratedColumn> get $primaryKey => {visitId};
   @override
-  PendingCheckin map(Map<String, dynamic> data, {String? tablePrefix}) {
+  OutboxEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return PendingCheckin(
-      id: attachedDatabase.typeMapping.read(
+    return OutboxEntry(
+      visitId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
-        data['${effectivePrefix}id'],
+        data['${effectivePrefix}visit_id'],
       )!,
-      siteId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}site_id'],
-      )!,
-      checkinDate: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}checkin_date'],
-      )!,
-      checkinPrecision: $PendingCheckinsTable.$convertercheckinPrecision
-          .fromSql(
-            attachedDatabase.typeMapping.read(
-              DriftSqlType.string,
-              data['${effectivePrefix}checkin_precision'],
-            )!,
-          ),
-      createdAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}created_at'],
-      )!,
+      state: $OutboxEntriesTable.$converterstate.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}state'],
+        )!,
+      ),
       latitude: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}latitude'],
@@ -2601,24 +2345,6 @@ class $PendingCheckinsTable extends PendingCheckins
       accuracy: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}accuracy'],
-      ),
-      notesPublic: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}notes_public'],
-      ),
-      notesPrivate: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}notes_private'],
-      ),
-      vehicleId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}vehicle_id'],
-      ),
-      status: $PendingCheckinsTable.$converterstatus.fromSql(
-        attachedDatabase.typeMapping.read(
-          DriftSqlType.string,
-          data['${effectivePrefix}status'],
-        )!,
       ),
       attempts: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
@@ -2636,52 +2362,29 @@ class $PendingCheckinsTable extends PendingCheckins
   }
 
   @override
-  $PendingCheckinsTable createAlias(String alias) {
-    return $PendingCheckinsTable(attachedDatabase, alias);
+  $OutboxEntriesTable createAlias(String alias) {
+    return $OutboxEntriesTable(attachedDatabase, alias);
   }
 
-  static JsonTypeConverter2<CheckinPrecision, String, String>
-  $convertercheckinPrecision = const EnumNameConverter<CheckinPrecision>(
-    CheckinPrecision.values,
-  );
-  static JsonTypeConverter2<PendingStatus, String, String> $converterstatus =
-      const EnumNameConverter<PendingStatus>(PendingStatus.values);
+  static JsonTypeConverter2<OutboxState, String, String> $converterstate =
+      const EnumNameConverter<OutboxState>(OutboxState.values);
 }
 
-class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
-  final int id;
-  final int siteId;
-  final DateTime checkinDate;
-
-  /// dateOnly when the queued value is a calendar date. App check-ins are
-  /// timestamp, matching the live form's `date` field.
-  final CheckinPrecision checkinPrecision;
-  final DateTime createdAt;
+class OutboxEntry extends DataClass implements Insertable<OutboxEntry> {
+  final int visitId;
+  final OutboxState state;
   final double? latitude;
   final double? longitude;
   final double? accuracy;
-  final String? notesPublic;
-  final String? notesPrivate;
-
-  /// Local-only association with a Vehicle; never sent to supercharging.life.
-  final String? vehicleId;
-  final PendingStatus status;
   final int attempts;
   final DateTime? lastAttemptAt;
   final String? lastError;
-  const PendingCheckin({
-    required this.id,
-    required this.siteId,
-    required this.checkinDate,
-    required this.checkinPrecision,
-    required this.createdAt,
+  const OutboxEntry({
+    required this.visitId,
+    required this.state,
     this.latitude,
     this.longitude,
     this.accuracy,
-    this.notesPublic,
-    this.notesPrivate,
-    this.vehicleId,
-    required this.status,
     required this.attempts,
     this.lastAttemptAt,
     this.lastError,
@@ -2689,17 +2392,12 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    map['id'] = Variable<int>(id);
-    map['site_id'] = Variable<int>(siteId);
-    map['checkin_date'] = Variable<DateTime>(checkinDate);
+    map['visit_id'] = Variable<int>(visitId);
     {
-      map['checkin_precision'] = Variable<String>(
-        $PendingCheckinsTable.$convertercheckinPrecision.toSql(
-          checkinPrecision,
-        ),
+      map['state'] = Variable<String>(
+        $OutboxEntriesTable.$converterstate.toSql(state),
       );
     }
-    map['created_at'] = Variable<DateTime>(createdAt);
     if (!nullToAbsent || latitude != null) {
       map['latitude'] = Variable<double>(latitude);
     }
@@ -2708,20 +2406,6 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
     }
     if (!nullToAbsent || accuracy != null) {
       map['accuracy'] = Variable<double>(accuracy);
-    }
-    if (!nullToAbsent || notesPublic != null) {
-      map['notes_public'] = Variable<String>(notesPublic);
-    }
-    if (!nullToAbsent || notesPrivate != null) {
-      map['notes_private'] = Variable<String>(notesPrivate);
-    }
-    if (!nullToAbsent || vehicleId != null) {
-      map['vehicle_id'] = Variable<String>(vehicleId);
-    }
-    {
-      map['status'] = Variable<String>(
-        $PendingCheckinsTable.$converterstatus.toSql(status),
-      );
     }
     map['attempts'] = Variable<int>(attempts);
     if (!nullToAbsent || lastAttemptAt != null) {
@@ -2733,13 +2417,10 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
     return map;
   }
 
-  PendingCheckinsCompanion toCompanion(bool nullToAbsent) {
-    return PendingCheckinsCompanion(
-      id: Value(id),
-      siteId: Value(siteId),
-      checkinDate: Value(checkinDate),
-      checkinPrecision: Value(checkinPrecision),
-      createdAt: Value(createdAt),
+  OutboxEntriesCompanion toCompanion(bool nullToAbsent) {
+    return OutboxEntriesCompanion(
+      visitId: Value(visitId),
+      state: Value(state),
       latitude: latitude == null && nullToAbsent
           ? const Value.absent()
           : Value(latitude),
@@ -2749,16 +2430,6 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
       accuracy: accuracy == null && nullToAbsent
           ? const Value.absent()
           : Value(accuracy),
-      notesPublic: notesPublic == null && nullToAbsent
-          ? const Value.absent()
-          : Value(notesPublic),
-      notesPrivate: notesPrivate == null && nullToAbsent
-          ? const Value.absent()
-          : Value(notesPrivate),
-      vehicleId: vehicleId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(vehicleId),
-      status: Value(status),
       attempts: Value(attempts),
       lastAttemptAt: lastAttemptAt == null && nullToAbsent
           ? const Value.absent()
@@ -2769,27 +2440,19 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
     );
   }
 
-  factory PendingCheckin.fromJson(
+  factory OutboxEntry.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return PendingCheckin(
-      id: serializer.fromJson<int>(json['id']),
-      siteId: serializer.fromJson<int>(json['siteId']),
-      checkinDate: serializer.fromJson<DateTime>(json['checkinDate']),
-      checkinPrecision: $PendingCheckinsTable.$convertercheckinPrecision
-          .fromJson(serializer.fromJson<String>(json['checkinPrecision'])),
-      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    return OutboxEntry(
+      visitId: serializer.fromJson<int>(json['visitId']),
+      state: $OutboxEntriesTable.$converterstate.fromJson(
+        serializer.fromJson<String>(json['state']),
+      ),
       latitude: serializer.fromJson<double?>(json['latitude']),
       longitude: serializer.fromJson<double?>(json['longitude']),
       accuracy: serializer.fromJson<double?>(json['accuracy']),
-      notesPublic: serializer.fromJson<String?>(json['notesPublic']),
-      notesPrivate: serializer.fromJson<String?>(json['notesPrivate']),
-      vehicleId: serializer.fromJson<String?>(json['vehicleId']),
-      status: $PendingCheckinsTable.$converterstatus.fromJson(
-        serializer.fromJson<String>(json['status']),
-      ),
       attempts: serializer.fromJson<int>(json['attempts']),
       lastAttemptAt: serializer.fromJson<DateTime?>(json['lastAttemptAt']),
       lastError: serializer.fromJson<String?>(json['lastError']),
@@ -2799,87 +2462,47 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
-      'id': serializer.toJson<int>(id),
-      'siteId': serializer.toJson<int>(siteId),
-      'checkinDate': serializer.toJson<DateTime>(checkinDate),
-      'checkinPrecision': serializer.toJson<String>(
-        $PendingCheckinsTable.$convertercheckinPrecision.toJson(
-          checkinPrecision,
-        ),
+      'visitId': serializer.toJson<int>(visitId),
+      'state': serializer.toJson<String>(
+        $OutboxEntriesTable.$converterstate.toJson(state),
       ),
-      'createdAt': serializer.toJson<DateTime>(createdAt),
       'latitude': serializer.toJson<double?>(latitude),
       'longitude': serializer.toJson<double?>(longitude),
       'accuracy': serializer.toJson<double?>(accuracy),
-      'notesPublic': serializer.toJson<String?>(notesPublic),
-      'notesPrivate': serializer.toJson<String?>(notesPrivate),
-      'vehicleId': serializer.toJson<String?>(vehicleId),
-      'status': serializer.toJson<String>(
-        $PendingCheckinsTable.$converterstatus.toJson(status),
-      ),
       'attempts': serializer.toJson<int>(attempts),
       'lastAttemptAt': serializer.toJson<DateTime?>(lastAttemptAt),
       'lastError': serializer.toJson<String?>(lastError),
     };
   }
 
-  PendingCheckin copyWith({
-    int? id,
-    int? siteId,
-    DateTime? checkinDate,
-    CheckinPrecision? checkinPrecision,
-    DateTime? createdAt,
+  OutboxEntry copyWith({
+    int? visitId,
+    OutboxState? state,
     Value<double?> latitude = const Value.absent(),
     Value<double?> longitude = const Value.absent(),
     Value<double?> accuracy = const Value.absent(),
-    Value<String?> notesPublic = const Value.absent(),
-    Value<String?> notesPrivate = const Value.absent(),
-    Value<String?> vehicleId = const Value.absent(),
-    PendingStatus? status,
     int? attempts,
     Value<DateTime?> lastAttemptAt = const Value.absent(),
     Value<String?> lastError = const Value.absent(),
-  }) => PendingCheckin(
-    id: id ?? this.id,
-    siteId: siteId ?? this.siteId,
-    checkinDate: checkinDate ?? this.checkinDate,
-    checkinPrecision: checkinPrecision ?? this.checkinPrecision,
-    createdAt: createdAt ?? this.createdAt,
+  }) => OutboxEntry(
+    visitId: visitId ?? this.visitId,
+    state: state ?? this.state,
     latitude: latitude.present ? latitude.value : this.latitude,
     longitude: longitude.present ? longitude.value : this.longitude,
     accuracy: accuracy.present ? accuracy.value : this.accuracy,
-    notesPublic: notesPublic.present ? notesPublic.value : this.notesPublic,
-    notesPrivate: notesPrivate.present ? notesPrivate.value : this.notesPrivate,
-    vehicleId: vehicleId.present ? vehicleId.value : this.vehicleId,
-    status: status ?? this.status,
     attempts: attempts ?? this.attempts,
     lastAttemptAt: lastAttemptAt.present
         ? lastAttemptAt.value
         : this.lastAttemptAt,
     lastError: lastError.present ? lastError.value : this.lastError,
   );
-  PendingCheckin copyWithCompanion(PendingCheckinsCompanion data) {
-    return PendingCheckin(
-      id: data.id.present ? data.id.value : this.id,
-      siteId: data.siteId.present ? data.siteId.value : this.siteId,
-      checkinDate: data.checkinDate.present
-          ? data.checkinDate.value
-          : this.checkinDate,
-      checkinPrecision: data.checkinPrecision.present
-          ? data.checkinPrecision.value
-          : this.checkinPrecision,
-      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+  OutboxEntry copyWithCompanion(OutboxEntriesCompanion data) {
+    return OutboxEntry(
+      visitId: data.visitId.present ? data.visitId.value : this.visitId,
+      state: data.state.present ? data.state.value : this.state,
       latitude: data.latitude.present ? data.latitude.value : this.latitude,
       longitude: data.longitude.present ? data.longitude.value : this.longitude,
       accuracy: data.accuracy.present ? data.accuracy.value : this.accuracy,
-      notesPublic: data.notesPublic.present
-          ? data.notesPublic.value
-          : this.notesPublic,
-      notesPrivate: data.notesPrivate.present
-          ? data.notesPrivate.value
-          : this.notesPrivate,
-      vehicleId: data.vehicleId.present ? data.vehicleId.value : this.vehicleId,
-      status: data.status.present ? data.status.value : this.status,
       attempts: data.attempts.present ? data.attempts.value : this.attempts,
       lastAttemptAt: data.lastAttemptAt.present
           ? data.lastAttemptAt.value
@@ -2890,19 +2513,12 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
 
   @override
   String toString() {
-    return (StringBuffer('PendingCheckin(')
-          ..write('id: $id, ')
-          ..write('siteId: $siteId, ')
-          ..write('checkinDate: $checkinDate, ')
-          ..write('checkinPrecision: $checkinPrecision, ')
-          ..write('createdAt: $createdAt, ')
+    return (StringBuffer('OutboxEntry(')
+          ..write('visitId: $visitId, ')
+          ..write('state: $state, ')
           ..write('latitude: $latitude, ')
           ..write('longitude: $longitude, ')
           ..write('accuracy: $accuracy, ')
-          ..write('notesPublic: $notesPublic, ')
-          ..write('notesPrivate: $notesPrivate, ')
-          ..write('vehicleId: $vehicleId, ')
-          ..write('status: $status, ')
           ..write('attempts: $attempts, ')
           ..write('lastAttemptAt: $lastAttemptAt, ')
           ..write('lastError: $lastError')
@@ -2912,18 +2528,11 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
 
   @override
   int get hashCode => Object.hash(
-    id,
-    siteId,
-    checkinDate,
-    checkinPrecision,
-    createdAt,
+    visitId,
+    state,
     latitude,
     longitude,
     accuracy,
-    notesPublic,
-    notesPrivate,
-    vehicleId,
-    status,
     attempts,
     lastAttemptAt,
     lastError,
@@ -2931,142 +2540,84 @@ class PendingCheckin extends DataClass implements Insertable<PendingCheckin> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is PendingCheckin &&
-          other.id == this.id &&
-          other.siteId == this.siteId &&
-          other.checkinDate == this.checkinDate &&
-          other.checkinPrecision == this.checkinPrecision &&
-          other.createdAt == this.createdAt &&
+      (other is OutboxEntry &&
+          other.visitId == this.visitId &&
+          other.state == this.state &&
           other.latitude == this.latitude &&
           other.longitude == this.longitude &&
           other.accuracy == this.accuracy &&
-          other.notesPublic == this.notesPublic &&
-          other.notesPrivate == this.notesPrivate &&
-          other.vehicleId == this.vehicleId &&
-          other.status == this.status &&
           other.attempts == this.attempts &&
           other.lastAttemptAt == this.lastAttemptAt &&
           other.lastError == this.lastError);
 }
 
-class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
-  final Value<int> id;
-  final Value<int> siteId;
-  final Value<DateTime> checkinDate;
-  final Value<CheckinPrecision> checkinPrecision;
-  final Value<DateTime> createdAt;
+class OutboxEntriesCompanion extends UpdateCompanion<OutboxEntry> {
+  final Value<int> visitId;
+  final Value<OutboxState> state;
   final Value<double?> latitude;
   final Value<double?> longitude;
   final Value<double?> accuracy;
-  final Value<String?> notesPublic;
-  final Value<String?> notesPrivate;
-  final Value<String?> vehicleId;
-  final Value<PendingStatus> status;
   final Value<int> attempts;
   final Value<DateTime?> lastAttemptAt;
   final Value<String?> lastError;
-  const PendingCheckinsCompanion({
-    this.id = const Value.absent(),
-    this.siteId = const Value.absent(),
-    this.checkinDate = const Value.absent(),
-    this.checkinPrecision = const Value.absent(),
-    this.createdAt = const Value.absent(),
+  const OutboxEntriesCompanion({
+    this.visitId = const Value.absent(),
+    this.state = const Value.absent(),
     this.latitude = const Value.absent(),
     this.longitude = const Value.absent(),
     this.accuracy = const Value.absent(),
-    this.notesPublic = const Value.absent(),
-    this.notesPrivate = const Value.absent(),
-    this.vehicleId = const Value.absent(),
-    this.status = const Value.absent(),
     this.attempts = const Value.absent(),
     this.lastAttemptAt = const Value.absent(),
     this.lastError = const Value.absent(),
   });
-  PendingCheckinsCompanion.insert({
-    this.id = const Value.absent(),
-    required int siteId,
-    required DateTime checkinDate,
-    this.checkinPrecision = const Value.absent(),
-    required DateTime createdAt,
+  OutboxEntriesCompanion.insert({
+    this.visitId = const Value.absent(),
+    this.state = const Value.absent(),
     this.latitude = const Value.absent(),
     this.longitude = const Value.absent(),
     this.accuracy = const Value.absent(),
-    this.notesPublic = const Value.absent(),
-    this.notesPrivate = const Value.absent(),
-    this.vehicleId = const Value.absent(),
-    this.status = const Value.absent(),
     this.attempts = const Value.absent(),
     this.lastAttemptAt = const Value.absent(),
     this.lastError = const Value.absent(),
-  }) : siteId = Value(siteId),
-       checkinDate = Value(checkinDate),
-       createdAt = Value(createdAt);
-  static Insertable<PendingCheckin> custom({
-    Expression<int>? id,
-    Expression<int>? siteId,
-    Expression<DateTime>? checkinDate,
-    Expression<String>? checkinPrecision,
-    Expression<DateTime>? createdAt,
+  });
+  static Insertable<OutboxEntry> custom({
+    Expression<int>? visitId,
+    Expression<String>? state,
     Expression<double>? latitude,
     Expression<double>? longitude,
     Expression<double>? accuracy,
-    Expression<String>? notesPublic,
-    Expression<String>? notesPrivate,
-    Expression<String>? vehicleId,
-    Expression<String>? status,
     Expression<int>? attempts,
     Expression<DateTime>? lastAttemptAt,
     Expression<String>? lastError,
   }) {
     return RawValuesInsertable({
-      if (id != null) 'id': id,
-      if (siteId != null) 'site_id': siteId,
-      if (checkinDate != null) 'checkin_date': checkinDate,
-      if (checkinPrecision != null) 'checkin_precision': checkinPrecision,
-      if (createdAt != null) 'created_at': createdAt,
+      if (visitId != null) 'visit_id': visitId,
+      if (state != null) 'state': state,
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
       if (accuracy != null) 'accuracy': accuracy,
-      if (notesPublic != null) 'notes_public': notesPublic,
-      if (notesPrivate != null) 'notes_private': notesPrivate,
-      if (vehicleId != null) 'vehicle_id': vehicleId,
-      if (status != null) 'status': status,
       if (attempts != null) 'attempts': attempts,
       if (lastAttemptAt != null) 'last_attempt_at': lastAttemptAt,
       if (lastError != null) 'last_error': lastError,
     });
   }
 
-  PendingCheckinsCompanion copyWith({
-    Value<int>? id,
-    Value<int>? siteId,
-    Value<DateTime>? checkinDate,
-    Value<CheckinPrecision>? checkinPrecision,
-    Value<DateTime>? createdAt,
+  OutboxEntriesCompanion copyWith({
+    Value<int>? visitId,
+    Value<OutboxState>? state,
     Value<double?>? latitude,
     Value<double?>? longitude,
     Value<double?>? accuracy,
-    Value<String?>? notesPublic,
-    Value<String?>? notesPrivate,
-    Value<String?>? vehicleId,
-    Value<PendingStatus>? status,
     Value<int>? attempts,
     Value<DateTime?>? lastAttemptAt,
     Value<String?>? lastError,
   }) {
-    return PendingCheckinsCompanion(
-      id: id ?? this.id,
-      siteId: siteId ?? this.siteId,
-      checkinDate: checkinDate ?? this.checkinDate,
-      checkinPrecision: checkinPrecision ?? this.checkinPrecision,
-      createdAt: createdAt ?? this.createdAt,
+    return OutboxEntriesCompanion(
+      visitId: visitId ?? this.visitId,
+      state: state ?? this.state,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       accuracy: accuracy ?? this.accuracy,
-      notesPublic: notesPublic ?? this.notesPublic,
-      notesPrivate: notesPrivate ?? this.notesPrivate,
-      vehicleId: vehicleId ?? this.vehicleId,
-      status: status ?? this.status,
       attempts: attempts ?? this.attempts,
       lastAttemptAt: lastAttemptAt ?? this.lastAttemptAt,
       lastError: lastError ?? this.lastError,
@@ -3076,24 +2627,13 @@ class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    if (id.present) {
-      map['id'] = Variable<int>(id.value);
+    if (visitId.present) {
+      map['visit_id'] = Variable<int>(visitId.value);
     }
-    if (siteId.present) {
-      map['site_id'] = Variable<int>(siteId.value);
-    }
-    if (checkinDate.present) {
-      map['checkin_date'] = Variable<DateTime>(checkinDate.value);
-    }
-    if (checkinPrecision.present) {
-      map['checkin_precision'] = Variable<String>(
-        $PendingCheckinsTable.$convertercheckinPrecision.toSql(
-          checkinPrecision.value,
-        ),
+    if (state.present) {
+      map['state'] = Variable<String>(
+        $OutboxEntriesTable.$converterstate.toSql(state.value),
       );
-    }
-    if (createdAt.present) {
-      map['created_at'] = Variable<DateTime>(createdAt.value);
     }
     if (latitude.present) {
       map['latitude'] = Variable<double>(latitude.value);
@@ -3103,20 +2643,6 @@ class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
     }
     if (accuracy.present) {
       map['accuracy'] = Variable<double>(accuracy.value);
-    }
-    if (notesPublic.present) {
-      map['notes_public'] = Variable<String>(notesPublic.value);
-    }
-    if (notesPrivate.present) {
-      map['notes_private'] = Variable<String>(notesPrivate.value);
-    }
-    if (vehicleId.present) {
-      map['vehicle_id'] = Variable<String>(vehicleId.value);
-    }
-    if (status.present) {
-      map['status'] = Variable<String>(
-        $PendingCheckinsTable.$converterstatus.toSql(status.value),
-      );
     }
     if (attempts.present) {
       map['attempts'] = Variable<int>(attempts.value);
@@ -3132,19 +2658,12 @@ class PendingCheckinsCompanion extends UpdateCompanion<PendingCheckin> {
 
   @override
   String toString() {
-    return (StringBuffer('PendingCheckinsCompanion(')
-          ..write('id: $id, ')
-          ..write('siteId: $siteId, ')
-          ..write('checkinDate: $checkinDate, ')
-          ..write('checkinPrecision: $checkinPrecision, ')
-          ..write('createdAt: $createdAt, ')
+    return (StringBuffer('OutboxEntriesCompanion(')
+          ..write('visitId: $visitId, ')
+          ..write('state: $state, ')
           ..write('latitude: $latitude, ')
           ..write('longitude: $longitude, ')
           ..write('accuracy: $accuracy, ')
-          ..write('notesPublic: $notesPublic, ')
-          ..write('notesPrivate: $notesPrivate, ')
-          ..write('vehicleId: $vehicleId, ')
-          ..write('status: $status, ')
           ..write('attempts: $attempts, ')
           ..write('lastAttemptAt: $lastAttemptAt, ')
           ..write('lastError: $lastError')
@@ -6677,9 +6196,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $SitesTable sites = $SitesTable(this);
   late final $VisitsTable visits = $VisitsTable(this);
-  late final $PendingCheckinsTable pendingCheckins = $PendingCheckinsTable(
-    this,
-  );
+  late final $OutboxEntriesTable outboxEntries = $OutboxEntriesTable(this);
   late final $SiteCheckinsTable siteCheckins = $SiteCheckinsTable(this);
   late final $UserSettingsTableTable userSettingsTable =
       $UserSettingsTableTable(this);
@@ -6695,7 +6212,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     sites,
     visits,
-    pendingCheckins,
+    outboxEntries,
     siteCheckins,
     userSettingsTable,
     vehicles,
@@ -7293,8 +6810,6 @@ typedef $$VisitsTableCreateCompanionBuilder =
       Value<String?> vehicleId,
       Value<int?> geoDistanceAccuracy,
       Value<int?> geoDistance,
-      Value<VisitSyncStatus> syncStatus,
-      Value<int?> pendingId,
       required DateTime importedAt,
     });
 typedef $$VisitsTableUpdateCompanionBuilder =
@@ -7312,8 +6827,6 @@ typedef $$VisitsTableUpdateCompanionBuilder =
       Value<String?> vehicleId,
       Value<int?> geoDistanceAccuracy,
       Value<int?> geoDistance,
-      Value<VisitSyncStatus> syncStatus,
-      Value<int?> pendingId,
       Value<DateTime> importedAt,
     });
 
@@ -7390,17 +6903,6 @@ class $$VisitsTableFilterComposer
 
   ColumnFilters<int> get geoDistance => $composableBuilder(
     column: $table.geoDistance,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnWithTypeConverterFilters<VisitSyncStatus, VisitSyncStatus, String>
-  get syncStatus => $composableBuilder(
-    column: $table.syncStatus,
-    builder: (column) => ColumnWithTypeConverterFilters(column),
-  );
-
-  ColumnFilters<int> get pendingId => $composableBuilder(
-    column: $table.pendingId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7484,16 +6986,6 @@ class $$VisitsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get syncStatus => $composableBuilder(
-    column: $table.syncStatus,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get pendingId => $composableBuilder(
-    column: $table.pendingId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<DateTime> get importedAt => $composableBuilder(
     column: $table.importedAt,
     builder: (column) => ColumnOrderings(column),
@@ -7563,15 +7055,6 @@ class $$VisitsTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumnWithTypeConverter<VisitSyncStatus, String> get syncStatus =>
-      $composableBuilder(
-        column: $table.syncStatus,
-        builder: (column) => column,
-      );
-
-  GeneratedColumn<int> get pendingId =>
-      $composableBuilder(column: $table.pendingId, builder: (column) => column);
-
   GeneratedColumn<DateTime> get importedAt => $composableBuilder(
     column: $table.importedAt,
     builder: (column) => column,
@@ -7619,8 +7102,6 @@ class $$VisitsTableTableManager
                 Value<String?> vehicleId = const Value.absent(),
                 Value<int?> geoDistanceAccuracy = const Value.absent(),
                 Value<int?> geoDistance = const Value.absent(),
-                Value<VisitSyncStatus> syncStatus = const Value.absent(),
-                Value<int?> pendingId = const Value.absent(),
                 Value<DateTime> importedAt = const Value.absent(),
               }) => VisitsCompanion(
                 id: id,
@@ -7636,8 +7117,6 @@ class $$VisitsTableTableManager
                 vehicleId: vehicleId,
                 geoDistanceAccuracy: geoDistanceAccuracy,
                 geoDistance: geoDistance,
-                syncStatus: syncStatus,
-                pendingId: pendingId,
                 importedAt: importedAt,
               ),
           createCompanionCallback:
@@ -7655,8 +7134,6 @@ class $$VisitsTableTableManager
                 Value<String?> vehicleId = const Value.absent(),
                 Value<int?> geoDistanceAccuracy = const Value.absent(),
                 Value<int?> geoDistance = const Value.absent(),
-                Value<VisitSyncStatus> syncStatus = const Value.absent(),
-                Value<int?> pendingId = const Value.absent(),
                 required DateTime importedAt,
               }) => VisitsCompanion.insert(
                 id: id,
@@ -7672,8 +7149,6 @@ class $$VisitsTableTableManager
                 vehicleId: vehicleId,
                 geoDistanceAccuracy: geoDistanceAccuracy,
                 geoDistance: geoDistance,
-                syncStatus: syncStatus,
-                pendingId: pendingId,
                 importedAt: importedAt,
               ),
           withReferenceMapper: (p0) => p0
@@ -7707,77 +7182,48 @@ typedef $$VisitsTableProcessedTableManager =
       Visit,
       PrefetchHooks Function()
     >;
-typedef $$PendingCheckinsTableCreateCompanionBuilder =
-    PendingCheckinsCompanion Function({
-      Value<int> id,
-      required int siteId,
-      required DateTime checkinDate,
-      Value<CheckinPrecision> checkinPrecision,
-      required DateTime createdAt,
+typedef $$OutboxEntriesTableCreateCompanionBuilder =
+    OutboxEntriesCompanion Function({
+      Value<int> visitId,
+      Value<OutboxState> state,
       Value<double?> latitude,
       Value<double?> longitude,
       Value<double?> accuracy,
-      Value<String?> notesPublic,
-      Value<String?> notesPrivate,
-      Value<String?> vehicleId,
-      Value<PendingStatus> status,
       Value<int> attempts,
       Value<DateTime?> lastAttemptAt,
       Value<String?> lastError,
     });
-typedef $$PendingCheckinsTableUpdateCompanionBuilder =
-    PendingCheckinsCompanion Function({
-      Value<int> id,
-      Value<int> siteId,
-      Value<DateTime> checkinDate,
-      Value<CheckinPrecision> checkinPrecision,
-      Value<DateTime> createdAt,
+typedef $$OutboxEntriesTableUpdateCompanionBuilder =
+    OutboxEntriesCompanion Function({
+      Value<int> visitId,
+      Value<OutboxState> state,
       Value<double?> latitude,
       Value<double?> longitude,
       Value<double?> accuracy,
-      Value<String?> notesPublic,
-      Value<String?> notesPrivate,
-      Value<String?> vehicleId,
-      Value<PendingStatus> status,
       Value<int> attempts,
       Value<DateTime?> lastAttemptAt,
       Value<String?> lastError,
     });
 
-class $$PendingCheckinsTableFilterComposer
-    extends Composer<_$AppDatabase, $PendingCheckinsTable> {
-  $$PendingCheckinsTableFilterComposer({
+class $$OutboxEntriesTableFilterComposer
+    extends Composer<_$AppDatabase, $OutboxEntriesTable> {
+  $$OutboxEntriesTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<int> get id => $composableBuilder(
-    column: $table.id,
+  ColumnFilters<int> get visitId => $composableBuilder(
+    column: $table.visitId,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<int> get siteId => $composableBuilder(
-    column: $table.siteId,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get checkinDate => $composableBuilder(
-    column: $table.checkinDate,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnWithTypeConverterFilters<CheckinPrecision, CheckinPrecision, String>
-  get checkinPrecision => $composableBuilder(
-    column: $table.checkinPrecision,
-    builder: (column) => ColumnWithTypeConverterFilters(column),
-  );
-
-  ColumnFilters<DateTime> get createdAt => $composableBuilder(
-    column: $table.createdAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<OutboxState, OutboxState, String> get state =>
+      $composableBuilder(
+        column: $table.state,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 
   ColumnFilters<double> get latitude => $composableBuilder(
     column: $table.latitude,
@@ -7792,27 +7238,6 @@ class $$PendingCheckinsTableFilterComposer
   ColumnFilters<double> get accuracy => $composableBuilder(
     column: $table.accuracy,
     builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get notesPublic => $composableBuilder(
-    column: $table.notesPublic,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get notesPrivate => $composableBuilder(
-    column: $table.notesPrivate,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get vehicleId => $composableBuilder(
-    column: $table.vehicleId,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnWithTypeConverterFilters<PendingStatus, PendingStatus, String>
-  get status => $composableBuilder(
-    column: $table.status,
-    builder: (column) => ColumnWithTypeConverterFilters(column),
   );
 
   ColumnFilters<int> get attempts => $composableBuilder(
@@ -7831,37 +7256,22 @@ class $$PendingCheckinsTableFilterComposer
   );
 }
 
-class $$PendingCheckinsTableOrderingComposer
-    extends Composer<_$AppDatabase, $PendingCheckinsTable> {
-  $$PendingCheckinsTableOrderingComposer({
+class $$OutboxEntriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $OutboxEntriesTable> {
+  $$OutboxEntriesTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<int> get id => $composableBuilder(
-    column: $table.id,
+  ColumnOrderings<int> get visitId => $composableBuilder(
+    column: $table.visitId,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get siteId => $composableBuilder(
-    column: $table.siteId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get checkinDate => $composableBuilder(
-    column: $table.checkinDate,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get checkinPrecision => $composableBuilder(
-    column: $table.checkinPrecision,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
-    column: $table.createdAt,
+  ColumnOrderings<String> get state => $composableBuilder(
+    column: $table.state,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -7877,26 +7287,6 @@ class $$PendingCheckinsTableOrderingComposer
 
   ColumnOrderings<double> get accuracy => $composableBuilder(
     column: $table.accuracy,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get notesPublic => $composableBuilder(
-    column: $table.notesPublic,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get notesPrivate => $composableBuilder(
-    column: $table.notesPrivate,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get vehicleId => $composableBuilder(
-    column: $table.vehicleId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get status => $composableBuilder(
-    column: $table.status,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -7916,34 +7306,20 @@ class $$PendingCheckinsTableOrderingComposer
   );
 }
 
-class $$PendingCheckinsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $PendingCheckinsTable> {
-  $$PendingCheckinsTableAnnotationComposer({
+class $$OutboxEntriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $OutboxEntriesTable> {
+  $$OutboxEntriesTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<int> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
+  GeneratedColumn<int> get visitId =>
+      $composableBuilder(column: $table.visitId, builder: (column) => column);
 
-  GeneratedColumn<int> get siteId =>
-      $composableBuilder(column: $table.siteId, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get checkinDate => $composableBuilder(
-    column: $table.checkinDate,
-    builder: (column) => column,
-  );
-
-  GeneratedColumnWithTypeConverter<CheckinPrecision, String>
-  get checkinPrecision => $composableBuilder(
-    column: $table.checkinPrecision,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<DateTime> get createdAt =>
-      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+  GeneratedColumnWithTypeConverter<OutboxState, String> get state =>
+      $composableBuilder(column: $table.state, builder: (column) => column);
 
   GeneratedColumn<double> get latitude =>
       $composableBuilder(column: $table.latitude, builder: (column) => column);
@@ -7953,22 +7329,6 @@ class $$PendingCheckinsTableAnnotationComposer
 
   GeneratedColumn<double> get accuracy =>
       $composableBuilder(column: $table.accuracy, builder: (column) => column);
-
-  GeneratedColumn<String> get notesPublic => $composableBuilder(
-    column: $table.notesPublic,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get notesPrivate => $composableBuilder(
-    column: $table.notesPrivate,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get vehicleId =>
-      $composableBuilder(column: $table.vehicleId, builder: (column) => column);
-
-  GeneratedColumnWithTypeConverter<PendingStatus, String> get status =>
-      $composableBuilder(column: $table.status, builder: (column) => column);
 
   GeneratedColumn<int> get attempts =>
       $composableBuilder(column: $table.attempts, builder: (column) => column);
@@ -7982,105 +7342,71 @@ class $$PendingCheckinsTableAnnotationComposer
       $composableBuilder(column: $table.lastError, builder: (column) => column);
 }
 
-class $$PendingCheckinsTableTableManager
+class $$OutboxEntriesTableTableManager
     extends
         RootTableManager<
           _$AppDatabase,
-          $PendingCheckinsTable,
-          PendingCheckin,
-          $$PendingCheckinsTableFilterComposer,
-          $$PendingCheckinsTableOrderingComposer,
-          $$PendingCheckinsTableAnnotationComposer,
-          $$PendingCheckinsTableCreateCompanionBuilder,
-          $$PendingCheckinsTableUpdateCompanionBuilder,
+          $OutboxEntriesTable,
+          OutboxEntry,
+          $$OutboxEntriesTableFilterComposer,
+          $$OutboxEntriesTableOrderingComposer,
+          $$OutboxEntriesTableAnnotationComposer,
+          $$OutboxEntriesTableCreateCompanionBuilder,
+          $$OutboxEntriesTableUpdateCompanionBuilder,
           (
-            PendingCheckin,
-            BaseReferences<
-              _$AppDatabase,
-              $PendingCheckinsTable,
-              PendingCheckin
-            >,
+            OutboxEntry,
+            BaseReferences<_$AppDatabase, $OutboxEntriesTable, OutboxEntry>,
           ),
-          PendingCheckin,
+          OutboxEntry,
           PrefetchHooks Function()
         > {
-  $$PendingCheckinsTableTableManager(
-    _$AppDatabase db,
-    $PendingCheckinsTable table,
-  ) : super(
+  $$OutboxEntriesTableTableManager(_$AppDatabase db, $OutboxEntriesTable table)
+    : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$PendingCheckinsTableFilterComposer($db: db, $table: table),
+              $$OutboxEntriesTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$PendingCheckinsTableOrderingComposer($db: db, $table: table),
+              $$OutboxEntriesTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$PendingCheckinsTableAnnotationComposer($db: db, $table: table),
+              $$OutboxEntriesTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
-                Value<int> id = const Value.absent(),
-                Value<int> siteId = const Value.absent(),
-                Value<DateTime> checkinDate = const Value.absent(),
-                Value<CheckinPrecision> checkinPrecision = const Value.absent(),
-                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> visitId = const Value.absent(),
+                Value<OutboxState> state = const Value.absent(),
                 Value<double?> latitude = const Value.absent(),
                 Value<double?> longitude = const Value.absent(),
                 Value<double?> accuracy = const Value.absent(),
-                Value<String?> notesPublic = const Value.absent(),
-                Value<String?> notesPrivate = const Value.absent(),
-                Value<String?> vehicleId = const Value.absent(),
-                Value<PendingStatus> status = const Value.absent(),
                 Value<int> attempts = const Value.absent(),
                 Value<DateTime?> lastAttemptAt = const Value.absent(),
                 Value<String?> lastError = const Value.absent(),
-              }) => PendingCheckinsCompanion(
-                id: id,
-                siteId: siteId,
-                checkinDate: checkinDate,
-                checkinPrecision: checkinPrecision,
-                createdAt: createdAt,
+              }) => OutboxEntriesCompanion(
+                visitId: visitId,
+                state: state,
                 latitude: latitude,
                 longitude: longitude,
                 accuracy: accuracy,
-                notesPublic: notesPublic,
-                notesPrivate: notesPrivate,
-                vehicleId: vehicleId,
-                status: status,
                 attempts: attempts,
                 lastAttemptAt: lastAttemptAt,
                 lastError: lastError,
               ),
           createCompanionCallback:
               ({
-                Value<int> id = const Value.absent(),
-                required int siteId,
-                required DateTime checkinDate,
-                Value<CheckinPrecision> checkinPrecision = const Value.absent(),
-                required DateTime createdAt,
+                Value<int> visitId = const Value.absent(),
+                Value<OutboxState> state = const Value.absent(),
                 Value<double?> latitude = const Value.absent(),
                 Value<double?> longitude = const Value.absent(),
                 Value<double?> accuracy = const Value.absent(),
-                Value<String?> notesPublic = const Value.absent(),
-                Value<String?> notesPrivate = const Value.absent(),
-                Value<String?> vehicleId = const Value.absent(),
-                Value<PendingStatus> status = const Value.absent(),
                 Value<int> attempts = const Value.absent(),
                 Value<DateTime?> lastAttemptAt = const Value.absent(),
                 Value<String?> lastError = const Value.absent(),
-              }) => PendingCheckinsCompanion.insert(
-                id: id,
-                siteId: siteId,
-                checkinDate: checkinDate,
-                checkinPrecision: checkinPrecision,
-                createdAt: createdAt,
+              }) => OutboxEntriesCompanion.insert(
+                visitId: visitId,
+                state: state,
                 latitude: latitude,
                 longitude: longitude,
                 accuracy: accuracy,
-                notesPublic: notesPublic,
-                notesPrivate: notesPrivate,
-                vehicleId: vehicleId,
-                status: status,
                 attempts: attempts,
                 lastAttemptAt: lastAttemptAt,
                 lastError: lastError,
@@ -8088,11 +7414,11 @@ class $$PendingCheckinsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable<$PendingCheckinsTable, PendingCheckin>(table),
+                  e.readTable<$OutboxEntriesTable, OutboxEntry>(table),
                   BaseReferences<
                     _$AppDatabase,
-                    $PendingCheckinsTable,
-                    PendingCheckin
+                    $OutboxEntriesTable,
+                    OutboxEntry
                   >(db, table, e),
                 ),
               )
@@ -8102,21 +7428,21 @@ class $$PendingCheckinsTableTableManager
       );
 }
 
-typedef $$PendingCheckinsTableProcessedTableManager =
+typedef $$OutboxEntriesTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $PendingCheckinsTable,
-      PendingCheckin,
-      $$PendingCheckinsTableFilterComposer,
-      $$PendingCheckinsTableOrderingComposer,
-      $$PendingCheckinsTableAnnotationComposer,
-      $$PendingCheckinsTableCreateCompanionBuilder,
-      $$PendingCheckinsTableUpdateCompanionBuilder,
+      $OutboxEntriesTable,
+      OutboxEntry,
+      $$OutboxEntriesTableFilterComposer,
+      $$OutboxEntriesTableOrderingComposer,
+      $$OutboxEntriesTableAnnotationComposer,
+      $$OutboxEntriesTableCreateCompanionBuilder,
+      $$OutboxEntriesTableUpdateCompanionBuilder,
       (
-        PendingCheckin,
-        BaseReferences<_$AppDatabase, $PendingCheckinsTable, PendingCheckin>,
+        OutboxEntry,
+        BaseReferences<_$AppDatabase, $OutboxEntriesTable, OutboxEntry>,
       ),
-      PendingCheckin,
+      OutboxEntry,
       PrefetchHooks Function()
     >;
 typedef $$SiteCheckinsTableCreateCompanionBuilder =
@@ -9814,8 +9140,8 @@ class $AppDatabaseManager {
       $$SitesTableTableManager(_db, _db.sites);
   $$VisitsTableTableManager get visits =>
       $$VisitsTableTableManager(_db, _db.visits);
-  $$PendingCheckinsTableTableManager get pendingCheckins =>
-      $$PendingCheckinsTableTableManager(_db, _db.pendingCheckins);
+  $$OutboxEntriesTableTableManager get outboxEntries =>
+      $$OutboxEntriesTableTableManager(_db, _db.outboxEntries);
   $$SiteCheckinsTableTableManager get siteCheckins =>
       $$SiteCheckinsTableTableManager(_db, _db.siteCheckins);
   $$UserSettingsTableTableTableManager get userSettingsTable =>

@@ -8,18 +8,19 @@ supercharging.life. Section numbers refer to that document.
 
 Preparation that works with the current unofficial writer, done 2026-11-18:
 
-- The check-in dialog sends right away through `SyncService.submitCheckin` and
-  stays pending only when that send fails (offline, signed out, network or
-  server error). The check-in is saved to the local outbox first, marked
-  `submitting` while online so a concurrent sync does not send it twice, so an
-  app kill mid-send never loses it. Before, the dialog only queued and waited
-  for the next sync, and the unused `submitCheckin` sent before saving.
+- The check-in dialog records through the Check-in outbox
+  (`CheckinOutbox.record`), which saves the Visit first and sends at once. It
+  stays Pending only when that send fails (offline, signed out, network or
+  server error). All sends in one isolate run through one queue, so a check-in
+  is not posted twice at once, and an app kill mid-send never loses it.
 - Signing in starts a sync, so check-ins waiting for sign-in go out at once.
 - A row left `submitting` because the app was killed mid-send is sent again by
   the first sync at least 10 minutes after its last attempt
-  (`AppDatabase.getPendingCheckins`), without the failure backoff. Before, it
-  was never retried. With the unofficial endpoint that retry can duplicate a
-  check-in that landed before the kill; the idempotency key below removes that.
+  (`CheckinOutbox.sendDue`), without the failure backoff. With the unofficial
+  endpoint that retry can duplicate a check-in that landed before the kill. An
+  import of the user's visits that finds it first settles it instead
+  (`CheckinOutbox.settleFromImport`); the idempotency key below removes the
+  rest.
 
 ## Waiting on the API
 

@@ -1,5 +1,4 @@
 import '../database/database.dart';
-import 'life_time.dart';
 import 'timezone_service.dart';
 
 /// True when [checkinAt] precedes the earliest known site opening day.
@@ -31,17 +30,3 @@ bool checkinPrecedesOpening(
 
 DateTime _calendarDay(DateTime value) =>
     DateTime(value.year, value.month, value.day);
-
-/// User-facing rejection, or null when the check-in is allowed.
-String? checkinOpeningRejection(
-  Site site,
-  DateTime checkinAt, {
-  CheckinPrecision precision = CheckinPrecision.timestamp,
-}) {
-  if (!checkinPrecedesOpening(site, checkinAt, precision: precision)) {
-    return null;
-  }
-  final opened = site.firstOpeningDay!.toUtc();
-  return 'This site opens on ${formatCalendarDate(opened)}. '
-      'A check-in before then is not valid.';
-}

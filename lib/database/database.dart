@@ -19,12 +19,11 @@ enum SiteStatus {
   closedPerm,
 }
 
-enum PendingStatus { pending, submitting, failed, completed }
+/// Where a Pending Visit's Check-in stands in the Check-in outbox. A Visit
+/// supercharging.life has confirmed has no outbox entry at all.
+enum OutboxState { waiting, sending, waitingForSignIn }
 
 enum CheckinMethod { gps, manual }
-
-/// A personal visit that has not been accepted by supercharging.life yet.
-enum VisitSyncStatus { pending, synced }
 
 /// GitHub and Google, the same providers supercharging.life offers.
 enum AuthProvider { github, google }
@@ -168,43 +167,24 @@ class Visits extends Table {
   TextColumn get vehicleId => text().nullable()();
   IntColumn get geoDistanceAccuracy => integer().nullable()();
   IntColumn get geoDistance => integer().nullable()();
-
-  /// Pending until the unofficial writer accepts the check-in.
-  TextColumn get syncStatus => textEnum<VisitSyncStatus>().withDefault(
-    Constant(VisitSyncStatus.synced.name),
-  )();
-
-  /// Matches [PendingCheckins.id] while this row is still in the outbox.
-  IntColumn get pendingId => integer().nullable()();
   DateTimeColumn get importedAt => dateTime()();
 }
 
-/// Pending check-ins (offline queue)
-class PendingCheckins extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  IntColumn get siteId => integer()();
-  DateTimeColumn get checkinDate => dateTime()();
-
-  /// dateOnly when the queued value is a calendar date. App check-ins are
-  /// timestamp, matching the live form's `date` field.
-  TextColumn get checkinPrecision => textEnum<CheckinPrecision>().withDefault(
-    Constant(CheckinPrecision.timestamp.name),
-  )();
-  DateTimeColumn get createdAt => dateTime()();
+/// Check-in outbox: sending data for a Pending Visit. The Visit holds the
+/// Check-in itself; the entry is deleted once supercharging.life confirms it.
+class OutboxEntries extends Table {
+  IntColumn get visitId => integer()();
+  TextColumn get state =>
+      textEnum<OutboxState>().withDefault(Constant(OutboxState.waiting.name))();
   RealColumn get latitude => real().nullable()();
   RealColumn get longitude => real().nullable()();
   RealColumn get accuracy => real().nullable()();
-  TextColumn get notesPublic => text().nullable()();
-  TextColumn get notesPrivate => text().nullable()();
-
-  /// Local-only association with a Vehicle; never sent to supercharging.life.
-  TextColumn get vehicleId => text().nullable()();
-  TextColumn get status => textEnum<PendingStatus>().withDefault(
-    Constant(PendingStatus.pending.name),
-  )();
   IntColumn get attempts => integer().withDefault(const Constant(0))();
   DateTimeColumn get lastAttemptAt => dateTime().nullable()();
   TextColumn get lastError => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {visitId};
 }
 
 /// Others' check-ins (for First eligibility tracking)
@@ -350,7 +330,7 @@ class RegionSyncs extends Table {
   tables: [
     Sites,
     Visits,
-    PendingCheckins,
+    OutboxEntries,
     SiteCheckins,
     UserSettingsTable,
     Vehicles,
@@ -365,7 +345,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 19;
+  int get schemaVersion => 20;
 
   @override
   MigrationStrategy get migration {
@@ -437,7 +417,10 @@ class AppDatabase extends _$AppDatabase {
         }
         if (from < 7) {
           await m.addColumn(visits, visits.checkinPrecision);
-          await m.addColumn(pendingCheckins, pendingCheckins.checkinPrecision);
+          await customStatement(
+            'ALTER TABLE pending_checkins ADD COLUMN checkin_precision '
+            "TEXT NOT NULL DEFAULT 'timestamp'",
+          );
           await m.createTable(regionSyncs);
         }
         if (from < 8) {
@@ -466,12 +449,9 @@ class AppDatabase extends _$AppDatabase {
         if (from < 9) {
           // Drop unused community columns by rebuilding those tables, and
           // allow a visit to exist before supercharging.life assigns an id.
-          await m.alterTable(
-            TableMigration(
-              visits,
-              newColumns: [visits.syncStatus, visits.pendingId],
-            ),
-          );
+          // The v9 outbox link columns are gone from the schema since v20, so
+          // older databases skip them and lose any queued rows (no users yet).
+          await m.alterTable(TableMigration(visits));
           await m.alterTable(TableMigration(siteCheckins));
           final auth = await customSelect(
             "SELECT 1 AS present FROM pragma_table_info('user_settings') "
@@ -629,6 +609,41 @@ class AppDatabase extends _$AppDatabase {
           }
           // Reload cached sites once to populate their stall types.
           await customStatement('DELETE FROM region_syncs');
+        }
+        if (from < 20 && to >= 20) {
+          // The Check-in outbox replaces pending_checkins. The Visit keeps the
+          // Check-in; the entry keeps only sending data. supercharging.life
+          // does not refuse check-ins, so failed rows are sent again.
+          if (!await _tableExists('outbox_entries')) {
+            await m.createTable(outboxEntries);
+          }
+          if (await _tableExists('pending_checkins') &&
+              await _columnExists('visits', 'pending_id')) {
+            await customStatement('''
+              INSERT OR IGNORE INTO outbox_entries (visit_id, state, latitude,
+                longitude, accuracy, attempts, last_attempt_at, last_error)
+              SELECT v.id,
+                CASE
+                  WHEN p.status = 'submitting' THEN 'sending'
+                  WHEN p.last_error IN ('Sign in to supercharging.life again',
+                    'Waiting for supercharging.life sign-in')
+                    THEN 'waitingForSignIn'
+                  ELSE 'waiting'
+                END,
+                p.latitude, p.longitude, p.accuracy,
+                CASE WHEN p.status = 'failed' THEN 0 ELSE p.attempts END,
+                CASE WHEN p.status = 'failed' THEN NULL
+                  ELSE p.last_attempt_at END,
+                CASE WHEN p.status = 'failed' THEN NULL ELSE p.last_error END
+              FROM visits v JOIN pending_checkins p ON p.id = v.pending_id
+              WHERE p.status != 'completed' AND v.sync_status = 'pending'
+            ''');
+          }
+          await customStatement('DROP TABLE IF EXISTS pending_checkins');
+          if (await _columnExists('visits', 'pending_id') ||
+              await _columnExists('visits', 'sync_status')) {
+            await m.alterTable(TableMigration(visits));
+          }
         }
       },
     );
@@ -932,12 +947,13 @@ class AppDatabase extends _$AppDatabase {
     '(SELECT 1 FROM visits v WHERE v.site_id = sites.site_id)',
   );
 
-  /// Drop a local visit and its queued post after any server deletion succeeds.
-  /// The site stays visited only if another visit remains.
+  /// Drop a local visit and its outbox entry after any server deletion
+  /// succeeds. The site stays visited only if another visit remains.
   Future<void> deleteVisit(Visit visit) => transaction(() async {
     await (delete(visits)..where((t) => t.id.equals(visit.id))).go();
-    final pendingId = visit.pendingId;
-    if (pendingId != null) await deletePendingCheckin(pendingId);
+    await (delete(
+      outboxEntries,
+    )..where((t) => t.visitId.equals(visit.id))).go();
     if (visit.checkinId != null) {
       await (delete(
         siteCheckins,
@@ -957,6 +973,7 @@ class AppDatabase extends _$AppDatabase {
     return count ?? 0;
   }
 
+  /// Latest Visit at [siteId], Pending ones included.
   Future<DateTime?> getLastVisitDate(int siteId) async {
     final visit =
         await (select(visits)
@@ -964,25 +981,21 @@ class AppDatabase extends _$AppDatabase {
               ..orderBy([(t) => OrderingTerm.desc(t.checkinDate)])
               ..limit(1))
             .getSingleOrNull();
-    final pending =
-        await (select(pendingCheckins)
-              ..where((t) => t.siteId.equals(siteId))
-              ..orderBy([(t) => OrderingTerm.desc(t.checkinDate)])
-              ..limit(1))
-            .getSingleOrNull();
-    final dates = <DateTime>[
-      if (visit != null) visit.checkinDate,
-      if (pending != null) pending.checkinDate,
-    ];
-    if (dates.isEmpty) return null;
-    dates.sort();
-    return dates.last;
+    return visit?.checkinDate;
   }
 
   /// Attach IDs only for unique matches in both the local and server history.
+  ///
+  /// A Visit still Sending that matches was confirmed by supercharging.life
+  /// before its send finished (the app was killed), so its outbox entry is
+  /// deleted and it is not sent again. Other Pending Visits are not on
+  /// supercharging.life and never match.
   Future<void> reconcileVisitIds(List<VisitsCompanion> imported) => transaction(
     () async {
       final local = await getAllVisits();
+      final entries = {
+        for (final e in await select(outboxEntries).get()) e.visitId: e,
+      };
       final knownIds = local.map((v) => v.checkinId).whereType<int>().toSet();
       (int, int) key(int siteId, DateTime time) =>
           (siteId, time.millisecondsSinceEpoch ~/ 1000);
@@ -991,7 +1004,8 @@ class AppDatabase extends _$AppDatabase {
           .where(
             (v) =>
                 v.checkinId == null &&
-                v.syncStatus == VisitSyncStatus.synced &&
+                (entries[v.id] == null ||
+                    entries[v.id]!.state == OutboxState.sending) &&
                 v.checkinPrecision == CheckinPrecision.timestamp,
           )
           .toList();
@@ -1017,6 +1031,9 @@ class AppDatabase extends _$AppDatabase {
           await (update(visits)..where((t) => t.id.equals(row.id))).write(
             VisitsCompanion(checkinId: candidates.single.checkinId),
           );
+          await (delete(
+            outboxEntries,
+          )..where((t) => t.visitId.equals(row.id))).go();
         }
       }
     },
@@ -1030,55 +1047,6 @@ class AppDatabase extends _$AppDatabase {
       visit,
       onConflict: DoUpdate((_) => visit, target: [visits.checkinId]),
     );
-  }
-
-  // -------------------------------------------------------------------------
-  // Pending Check-ins
-  // -------------------------------------------------------------------------
-
-  Future<PendingCheckin?> getPendingCheckin(int id) {
-    return (select(
-      pendingCheckins,
-    )..where((t) => t.id.equals(id))).getSingleOrNull();
-  }
-
-  /// Rows waiting to send. A row still `submitting` 10 minutes after its last
-  /// attempt was interrupted (the app was killed mid-send) and is sent again.
-  // ponytail: the unofficial endpoint has no idempotency key, so a send that
-  // landed before the kill becomes a duplicate; the official API's
-  // Idempotency-Key removes that (docs/supercharging-life-api-app-changes.md).
-  Future<List<PendingCheckin>> getPendingCheckins({DateTime? now}) {
-    final stale = (now ?? DateTime.now()).subtract(const Duration(minutes: 10));
-    return (select(pendingCheckins)..where(
-          (t) =>
-              t.status.equals(PendingStatus.pending.name) |
-              (t.status.equals(PendingStatus.submitting.name) &
-                  t.lastAttemptAt.isSmallerOrEqualValue(stale)),
-        ))
-        .get();
-  }
-
-  Future<int> addPendingCheckin(PendingCheckinsCompanion checkin) {
-    return into(pendingCheckins).insert(checkin);
-  }
-
-  Future<void> markPendingVisitSynced(int pendingId) async {
-    await (update(visits)..where((t) => t.pendingId.equals(pendingId))).write(
-      const VisitsCompanion(syncStatus: Value(VisitSyncStatus.synced)),
-    );
-  }
-
-  Future<void> updatePendingCheckin(
-    int id,
-    PendingCheckinsCompanion checkin,
-  ) async {
-    await (update(
-      pendingCheckins,
-    )..where((t) => t.id.equals(id))).write(checkin);
-  }
-
-  Future<void> deletePendingCheckin(int id) async {
-    await (delete(pendingCheckins)..where((t) => t.id.equals(id))).go();
   }
 
   // -------------------------------------------------------------------------
@@ -1158,12 +1126,8 @@ class AppDatabase extends _$AppDatabase {
 
   Future<String?> getLastUsedVehicleId() async {
     final row = await customSelect('''
-      SELECT vehicle_id FROM (
-        SELECT vehicle_id, created_at AS used_at FROM pending_checkins
-        UNION ALL
-        SELECT vehicle_id, checkin_date AS used_at FROM visits
-      ) WHERE vehicle_id IS NOT NULL
-      ORDER BY used_at DESC LIMIT 1
+      SELECT vehicle_id FROM visits WHERE vehicle_id IS NOT NULL
+      ORDER BY checkin_date DESC LIMIT 1
     ''').getSingleOrNull();
     return row?.read<String>('vehicle_id');
   }
@@ -1209,7 +1173,7 @@ class AppDatabase extends _$AppDatabase {
   Future<void> clearAll() async {
     await delete(sites).go();
     await delete(visits).go();
-    await delete(pendingCheckins).go();
+    await delete(outboxEntries).go();
     await delete(siteCheckins).go();
     await delete(vehicles).go();
     await delete(regionSyncs).go();

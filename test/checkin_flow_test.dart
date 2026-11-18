@@ -1,18 +1,16 @@
-import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supercharger_bingo/database/database.dart';
 import 'package:supercharger_bingo/screens/checkin_dialog.dart';
 import 'package:supercharger_bingo/screens/settings_screen.dart';
 import 'package:supercharger_bingo/screens/vehicles_screen.dart';
-import 'package:supercharger_bingo/services/api_service.dart';
+import 'package:supercharger_bingo/services/checkin_outbox.dart';
 import 'package:supercharger_bingo/services/database_service.dart';
-import 'package:supercharger_bingo/services/sync_service.dart';
 import 'package:supercharger_bingo/theme/app_theme.dart';
 
+import 'support/outbox.dart';
 import 'support/test_sqlite3.dart';
 
 void main() {
@@ -31,13 +29,12 @@ void main() {
   });
   tearDownAll(() => db.close());
 
-  Future<void> openCheckin(WidgetTester tester) async {
-    // Offline, so Check In only queues and these tests never post.
-    const channel = MethodChannel('dev.fluttercommunity.plus/connectivity');
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(channel, (_) async => ['none']);
-    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+  Future<void> openCheckin(
+    WidgetTester tester, {
+    String? confirmMessage,
+  }) async {
+    // Offline, so Check In only records and these tests never post.
+    installTestOutbox(db, online: false);
     await db.upsertSite(SitesCompanion.insert(siteId: 1, name: 'Test site'));
     final site = (await db.getSiteBySiteId(1))!;
     await tester.pumpWidget(
@@ -45,8 +42,12 @@ void main() {
         home: Scaffold(
           body: Builder(
             builder: (context) => TextButton(
-              onPressed: () =>
-                  showCheckinDialog(context, site: site, distanceKm: 16.09344),
+              onPressed: () => showCheckinDialog(
+                context,
+                site: site,
+                distanceKm: 16.09344,
+                confirmMessage: confirmMessage,
+              ),
               child: const Text('Open'),
             ),
           ),
@@ -123,13 +124,13 @@ void main() {
       await db.upsertVehicle(
         const VehiclesCompanion(id: Value('unused'), label: Value('Zulu')),
       );
-      await db.addPendingCheckin(
-        PendingCheckinsCompanion(
-          siteId: const Value(2),
-          checkinDate: Value(DateTime(2026, 5, 1)),
-          createdAt: Value(DateTime(2026, 5, 1)),
+      await db.addVisit(
+        VisitsCompanion.insert(
+          siteId: 2,
+          checkinDate: DateTime(2026, 5, 1),
+          checkinTime: DateTime(2026, 5, 1),
           vehicleId: const Value('last-used'),
-          status: const Value(PendingStatus.completed),
+          importedAt: DateTime(2026, 5, 1),
         ),
       );
       await openCheckin(tester);
@@ -147,338 +148,19 @@ void main() {
       );
       await tester.tap(find.widgetWithText(FilledButton, 'Check In'));
       await tester.pumpAndSettle();
-      final pending = (await db.getPendingCheckins()).single;
-      expect(pending.vehicleId, 'last-used');
-      expect(pending.checkinPrecision, CheckinPrecision.timestamp);
-      expect(pending.notesPublic, 'Public');
+      final visit = (await db.getAllVisits()).singleWhere((v) => v.siteId == 1);
+      expect(visit.vehicleId, 'last-used');
+      expect(visit.checkinPrecision, CheckinPrecision.timestamp);
+      expect(visit.notesPublic, 'Public');
       expect(
-        pending.notesPrivate,
+        visit.notesPrivate,
         optedIn ? 'Private\nVehicle: 2024 Tesla Model Y' : 'Private',
       );
-      expect((await db.getSiteBySiteId(1))!.visited, isTrue);
-      final visit = (await db.getAllVisits()).single;
-      expect(visit.syncStatus, VisitSyncStatus.pending);
       expect(visit.checkinId, isNull);
-      expect(visit.pendingId, pending.id);
-      expect(visit.siteId, 1);
+      expect((await db.getSiteBySiteId(1))!.visited, isTrue);
+      expect(await CheckinOutbox.instance.pending(), contains(visit.id));
     });
   }
-
-  test(
-    'queued private notes reach the submitted form without sending vehicle ids',
-    () async {
-      final requests = <RequestOptions>[];
-      final dio = Dio()
-        ..interceptors.add(
-          InterceptorsWrapper(
-            onRequest: (request, handler) {
-              requests.add(request);
-              handler.resolve(
-                Response(requestOptions: request, statusCode: 200),
-              );
-            },
-          ),
-        );
-      const channel = MethodChannel('dev.fluttercommunity.plus/connectivity');
-      final messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      messenger.setMockMethodCallHandler(channel, (_) async => ['wifi']);
-      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-      final pendingId = await db.addPendingCheckin(
-        PendingCheckinsCompanion(
-          siteId: const Value(1),
-          checkinDate: Value(DateTime(2026, 5, 1)),
-          createdAt: Value(DateTime.now()),
-          notesPublic: const Value('Public'),
-          notesPrivate: const Value('Private\nVehicle: 2024 Tesla Model Y'),
-          vehicleId: const Value('local-id'),
-        ),
-      );
-      await db.addVisit(
-        VisitsCompanion(
-          siteId: const Value(1),
-          checkinDate: Value(DateTime(2026, 5, 1)),
-          checkinTime: Value(DateTime(2026, 5, 1)),
-          pendingId: Value(pendingId),
-          syncStatus: const Value(VisitSyncStatus.pending),
-          importedAt: Value(DateTime.now()),
-        ),
-      );
-      await SyncService(
-        apiService: ApiService(dio: dio, sessionId: 'test-session'),
-      ).syncPendingCheckins();
-      expect(requests, hasLength(1));
-      final data = requests.single.data;
-      final form = data is FormData
-          ? Map.fromEntries(data.fields)
-          : data as Map;
-      expect(form['supercharger_id'], '1');
-      expect(form['date'], startsWith('2026-05-01'));
-      expect(form['notes_public'], 'Public');
-      expect(form['notes_private'], 'Private\nVehicle: 2024 Tesla Model Y');
-      expect(form.containsKey('vehicle_id'), isFalse);
-      expect(form.containsKey('user_id'), isFalse);
-      expect(form.containsKey('checkin_date'), isFalse);
-      expect(form.containsKey('method'), isFalse);
-      expect(form.containsKey('lat'), isFalse);
-      expect(form.containsKey('lng'), isFalse);
-      expect(form.containsKey('destination'), isFalse);
-      expect(await db.getPendingCheckins(), isEmpty);
-      expect(
-        (await db.getAllVisits()).single.syncStatus,
-        VisitSyncStatus.synced,
-      );
-    },
-  );
-
-  test(
-    'date-only history posts a calendar date, and a known user id is sent',
-    () async {
-      final requests = <RequestOptions>[];
-      final dio = Dio()
-        ..interceptors.add(
-          InterceptorsWrapper(
-            onRequest: (request, handler) {
-              requests.add(request);
-              handler.resolve(
-                Response(requestOptions: request, statusCode: 200),
-              );
-            },
-          ),
-        );
-      const channel = MethodChannel('dev.fluttercommunity.plus/connectivity');
-      final messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      messenger.setMockMethodCallHandler(channel, (_) async => ['wifi']);
-      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-      await db.updateUserSettings(
-        const UserSettingsTableCompanion(odUserId: Value(42)),
-      );
-      await db.addPendingCheckin(
-        PendingCheckinsCompanion(
-          siteId: const Value(1),
-          checkinDate: Value(DateTime(2026, 5, 1, 15, 30)),
-          checkinPrecision: const Value(CheckinPrecision.dateOnly),
-          createdAt: Value(DateTime.now()),
-          latitude: const Value(40),
-          longitude: const Value(-105),
-          accuracy: const Value(12),
-        ),
-      );
-      await SyncService(
-        apiService: ApiService(dio: dio, sessionId: 'test-session'),
-      ).syncPendingCheckins();
-      final data = requests.single.data;
-      final form = data is FormData
-          ? Map<String, String>.fromEntries(data.fields)
-          : Map<String, String>.from(data as Map);
-      expect(form['date'], '2026-05-01');
-      expect(form['user_id'], '42');
-      expect(form['log_coords_lat'], '40.0');
-      expect(form['log_coords_lon'], '-105.0');
-      expect(form['log_coords_accuracy'], '12.0');
-      expect(form.containsKey('geo_accuracy'), isFalse);
-    },
-  );
-
-  test('flush does not post a check-in dated before the site opened', () async {
-    final requests = <RequestOptions>[];
-    final dio = Dio()
-      ..interceptors.add(
-        InterceptorsWrapper(
-          onRequest: (request, handler) {
-            requests.add(request);
-            handler.resolve(Response(requestOptions: request, statusCode: 200));
-          },
-        ),
-      );
-    const channel = MethodChannel('dev.fluttercommunity.plus/connectivity');
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(channel, (_) async => ['wifi']);
-    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-    await db.upsertSite(
-      SitesCompanion.insert(
-        siteId: 1,
-        name: 'Future',
-        dateOpened: Value(DateTime.utc(2099, 1, 15)),
-      ),
-    );
-    await db.addPendingCheckin(
-      PendingCheckinsCompanion(
-        siteId: const Value(1),
-        checkinDate: Value(DateTime(2026, 5, 1)),
-        createdAt: Value(DateTime.now()),
-      ),
-    );
-    await SyncService(apiService: ApiService(dio: dio)).syncPendingCheckins();
-    expect(requests, isEmpty);
-    final pending = await db.select(db.pendingCheckins).get();
-    expect(pending.single.status, PendingStatus.failed);
-    expect(pending.single.lastError, 'Check-in date is before the site opened');
-  });
-
-  test(
-    'a check-in without a session stays pending and is not posted',
-    () async {
-      final requests = <RequestOptions>[];
-      final dio = Dio()
-        ..interceptors.add(
-          InterceptorsWrapper(
-            onRequest: (request, handler) {
-              requests.add(request);
-              handler.resolve(
-                Response(requestOptions: request, statusCode: 200),
-              );
-            },
-          ),
-        );
-      const channel = MethodChannel('dev.fluttercommunity.plus/connectivity');
-      final messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      messenger.setMockMethodCallHandler(channel, (_) async => ['wifi']);
-      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-      final pendingId = await db.addPendingCheckin(
-        PendingCheckinsCompanion(
-          siteId: const Value(1),
-          checkinDate: Value(DateTime(2026, 5, 1)),
-          createdAt: Value(DateTime.now()),
-        ),
-      );
-      await db.addVisit(
-        VisitsCompanion(
-          siteId: const Value(1),
-          checkinDate: Value(DateTime(2026, 5, 1)),
-          checkinTime: Value(DateTime(2026, 5, 1)),
-          pendingId: Value(pendingId),
-          syncStatus: const Value(VisitSyncStatus.pending),
-          importedAt: Value(DateTime.now()),
-        ),
-      );
-      await SyncService(apiService: ApiService(dio: dio)).syncPendingCheckins();
-      expect(requests, isEmpty);
-      final pending = await db.select(db.pendingCheckins).get();
-      expect(pending.single.status, PendingStatus.pending);
-      expect(
-        pending.single.lastError,
-        'Waiting for supercharging.life sign-in',
-      );
-      expect(
-        (await db.getAllVisits()).single.syncStatus,
-        VisitSyncStatus.pending,
-      );
-    },
-  );
-
-  test('a network failure stays pending and waits out the backoff', () async {
-    final requests = <RequestOptions>[];
-    var calls = 0;
-    final dio = Dio()
-      ..interceptors.add(
-        InterceptorsWrapper(
-          onRequest: (request, handler) {
-            calls += 1;
-            requests.add(request);
-            handler.resolve(
-              Response(
-                requestOptions: request,
-                statusCode: calls == 1 ? 500 : 200,
-              ),
-            );
-          },
-        ),
-      );
-    const channel = MethodChannel('dev.fluttercommunity.plus/connectivity');
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(channel, (_) async => ['wifi']);
-    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-    await db.addPendingCheckin(
-      PendingCheckinsCompanion(
-        siteId: const Value(1),
-        checkinDate: Value(DateTime(2026, 5, 1)),
-        createdAt: Value(DateTime.now()),
-      ),
-    );
-    final sync = SyncService(
-      apiService: ApiService(dio: dio, sessionId: 'test-session'),
-    );
-
-    await sync.syncPendingCheckins();
-    expect(requests, hasLength(1));
-    var pending = (await db.select(db.pendingCheckins).get()).single;
-    expect(pending.status, PendingStatus.pending);
-    expect(pending.attempts, 1);
-
-    await sync.syncPendingCheckins();
-    expect(requests, hasLength(1));
-
-    await db.updatePendingCheckin(
-      pending.id,
-      PendingCheckinsCompanion(
-        lastAttemptAt: Value(
-          DateTime.now().subtract(const Duration(minutes: 2)),
-        ),
-      ),
-    );
-    await sync.syncPendingCheckins();
-    expect(requests, hasLength(2));
-    pending = (await db.select(db.pendingCheckins).get()).single;
-    expect(pending.status, PendingStatus.completed);
-  });
-
-  test('a signed-out response stays pending and keeps lastLoginAt', () async {
-    final requests = <RequestOptions>[];
-    final dio = Dio()
-      ..interceptors.add(
-        InterceptorsWrapper(
-          onRequest: (request, handler) {
-            requests.add(request);
-            handler.resolve(
-              Response(
-                requestOptions: request,
-                statusCode: 200,
-                data: 'Login to your account',
-              ),
-            );
-          },
-        ),
-      );
-    const channel = MethodChannel('dev.fluttercommunity.plus/connectivity');
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(channel, (_) async => ['wifi']);
-    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-    final loginAt = DateTime.utc(2026, 1, 1);
-    await db.updateUserSettings(
-      UserSettingsTableCompanion(
-        isAuthenticated: const Value(true),
-        lastLoginAt: Value(loginAt),
-      ),
-    );
-    await db.addPendingCheckin(
-      PendingCheckinsCompanion(
-        siteId: const Value(1),
-        checkinDate: Value(DateTime(2026, 5, 1)),
-        createdAt: Value(DateTime.now()),
-      ),
-    );
-    await SyncService(
-      apiService: ApiService(dio: dio, sessionId: 'test-session'),
-    ).syncPendingCheckins();
-
-    expect(requests, hasLength(1));
-    final pending = (await db.select(db.pendingCheckins).get()).single;
-    expect(pending.status, PendingStatus.pending);
-    expect(pending.lastError, 'Sign in to supercharging.life again');
-    expect(pending.attempts, 0);
-    final settings = await db.getUserSettings();
-    expect(settings.isAuthenticated, isFalse);
-    expect(
-      settings.lastLoginAt?.millisecondsSinceEpoch,
-      loginAt.millisecondsSinceEpoch,
-    );
-  });
 
   test(
     'nearby list includes a visited site and its last visit when asked',
@@ -511,11 +193,13 @@ void main() {
           importedAt: DateTime(2026, 4, 1),
         ),
       );
-      await db.addPendingCheckin(
-        PendingCheckinsCompanion(
-          siteId: const Value(1),
-          checkinDate: Value(DateTime(2026, 6, 2)),
-          createdAt: Value(DateTime(2026, 6, 2)),
+      // A Pending Visit counts as the latest check-in too.
+      await db.addVisit(
+        VisitsCompanion.insert(
+          siteId: 1,
+          checkinDate: DateTime(2026, 6, 2),
+          checkinTime: DateTime(2026, 6, 2),
+          importedAt: DateTime(2026, 6, 2),
         ),
       );
 
@@ -565,37 +249,31 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('rejects a check-in before the site opens', (tester) async {
-    await db.upsertSite(
-      SitesCompanion.insert(
-        siteId: 7,
-        name: 'Future site',
-        dateOpened: Value(DateTime.utc(2099, 1, 15)),
-        timezone: const Value('America/Denver'),
-      ),
+  testWidgets('confirming a Site needs a public note before Check In', (
+    tester,
+  ) async {
+    await openCheckin(
+      tester,
+      confirmMessage: 'This Site is listed as closed. Say what you found.',
     );
-    final site = (await db.getSiteBySiteId(7))!;
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () =>
-                  showCheckinDialog(context, site: site, distanceKm: 1),
-              child: const Text('Open'),
-            ),
-          ),
-        ),
-      ),
+    expect(
+      find.text('This Site is listed as closed. Say what you found.'),
+      findsOneWidget,
     );
-    await tester.tap(find.text('Open'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Check In'));
+    final checkIn = find.widgetWithText(FilledButton, 'Check In');
+    expect(tester.widget<FilledButton>(checkIn).onPressed, isNull);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Public note (required)'),
+      'Charging despite the closure sign',
+    );
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.textContaining('opens on 2099-01-15'), findsOneWidget);
-    expect(await db.getPendingCheckins(), isEmpty);
-    expect((await db.getSiteBySiteId(7))!.visited, isFalse);
+    await tester.tap(checkIn);
+    await tester.pumpAndSettle();
+
+    final visit = (await db.getAllVisits()).single;
+    expect(visit.notesPublic, 'Charging despite the closure sign');
+    expect(await CheckinOutbox.instance.pending(), contains(visit.id));
   });
 
   testWidgets('settings can include visited sites in the nearby list', (

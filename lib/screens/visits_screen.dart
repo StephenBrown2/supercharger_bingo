@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import '../database/database.dart';
 import '../services/database_service.dart';
 import '../services/api_service.dart';
+import '../services/checkin_outbox.dart';
 import '../services/write_result.dart';
 import '../services/sync_service.dart';
 
@@ -19,29 +20,31 @@ class VisitsScreen extends StatefulWidget {
 class _VisitsScreenState extends State<VisitsScreen> {
   List<Visit>? _visits;
   Map<int, String> _siteNames = {};
-  Map<int, PendingCheckin> _pending = {};
+  Map<int, PendingVisit> _pending = {};
   bool _deleting = false;
 
   @override
   void initState() {
     super.initState();
+    CheckinOutbox.instance.changes.addListener(_load);
     _load();
+  }
+
+  @override
+  void dispose() {
+    CheckinOutbox.instance.changes.removeListener(_load);
+    super.dispose();
   }
 
   Future<void> _load() async {
     final visits = await DatabaseService.getVisits();
     visits.sort((a, b) => b.checkinDate.compareTo(a.checkinDate));
     final names = <int, String>{};
-    final pending = <int, PendingCheckin>{};
+    final pending = await CheckinOutbox.instance.pending();
     for (final visit in visits) {
       if (!names.containsKey(visit.siteId)) {
         final site = await DatabaseService.getSiteBySiteId(visit.siteId);
         names[visit.siteId] = site?.name ?? 'Site ${visit.siteId}';
-      }
-      final pendingId = visit.pendingId;
-      if (pendingId != null) {
-        final row = await DatabaseService.getPendingCheckin(pendingId);
-        if (row != null) pending[pendingId] = row;
       }
     }
     if (!mounted) return;
@@ -54,7 +57,8 @@ class _VisitsScreenState extends State<VisitsScreen> {
 
   Future<void> _delete(Visit visit, String name) async {
     if (_deleting) return;
-    final synced = visit.syncStatus == VisitSyncStatus.synced;
+    final pending = _pending[visit.id];
+    final synced = pending == null;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -63,8 +67,11 @@ class _VisitsScreenState extends State<VisitsScreen> {
           synced
               ? 'Delete this check-in at $name from supercharging.life and '
                     'this app? This cannot be undone.'
-              : '$name has not synced to supercharging.life, so this removes it '
-                    'from the app only.',
+              : pending.maybeSent
+              ? '$name may already be on supercharging.life. This removes it '
+                    'from the app only, so check supercharging.life too.'
+              : '$name has not been sent to supercharging.life, so this '
+                    'removes it from the app only.',
         ),
         actions: [
           TextButton(
@@ -124,6 +131,17 @@ class _VisitsScreenState extends State<VisitsScreen> {
           return;
         }
       }
+      if (!synced) {
+        if (!await CheckinOutbox.instance.remove(visit.id) && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('This check-in is being sent. Try again shortly.'),
+            ),
+          );
+        }
+        await _load();
+        return;
+      }
       await DatabaseService.deleteVisit(visit);
       await _load();
     } catch (_) {
@@ -161,20 +179,25 @@ class _VisitsScreenState extends State<VisitsScreen> {
                 separatorBuilder: (context, index) => const Divider(height: 1),
                 itemBuilder: (context, index) {
                   final visit = visits[index];
-                  final queued = visit.pendingId == null
-                      ? null
-                      : _pending[visit.pendingId];
-                  final failed = queued?.status == PendingStatus.failed;
-                  final pending =
-                      visit.syncStatus == VisitSyncStatus.pending && !failed;
-                  final label = failed
-                      ? 'Not synced'
-                      : (pending ? 'Pending' : null);
+                  final pending = _pending[visit.id];
+                  final label = pending == null ? null : 'Pending';
+                  final detail = switch (pending?.state) {
+                    null => null,
+                    OutboxState.sending => 'Sending',
+                    OutboxState.waitingForSignIn =>
+                      'Waiting for supercharging.life sign-in',
+                    OutboxState.waiting => pending!.lastError,
+                  };
                   return ListTile(
                     title: Text(
                       _siteNames[visit.siteId] ?? 'Site ${visit.siteId}',
                     ),
-                    subtitle: Text(_formatDate(visit.checkinDate)),
+                    subtitle: Text(
+                      detail == null
+                          ? _formatDate(visit.checkinDate)
+                          : '${_formatDate(visit.checkinDate)}\n$detail',
+                    ),
+                    isThreeLine: detail != null,
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -182,9 +205,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                           Text(
                             label,
                             style: TextStyle(
-                              color: failed
-                                  ? Theme.of(context).colorScheme.error
-                                  : Theme.of(context).colorScheme.tertiary,
+                              color: Theme.of(context).colorScheme.tertiary,
                               fontWeight: FontWeight.w600,
                             ),
                           ),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:cookie_jar/cookie_jar.dart';
@@ -319,15 +321,21 @@ class ApiService {
   /// Submit a check-in to supercharging.life using the live multipart form.
   /// A missing or rejected session is [WriteOutcome.needsSignIn]. A transport
   /// failure is [WriteOutcome.retry]. Anything else that is not a 200 is
-  /// [WriteOutcome.rejected] and should not be retried.
+  /// [WriteOutcome.rejected], which [UnofficialCheckinWriter] retries.
   Future<WriteResult> submitCheckin(CheckinDraft draft) async {
     final session = await getSessionCookie();
     if (session == null || session.isEmpty) return WriteResult.needsSignIn;
     await restoreSessionCookie();
+    // The check-in dialog waits on this post, so cap it at 15 seconds. A
+    // cancelled post is a retry; it may still have landed, which the outbox
+    // treats as a send that was attempted.
+    final cancel = CancelToken();
+    final timer = Timer(const Duration(seconds: 15), cancel.cancel);
     try {
       final response = await _dio.post(
         '$superchargingLifeBaseUrl/supercharging/checkin.php',
         data: FormData.fromMap(unofficialCheckinFields(draft)),
+        cancelToken: cancel,
         // The form answers with a 302. Dio does not follow it for a POST and
         // would throw, so read the Location header instead.
         options: Options(followRedirects: false, validateStatus: (_) => true),
@@ -345,6 +353,8 @@ class ApiService {
         finalUri:
             e.response?.realUri.toString() ?? e.requestOptions.uri.toString(),
       );
+    } finally {
+      timer.cancel();
     }
   }
 

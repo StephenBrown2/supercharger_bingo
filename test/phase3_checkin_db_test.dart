@@ -38,45 +38,5 @@ void main() {
       await db.deleteVehicle('veh-1');
       expect(await db.getAllVehicles(), isEmpty);
     });
-
-    test(
-      'pending check-in persists private note and vehicle association',
-      () async {
-        await db.addPendingCheckin(
-          PendingCheckinsCompanion(
-            siteId: const Value(7),
-            checkinDate: Value(DateTime(2026, 6, 18)),
-            createdAt: Value(DateTime(2026, 6, 18)),
-            notesPublic: const Value('great spot'),
-            notesPrivate: const Value('charged to 80%'),
-            vehicleId: const Value('veh-1'),
-          ),
-        );
-
-        final pending = await db.getPendingCheckins();
-        expect(pending, hasLength(1));
-        expect(pending.first.notesPublic, 'great spot');
-        expect(pending.first.notesPrivate, 'charged to 80%');
-        expect(pending.first.vehicleId, 'veh-1');
-      },
-    );
-
-    test('a send interrupted for 10 minutes is retried', () async {
-      final sentAt = DateTime(2026, 11, 18, 12);
-      await db.addPendingCheckin(
-        PendingCheckinsCompanion(
-          siteId: const Value(7),
-          checkinDate: Value(sentAt),
-          createdAt: Value(sentAt),
-          status: const Value(PendingStatus.submitting),
-          lastAttemptAt: Value(sentAt),
-        ),
-      );
-
-      final soon = sentAt.add(const Duration(minutes: 9));
-      expect(await db.getPendingCheckins(now: soon), isEmpty);
-      final later = sentAt.add(const Duration(minutes: 11));
-      expect(await db.getPendingCheckins(now: later), hasLength(1));
-    });
   });
 }

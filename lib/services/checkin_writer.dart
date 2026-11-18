@@ -5,7 +5,9 @@ import 'write_result.dart';
 /// Backend writer for a check-in (SPEC Section 2.2).
 ///
 /// The unofficial `checkin.php` post and a future official API both implement
-/// this, so sync and the dialog do not care which one is active.
+/// this, so the Check-in outbox does not care which one is active. A writer
+/// never answers [WriteOutcome.rejected]: supercharging.life does not refuse
+/// check-ins, so a response it cannot read is retried.
 abstract class CheckinWriter {
   Future<WriteResult> submit(CheckinDraft draft);
 }
@@ -17,5 +19,12 @@ class UnofficialCheckinWriter implements CheckinWriter {
   UnofficialCheckinWriter(this._api);
 
   @override
-  Future<WriteResult> submit(CheckinDraft draft) => _api.submitCheckin(draft);
+  Future<WriteResult> submit(CheckinDraft draft) async {
+    final result = await _api.submitCheckin(draft);
+    if (result.outcome != WriteOutcome.rejected) return result;
+    return const WriteResult(
+      WriteOutcome.retry,
+      'supercharging.life sent an unexpected answer, will retry',
+    );
+  }
 }

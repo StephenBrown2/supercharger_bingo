@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../database/database.dart';
+import 'checkin_outbox.dart';
 import 'sync_service.dart';
 
 /// Background sync service for desktop platforms (Linux, Windows, macOS)
@@ -53,7 +54,7 @@ class DesktopBackgroundService {
       // Sync sites, then community First data, then flush pending checkins.
       await SyncService.instance.syncSites();
       await SyncService.instance.syncCommunityData();
-      await SyncService.instance.syncPendingCheckins();
+      await CheckinOutbox.instance.sendDue();
       final hook = afterSync;
       if (hook != null) await hook();
     } catch (e) {

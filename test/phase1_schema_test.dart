@@ -83,13 +83,16 @@ void main() {
           'ALTER TABLE sites DROP COLUMN timezone',
           'ALTER TABLE visits DROP COLUMN notes_private',
           'ALTER TABLE visits DROP COLUMN vehicle_id',
-          'ALTER TABLE pending_checkins DROP COLUMN notes_private',
-          'ALTER TABLE pending_checkins DROP COLUMN vehicle_id',
+          // The v3 outbox table, removed from the schema in v20.
+          'CREATE TABLE pending_checkins (id INTEGER PRIMARY KEY, '
+              'site_id INTEGER NOT NULL, checkin_date INTEGER NOT NULL, '
+              'created_at INTEGER NOT NULL, latitude REAL, longitude REAL, '
+              'accuracy REAL, notes_public TEXT, status TEXT, '
+              'attempts INTEGER, last_attempt_at INTEGER, last_error TEXT)',
           'DROP TABLE vehicles',
           'ALTER TABLE user_settings DROP COLUMN include_visited_nearby',
           'ALTER TABLE user_settings DROP COLUMN include_vehicle_in_private_note',
           'ALTER TABLE visits DROP COLUMN checkin_precision',
-          'ALTER TABLE pending_checkins DROP COLUMN checkin_precision',
           'DROP TABLE region_syncs',
         ]) {
           await db.customStatement(statement);
@@ -139,8 +142,6 @@ void main() {
         await db.customStatement(
           'ALTER TABLE site_checkins ADD COLUMN days_after_open INTEGER',
         );
-        await db.customStatement('ALTER TABLE visits DROP COLUMN sync_status');
-        await db.customStatement('ALTER TABLE visits DROP COLUMN pending_id');
         await db.customStatement(
           'ALTER TABLE user_settings DROP COLUMN auth_provider',
         );
@@ -153,13 +154,10 @@ void main() {
 
         final visit = (await db.getAllVisits()).single;
         expect(visit.checkinId, 55);
-        expect(visit.syncStatus, VisitSyncStatus.synced);
-        expect(visit.pendingId, isNull);
         final visitColumns = await db
             .customSelect("SELECT name FROM pragma_table_info('visits')")
             .get();
         final visitNames = visitColumns.map((row) => row.read<String>('name'));
-        expect(visitNames, contains('sync_status'));
         expect(visitNames, isNot(contains('distinct_user_super_seq')));
         final community = await db
             .customSelect("SELECT name FROM pragma_table_info('site_checkins')")

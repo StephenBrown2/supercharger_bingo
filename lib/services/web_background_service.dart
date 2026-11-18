@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../database/database.dart';
+import 'checkin_outbox.dart';
 import 'sync_service.dart';
 
 /// Background sync service for web platform
@@ -49,7 +50,7 @@ class WebBackgroundService {
   Future<void> _performSync() async {
     try {
       await SyncService.instance.syncSites();
-      await SyncService.instance.syncPendingCheckins();
+      await CheckinOutbox.instance.sendDue();
       final hook = afterSync;
       if (hook != null) await hook();
     } catch (e) {

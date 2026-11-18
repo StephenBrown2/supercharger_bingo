@@ -1,23 +1,24 @@
-import 'package:drift/drift.dart' show Value;
 import 'package:material_ui/material_ui.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../database/database.dart';
-import '../services/checkin_rules.dart';
+import '../services/checkin_outbox.dart';
 import '../services/database_service.dart';
 import '../services/life_time.dart';
-import '../services/sync_service.dart';
 
 /// Check-in dialog modeled on the live supercharging.life form (SPEC Section 6):
 /// public note, private note, optional vehicle selector, and the user's most
-/// recent check-in at this site. Saves to the PendingCheckins outbox and sends
-/// right away. Returns null if cancelled, otherwise the outbox status after the
-/// send: `completed`, `failed` (refused) or `pending` (retried later).
-Future<PendingStatus?> showCheckinDialog(
+/// recent check-in at this site. Records the Check-in in the Check-in outbox,
+/// which sends it right away. Returns null if cancelled.
+///
+/// With [confirmMessage] the user is confirming a Site that needs it (Site
+/// confirmation): the message shows at the top and the public note is required.
+Future<Delivery?> showCheckinDialog(
   BuildContext context, {
   required Site site,
   required double distanceKm,
   Position? position,
+  String? confirmMessage,
 }) async {
   final vehicles = await DatabaseService.getVehicles();
   final lastVisit = await DatabaseService.db.getLastVisitDate(site.siteId);
@@ -25,7 +26,7 @@ Future<PendingStatus?> showCheckinDialog(
   final lastVehicleId = await DatabaseService.db.getLastUsedVehicleId();
   if (!context.mounted) return null;
 
-  return showDialog<PendingStatus>(
+  return showDialog<Delivery>(
     context: context,
     builder: (context) => _CheckinDialog(
       site: site,
@@ -34,8 +35,8 @@ Future<PendingStatus?> showCheckinDialog(
       vehicles: vehicles,
       lastVisit: lastVisit,
       unitSystem: settings.unitSystem,
-      includeVehicleInPrivateNote: settings.includeVehicleInPrivateNote,
       lastVehicleId: lastVehicleId,
+      confirmMessage: confirmMessage,
     ),
   );
 }
@@ -49,8 +50,8 @@ class _CheckinDialog extends StatefulWidget {
   final List<Vehicle> vehicles;
   final DateTime? lastVisit;
   final UnitSystem unitSystem;
-  final bool includeVehicleInPrivateNote;
   final String? lastVehicleId;
+  final String? confirmMessage;
 
   const _CheckinDialog({
     required this.site,
@@ -59,8 +60,8 @@ class _CheckinDialog extends StatefulWidget {
     required this.vehicles,
     required this.lastVisit,
     required this.unitSystem,
-    required this.includeVehicleInPrivateNote,
     required this.lastVehicleId,
+    required this.confirmMessage,
   });
 
   @override
@@ -99,6 +100,8 @@ class _CheckinDialogState extends State<_CheckinDialog> {
         ? widget.distanceKm / 1.609344
         : widget.distanceKm;
     final distanceUnit = imperial ? 'mi' : 'km';
+    final confirming = widget.confirmMessage != null;
+    final noteMissing = confirming && _publicController.text.trim().isEmpty;
 
     // No dismissal mid-send: the result would be lost and the user could
     // submit the same check-in again.
@@ -136,13 +139,38 @@ class _CheckinDialogState extends State<_CheckinDialog> {
                 ),
               ),
               const SizedBox(height: 16),
+              if (confirming) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    widget.confirmMessage!,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onErrorContainer,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               TextField(
                 controller: _publicController,
-                decoration: const InputDecoration(
-                  labelText: 'Public note (optional)',
-                  border: OutlineInputBorder(),
+                autofocus: confirming,
+                // Rebuild so Check In enables once the required note exists.
+                onChanged: confirming ? (_) => setState(() {}) : null,
+                decoration: InputDecoration(
+                  labelText: confirming
+                      ? 'Public note (required)'
+                      : 'Public note (optional)',
+                  helperText: confirming
+                      ? 'Explain why you are checking in here'
+                      : null,
+                  border: const OutlineInputBorder(),
                 ),
-                maxLines: 2,
+                maxLines: confirming ? 3 : 2,
               ),
               const SizedBox(height: 12),
               TextField(
@@ -188,7 +216,7 @@ class _CheckinDialogState extends State<_CheckinDialog> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: _submitting ? null : _submit,
+            onPressed: _submitting || noteMissing ? null : _submit,
             child: _submitting
                 ? const SizedBox(
                     width: 18,
@@ -204,57 +232,20 @@ class _CheckinDialogState extends State<_CheckinDialog> {
 
   Future<void> _submit() async {
     setState(() => _submitting = true);
-    final rejection = checkinOpeningRejection(widget.site, _checkinAt);
-    if (rejection != null) {
-      if (mounted) {
-        setState(() => _submitting = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(rejection)));
-      }
-      return;
-    }
-    final now = _checkinAt;
     final pos = widget.position;
-    final vehicle = widget.vehicles
-        .where((v) => v.id == _selectedVehicleId)
-        .firstOrNull;
-    final privateNotes = <String>[
-      if (_privateController.text.isNotEmpty) _privateController.text,
-    ];
-    if (vehicle != null && widget.includeVehicleInPrivateNote) {
-      final details = [
-        vehicle.year,
-        vehicle.make,
-        vehicle.model,
-        vehicle.trim,
-      ].where((s) => s != null && s.isNotEmpty).join(' ');
-      if (details.isNotEmpty) privateNotes.add('Vehicle: $details');
-    }
-
     try {
-      final status = await SyncService.instance.submitCheckin(
-        method: pos == null ? CheckinMethod.manual : CheckinMethod.gps,
-        PendingCheckinsCompanion(
-          siteId: Value(widget.site.siteId),
-          checkinDate: Value(now),
-          checkinPrecision: const Value(CheckinPrecision.timestamp),
-          createdAt: Value(now),
-          latitude: Value(pos?.latitude),
-          longitude: Value(pos?.longitude),
-          accuracy: Value(pos?.accuracy),
-          notesPublic: Value(
-            _publicController.text.isEmpty ? null : _publicController.text,
-          ),
-          notesPrivate: Value(
-            privateNotes.isEmpty ? null : privateNotes.join('\n'),
-          ),
-          vehicleId: Value(_selectedVehicleId),
-        ),
+      final delivery = await CheckinOutbox.instance.record(
+        siteId: widget.site.siteId,
+        latitude: pos?.latitude,
+        longitude: pos?.longitude,
+        accuracy: pos?.accuracy,
+        notesPublic: _publicController.text,
+        notesPrivate: _privateController.text,
+        vehicleId: _selectedVehicleId,
       );
-
-      if (mounted) Navigator.pop(context, status);
+      if (mounted) Navigator.pop(context, delivery);
     } catch (_) {
+      // Only saving can throw; a failed send comes back as a Delivery.
       if (mounted) {
         setState(() => _submitting = false);
         ScaffoldMessenger.of(context).showSnackBar(

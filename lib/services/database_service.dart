@@ -1,7 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:drift/drift.dart';
-
 import '../database/database.dart';
 
 // Conditional import for platform-specific database connection
@@ -94,10 +92,12 @@ class DatabaseService {
     bool? visited,
   }) async {
     // If requesting the default open + unvisited set and we have bootstrap cache use it
-    if (status == SiteStatus.open &&
-        visited == false &&
-        bootstrapSites != null) {
-      return bootstrapSites!;
+    // The cache serves the first screen once, so later writes (a recorded
+    // Check-in, a sync) never need to invalidate it.
+    final cached = bootstrapSites;
+    if (status == SiteStatus.open && visited == false && cached != null) {
+      bootstrapSites = null;
+      return cached;
     }
     // Both status and visited specified
     if (status != null && visited != null) {
@@ -185,69 +185,10 @@ class DatabaseService {
     bootstrapSites = null;
   }
 
-  /// Get pending check-ins
-  static Future<List<PendingCheckin>> getPendingCheckins() async {
-    return db.getPendingCheckins();
-  }
-
-  static Future<PendingCheckin?> getPendingCheckin(int id) =>
-      db.getPendingCheckin(id);
-
-  /// Add a pending check-in. Returns the outbox row id.
-  static Future<int> addPendingCheckin(PendingCheckinsCompanion checkin) {
-    return db.addPendingCheckin(checkin);
-  }
-
-  /// Queue a check-in and a visits row that shows as pending until sync.
-  static Future<int> saveQueuedCheckin({
-    required PendingCheckinsCompanion pending,
-    CheckinMethod method = CheckinMethod.manual,
-  }) async {
-    final id = await db.transaction(() async {
-      final pendingId = await db.addPendingCheckin(pending);
-      await db.addVisit(
-        VisitsCompanion(
-          siteId: pending.siteId,
-          checkinDate: pending.checkinDate,
-          checkinTime: pending.checkinDate,
-          checkinPrecision: pending.checkinPrecision.present
-              ? pending.checkinPrecision
-              : const Value(CheckinPrecision.timestamp),
-          notesPublic: pending.notesPublic,
-          notesPrivate: pending.notesPrivate,
-          vehicleId: pending.vehicleId,
-          method: Value(method),
-          syncStatus: const Value(VisitSyncStatus.pending),
-          pendingId: Value(pendingId),
-          geoDistanceAccuracy: Value(
-            pending.accuracy.present ? pending.accuracy.value?.round() : null,
-          ),
-          importedAt: Value(DateTime.now()),
-        ),
-      );
-      await db.markSiteVisited(pending.siteId.value, true);
-      return pendingId;
-    });
-    bootstrapSites = null;
-    return id;
-  }
-
-  /// Update a pending check-in
-  static Future<void> updatePendingCheckin(
-    int id,
-    PendingCheckinsCompanion checkin,
-  ) async {
-    await db.updatePendingCheckin(id, checkin);
-  }
-
   /// Remove a local visit after any server deletion succeeds.
   static Future<void> deleteVisit(Visit visit) async {
     await db.deleteVisit(visit);
     bootstrapSites = null;
-  }
-
-  static Future<void> deletePendingCheckin(int id) async {
-    await db.deletePendingCheckin(id);
   }
 
   /// Get site check-ins (others' check-ins)

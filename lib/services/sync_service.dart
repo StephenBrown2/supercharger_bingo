@@ -9,15 +9,12 @@ import '../database/database.dart';
 import '../models/supercharge_info.dart';
 import 'alert_rules.dart';
 import 'api_service.dart';
-import 'checkin_form.dart';
-import 'checkin_rules.dart';
-import 'checkin_writer.dart';
+import 'checkin_outbox.dart';
 import 'database_service.dart';
 import 'life_time.dart';
 import 'location_service.dart';
 import 'supercharge_region.dart';
 import 'timezone_service.dart';
-import 'write_result.dart';
 
 typedef LocationFix = ({double latitude, double longitude});
 
@@ -34,9 +31,6 @@ class SyncService {
   /// table before those rows existed can load them.
   final ValueNotifier<int> sitesVersion = ValueNotifier(0);
 
-  /// Bumped when a pending check-in cannot post because the session is gone.
-  final ValueNotifier<int> sessionExpiredVersion = ValueNotifier(0);
-
   final Connectivity _connectivity = Connectivity();
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   bool _isSyncingSites = false;
@@ -45,19 +39,11 @@ class SyncService {
   bool _isSyncingUser = false;
 
   final ApiService _apiService;
-  final CheckinWriter? _checkinWriter;
   final Future<LocationFix?> Function() _locate;
 
-  SyncService({
-    ApiService? apiService,
-    CheckinWriter? checkinWriter,
-    Future<LocationFix?> Function()? locate,
-  }) : _apiService = apiService ?? ApiService.instance,
-       _checkinWriter = checkinWriter,
-       _locate = locate ?? SyncService.deviceLocation;
-
-  CheckinWriter get _writer =>
-      _checkinWriter ?? UnofficialCheckinWriter(_apiService);
+  SyncService({ApiService? apiService, Future<LocationFix?> Function()? locate})
+    : _apiService = apiService ?? ApiService.instance,
+      _locate = locate ?? SyncService.deviceLocation;
 
   static Future<LocationFix?> deviceLocation() async {
     try {
@@ -75,8 +61,7 @@ class SyncService {
       results,
     ) {
       if (results.any((r) => r != ConnectivityResult.none)) {
-        // We have connectivity, try to sync pending check-ins
-        syncPendingCheckins();
+        CheckinOutbox.instance.sendDue().ignore();
       }
     });
   }
@@ -384,7 +369,7 @@ class SyncService {
 
       final visits = await _parseUserXlsx(xlsxBytes);
       debugPrint('syncUserByUsername: Parsed ${visits.length} visits');
-      await DatabaseService.db.reconcileVisitIds(visits);
+      await CheckinOutbox.instance.settleFromImport(visits);
 
       // Mark sites as visited by user
       for (final visit in visits) {
@@ -542,192 +527,6 @@ class SyncService {
     }
   }
 
-  /// Save a check-in and send it right away. It stays pending only when the
-  /// send does not succeed (offline, signed out, network or server error), and
-  /// sync retries it later. Returns the row status after the attempt:
-  /// `completed` (accepted), `failed` (refused, never retried) or `pending`.
-  ///
-  /// The row is saved before sending, so an app kill mid-send still leaves it
-  /// queued. While online it is saved as `submitting`, so a concurrent sync
-  /// does not send it a second time.
-  Future<PendingStatus> submitCheckin(
-    PendingCheckinsCompanion pending, {
-    CheckinMethod method = CheckinMethod.manual,
-  }) async {
-    var online = false;
-    try {
-      online = !kIsWeb && await hasConnectivity();
-    } catch (_) {}
-    final now = DateTime.now();
-    final id = await DatabaseService.saveQueuedCheckin(
-      method: method,
-      pending: online
-          ? pending.copyWith(
-              status: const Value(PendingStatus.submitting),
-              lastAttemptAt: Value(now),
-            )
-          : pending,
-    );
-    if (!online) return PendingStatus.pending;
-    final row = await DatabaseService.getPendingCheckin(id);
-    if (row != null) await _send(row, now);
-    return (await DatabaseService.getPendingCheckin(id))?.status ??
-        PendingStatus.pending;
-  }
-
-  Future<void>? _flush;
-
-  /// Sync pending check-ins. Calls in this isolate run one after another, so a
-  /// sign-in flush and a connectivity flush never post the same row twice.
-  // ponytail: background isolates can still overlap; the official API's
-  // Idempotency-Key removes the duplicate (supercharging-life-api-app-changes.md).
-  Future<void> syncPendingCheckins() {
-    final run = (_flush ?? Future<void>.value()).then((_) => _syncPending());
-    _flush = run.catchError((_) {});
-    return run;
-  }
-
-  Future<void> _syncPending() async {
-    if (kIsWeb) return;
-    final hasNetwork = await hasConnectivity();
-    if (!hasNetwork) return;
-
-    final pending = await DatabaseService.getPendingCheckins();
-
-    for (final checkin in pending) {
-      final now = DateTime.now();
-      // A stale `submitting` row was interrupted, not refused, so it skips the
-      // failure backoff.
-      if (checkin.status == PendingStatus.pending &&
-          !pendingReadyToRetry(checkin.lastAttemptAt, checkin.attempts, now)) {
-        continue;
-      }
-      await _send(checkin, now);
-    }
-  }
-
-  /// One send attempt for [checkin]. The result is written to its row; a send
-  /// that throws leaves it pending.
-  Future<void> _send(PendingCheckin checkin, DateTime now) async {
-    try {
-      final site = await DatabaseService.getSiteBySiteId(checkin.siteId);
-      if (site != null &&
-          checkinPrecedesOpening(
-            site,
-            checkin.checkinDate,
-            precision: checkin.checkinPrecision,
-          )) {
-        await DatabaseService.updatePendingCheckin(
-          checkin.id,
-          const PendingCheckinsCompanion(
-            status: Value(PendingStatus.failed),
-            lastError: Value('Check-in date is before the site opened'),
-          ),
-        );
-        return;
-      }
-
-      final session = await _apiService.getSessionCookie();
-      if (session == null || session.isEmpty) {
-        await DatabaseService.updatePendingCheckin(
-          checkin.id,
-          const PendingCheckinsCompanion(
-            status: Value(PendingStatus.pending),
-            lastError: Value(waitingForSignInMessage),
-            // Like needsSignIn: send as soon as the user signs in.
-            attempts: Value(0),
-            lastAttemptAt: Value(null),
-          ),
-        );
-        sessionExpiredVersion.value++;
-        return;
-      }
-
-      await DatabaseService.updatePendingCheckin(
-        checkin.id,
-        PendingCheckinsCompanion(
-          status: const Value(PendingStatus.submitting),
-          lastAttemptAt: Value(now),
-          attempts: Value(checkin.attempts + 1),
-        ),
-      );
-
-      final draft = await _draftFor(
-        siteId: checkin.siteId,
-        date: checkin.checkinDate,
-        precision: checkin.checkinPrecision,
-        latitude: checkin.latitude,
-        longitude: checkin.longitude,
-        accuracy: checkin.accuracy,
-        notes: checkin.notesPublic,
-        notesPrivate: checkin.notesPrivate,
-      );
-      final result = await _writer.submit(draft);
-      await _applyWriteResult(checkin.id, result);
-    } catch (e) {
-      await DatabaseService.updatePendingCheckin(
-        checkin.id,
-        PendingCheckinsCompanion(
-          status: const Value(PendingStatus.pending),
-          lastError: Value(WriteResult.retry.message),
-        ),
-      );
-    }
-  }
-
-  Future<void> _applyWriteResult(int pendingId, WriteResult result) async {
-    switch (result.outcome) {
-      case WriteOutcome.accepted:
-        await DatabaseService.db.transaction(() async {
-          await DatabaseService.updatePendingCheckin(
-            pendingId,
-            const PendingCheckinsCompanion(
-              status: Value(PendingStatus.completed),
-              lastError: Value(null),
-            ),
-          );
-          await DatabaseService.db.markPendingVisitSynced(pendingId);
-        });
-      case WriteOutcome.rejected:
-        await DatabaseService.updatePendingCheckin(
-          pendingId,
-          PendingCheckinsCompanion(
-            status: const Value(PendingStatus.failed),
-            lastError: Value(result.message ?? WriteResult.rejected.message),
-          ),
-        );
-      case WriteOutcome.retry:
-        await DatabaseService.updatePendingCheckin(
-          pendingId,
-          PendingCheckinsCompanion(
-            status: const Value(PendingStatus.pending),
-            lastError: Value(result.message ?? WriteResult.retry.message),
-          ),
-        );
-      case WriteOutcome.needsSignIn:
-        await DatabaseService.updatePendingCheckin(
-          pendingId,
-          const PendingCheckinsCompanion(
-            status: Value(PendingStatus.pending),
-            lastError: Value(signInAgainMessage),
-            // Do not burn a backoff slot. The next try should run as soon
-            // as the user has a session again.
-            attempts: Value(0),
-            lastAttemptAt: Value(null),
-          ),
-        );
-        await _markSessionExpired();
-    }
-  }
-
-  Future<void> _markSessionExpired() async {
-    await _apiService.clearSessionCookie();
-    await DatabaseService.updateUserSettings(
-      const UserSettingsTableCompanion(isAuthenticated: Value(false)),
-    );
-    sessionExpiredVersion.value++;
-  }
-
   /// Recent OPEN additions in the user's region, inside [radiusKm].
   Future<List<AllChanges>> checkForNewSuperchargers(
     double userLat,
@@ -793,29 +592,5 @@ class SyncService {
       if (start >= page.recordCount) break;
     }
     return (changes: collected, nextCursor: next);
-  }
-
-  Future<CheckinDraft> _draftFor({
-    required int siteId,
-    required DateTime date,
-    required CheckinPrecision precision,
-    double? latitude,
-    double? longitude,
-    double? accuracy,
-    String? notes,
-    String? notesPrivate,
-  }) async {
-    final settings = await DatabaseService.getUserSettings();
-    return CheckinDraft(
-      siteId: siteId,
-      checkinAt: date,
-      precision: precision,
-      latitude: latitude,
-      longitude: longitude,
-      accuracy: accuracy,
-      notesPublic: notes,
-      notesPrivate: notesPrivate,
-      userId: settings.odUserId,
-    );
   }
 }

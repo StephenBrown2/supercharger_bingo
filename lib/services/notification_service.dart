@@ -18,6 +18,7 @@ import 'location_service.dart';
 import 'nearest_site_service.dart' show navigateActionId;
 import 'site_navigation.dart';
 import 'supercharge_region.dart';
+import 'checkin_outbox.dart';
 import 'sync_service.dart';
 import 'timezone_service.dart';
 
@@ -603,7 +604,7 @@ void backgroundSyncCallback() {
           longitude: fix?.longitude ?? saved.lastLongitude,
         );
         await SyncService.instance.syncCommunityData();
-        await SyncService.instance.syncPendingCheckins();
+        await CheckinOutbox.instance.sendDue();
         await NotificationService.instance.deliverBackgroundAlerts();
 
         return true;

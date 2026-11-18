@@ -3,7 +3,8 @@ enum WriteOutcome {
   /// The writer accepted the check-in.
   accepted,
 
-  /// The site refused the check-in. Do not retry.
+  /// The site refused the request. Check-in writers never return this
+  /// (supercharging.life does not refuse check-ins); a deletion can.
   rejected,
 
   /// Network or server trouble. Leave it pending and try later.
@@ -33,9 +34,6 @@ class WriteResult {
     signInAgainMessage,
   );
 }
-
-/// Pending row is waiting for a session that has not been captured yet.
-const waitingForSignInMessage = 'Waiting for supercharging.life sign-in';
 
 /// A stored session was rejected. The map asks the user to sign in again.
 const signInAgainMessage = 'Sign in to supercharging.life again';

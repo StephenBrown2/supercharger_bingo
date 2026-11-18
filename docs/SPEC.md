@@ -78,7 +78,7 @@ Status: Complete. The id column is the server integer, not a client UUID. A loca
 | method | enum | GPS or MANUAL |
 | public_comment | text, nullable | |
 | private_comment | text, nullable | Restored; the live form has both public and private notes |
-| sync_status | enum | PENDING, SYNCED, FAILED |
+| outbox state | enum, nullable | Waiting to send, Sending or Waiting for sign-in while Pending; none once supercharging.life confirms it. Stored in the Check-in outbox, not on the Visit |
 | created_at_device | timestamp | |
 
 ### Community check-in (others, for First tracking)
@@ -87,7 +87,7 @@ Status: Complete. days_after_open and distinct_user_super_seq are omitted.
 
 Mirrors what the history poll provides: site_id, user id, username/display name, checkin_date, checkin_time (when available), and the is_first flag. `days_after_open` and `distinct_user_super_seq` are omitted for this MVP. Nothing on screen reads them, and First detection does not use them.
 
-A check-in made in the app is written to visits immediately, with no server check-in id. Its sync status is pending until supercharging.life accepts the write. The visits list shows that row as Pending.
+A check-in made in the app is written to visits immediately, with no server check-in id, together with a Check-in outbox entry that holds its sending state. It is Pending until supercharging.life confirms it, and then the entry is deleted. The visits list shows the row as Pending, with the reason when it is waiting for sign-in or its last send failed.
 
 ### Vehicle
 
@@ -104,11 +104,11 @@ Vehicles are a purely local concept and do not participate in supercharging.life
 
 ## 4. "First" Determination
 
-Status: Complete. A check-in before dateOpened is rejected. The First date is computed, not stored.
+Status: Complete. A check-in before dateOpened needs Site confirmation (Section 6) and never counts as a First. The First date is computed, not stored.
 
 Shared Firsts are allowed and are a deliberate social feature. Once one person claims the First at a site, others who check in before the next site-local midnight share it, and coordinating that scramble is part of the appeal. This removes the v0.1 problem entirely: no tie-break logic is needed, and the DATE_ONLY ordering ambiguity no longer matters, because same-day check-ins are not ranked against each other.
 
-A check-in qualifies as a First if its checkin_date (and checkin_time when available), evaluated in the site's local timezone, falls on or after the site's date_opened. A check-in dated before date_opened is invalid (you cannot have charged at a site before it opened) and is rejected, not counted. Any check-in on or after date_opened is valid.
+A check-in qualifies as a First if its checkin_date (and checkin_time when available), evaluated in the site's local timezone, falls on or after the site's date_opened. A check-in dated before date_opened never counts as a First. supercharging.life accepts it, and the listed date can be wrong, so the app asks the user to confirm it with a note (Section 6) instead of rejecting it. Any check-in on or after date_opened is valid.
 
 First eligibility is open-ended until claimed. A site with no check-ins has its First available indefinitely to whoever checks in first, regardless of how long ago it opened. The first valid check-in starts the clock: the shared-First window then runs until the next midnight in the site's local timezone. Anyone whose qualifying check-in lands on that same site-local calendar day shares the First. After that local midnight, the First is closed and no further shares are possible. So first_date is the site-local date of the earliest check-in (not date_opened), and that date is what the pin color in Section 5 keys off of.
 
@@ -170,7 +170,8 @@ Modeled on the live supercharging.life check-in form, with two deliberate change
 2. Show the 10 closest sites, closest preselected, each formatted as `name (status) (distance)`. Distance uses the user's unit preference (Section 7).
 3. For each listed site, show the user's most recent check-in there if one exists, otherwise "No previous check-in." This is the addition beyond the current web form.
 4. Date defaults to the current timestamp. Optional public note and private note. Optional vehicle selection (defaults to last used).
-5. Write locally with a full timestamp and the device timezone, queue for sync, never block on network.
+5. Site confirmation. A check-in dated before the site's opening date, or at a site that is not Operational (OPEN or EXPANDING), first offers up to three Operational sites within the check-in search radius ("Did you mean?"). Choosing "No, check in here" (or having no alternatives or no location fix) opens the form with the reason at the top and a required public note explaining it. Nothing is recorded until the user confirms. The opening date is checked first, then the status.
+6. Write locally with a full timestamp and the device timezone, then send at once. A failed send stays Pending and is retried; it never blocks the form for more than about 15 seconds.
 
 Fields carried over from the live form: Supercharger picker, link to search all locations, Date (current timestamp), Notes (Private), Notes (Public). Deferred: the post-save navigation dropdown.
 
@@ -210,7 +211,7 @@ VINs are encrypted at rest and never displayed. Entry is manual and optional. If
 
 ## 9. Local-First Architecture and Sync
 
-Status: Complete for the POC. Pending posts retry with backoff. A rejected post is not retried. A missing or expired session stays pending and asks the user to sign in. Community data is still polled, and the user can still import the XLSX. The official API is not implemented. Client check-in ids are not UUIDs. See Section 3.
+Status: Complete for the POC. Pending posts retry with backoff. supercharging.life does not refuse check-ins, so an answer the writer cannot read is retried too. A missing or expired session stays pending and asks the user to sign in. Community data is still polled, and the user can still import the XLSX. The official API is not implemented. Client check-in ids are not UUIDs. See Section 3.
 
 - **Local storage:** drift (SQLite), relational, migration-tracked.
 - **Outbox pattern:** local writes marked PENDING, flushed by a sync worker on reconnect (connectivity_plus) with backoff.

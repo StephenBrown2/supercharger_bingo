@@ -9,9 +9,11 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../database/database.dart';
 import '../services/api_service.dart';
+import '../services/checkin_outbox.dart';
 import '../services/database_service.dart';
 import '../services/location_service.dart';
 import '../services/site_navigation.dart';
+import '../services/site_confirmation.dart';
 import '../services/sync_service.dart';
 import '../services/timezone_service.dart';
 import '../services/write_result.dart';
@@ -139,25 +141,18 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     // Recompute pin colours once community check-in data finishes syncing.
     SyncService.instance.communityDataVersion.addListener(_onCommunityData);
     SyncService.instance.sitesVersion.addListener(_onSitesSynced);
-    SyncService.instance.sessionExpiredVersion.addListener(_onSessionExpired);
+    CheckinOutbox.instance.changes.addListener(_refreshSignInBanner);
     _refreshSignInBanner();
 
     _fetchLocationForCheckin();
   }
 
-  void _onSessionExpired() {
-    if (mounted) setState(() => _needsSignIn = true);
-  }
-
   Future<void> _refreshSignInBanner() async {
-    final pending = await DatabaseService.getPendingCheckins();
-    final needs = pending.any(
-      (row) =>
-          row.status == PendingStatus.pending &&
-          (row.lastError == signInAgainMessage ||
-              row.lastError == waitingForSignInMessage),
+    final pending = await CheckinOutbox.instance.pending();
+    final needs = pending.values.any(
+      (p) => p.state == OutboxState.waitingForSignIn,
     );
-    if (mounted && needs) setState(() => _needsSignIn = true);
+    if (mounted && needs != _needsSignIn) setState(() => _needsSignIn = needs);
   }
 
   Future<void> _openSignIn() async {
@@ -166,7 +161,12 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     );
     if (!mounted) return;
     final settings = await DatabaseService.getUserSettings();
-    setState(() => _needsSignIn = !settings.isAuthenticated);
+    // Signing in hides it at once; the outbox then sends what was waiting.
+    if (settings.isAuthenticated) {
+      setState(() => _needsSignIn = false);
+    } else {
+      await _refreshSignInBanner();
+    }
   }
 
   void _onCommunityData() {
@@ -192,9 +192,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   void dispose() {
     SyncService.instance.communityDataVersion.removeListener(_onCommunityData);
     SyncService.instance.sitesVersion.removeListener(_onSitesSynced);
-    SyncService.instance.sessionExpiredVersion.removeListener(
-      _onSessionExpired,
-    );
+    CheckinOutbox.instance.changes.removeListener(_refreshSignInBanner);
     _siteSearchController.dispose();
     _locationAnimController.dispose();
     _drawerAnimController.dispose();
@@ -1410,28 +1408,110 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _handleCheckin(SiteWithDistance siteWithDist) async {
-    final site = siteWithDist.site;
+    var target = siteWithDist;
     final messenger = ScaffoldMessenger.of(context);
-    final status = await showCheckinDialog(
+    final confirmation = confirmSite(
+      target.site,
+      DateTime.now(),
+      await _operationalNearYou(),
+    );
+    String? confirmMessage = confirmation?.message;
+    if (confirmation != null && confirmation.alternatives.isNotEmpty) {
+      if (!mounted) return;
+      final choice = await _showDidYouMean(target.site, confirmation);
+      if (choice == null) return;
+      // A different Site is Operational, so it checks in without confirming.
+      if (choice.site.siteId != target.site.siteId) {
+        target = choice;
+        confirmMessage = null;
+      }
+    }
+    if (!mounted) return;
+    final site = target.site;
+    final delivery = await showCheckinDialog(
       context,
       site: site,
-      distanceKm: siteWithDist.distanceKm,
+      distanceKm: target.distanceKm,
       position: _userPosition,
+      confirmMessage: confirmMessage,
     );
-    if (status == null) return;
+    if (delivery == null) return;
 
     messenger.showSnackBar(
       SnackBar(
-        content: Text(switch (status) {
-          PendingStatus.completed => 'Checked in to ${site.name}.',
-          PendingStatus.failed =>
-            'supercharging.life did not accept the check-in to ${site.name}.',
-          _ => 'Checked in to ${site.name}. Pending until it syncs.',
+        content: Text(switch (delivery) {
+          Delivery.sent => 'Checked in to ${site.name}.',
+          Delivery.waitingForSignIn =>
+            'Saved. Sign in to supercharging.life to send it.',
+          Delivery.waiting =>
+            'Checked in to ${site.name}. Pending until it sends.',
         }),
       ),
     );
     _closeDrawer();
     _loadSites();
+  }
+
+  /// Operational Sites within the check-in search radius of the user, nearest
+  /// first. Empty without a location fix.
+  Future<List<SiteWithDistance>> _operationalNearYou() async {
+    final position = _userPosition ?? LocationService.instance.cachedPosition;
+    if (position == null) return const [];
+    final settings = await DatabaseService.getUserSettings();
+    final nearby = await DatabaseService.getNearbySites(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      radiusKm: settings.checkinRadiusKm,
+      limit: 20,
+    );
+    return nearby.where((s) => isOperational(s.site.status)).toList();
+  }
+
+  /// "Did you mean?" for a Site that needs confirming. Returns the Site to
+  /// check in to ([site] itself for "No, check in here"), or null to cancel.
+  Future<SiteWithDistance?> _showDidYouMean(
+    Site site,
+    SiteConfirmation confirmation,
+  ) async {
+    final settings = await DatabaseService.getUserSettings();
+    if (!mounted) return null;
+    final here = SiteWithDistance(site: site, distanceKm: 0);
+    return showDialog<SiteWithDistance>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Did you mean?'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(confirmation.message),
+              const SizedBox(height: 8),
+              for (final alt in confirmation.alternatives)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(alt.site.name),
+                  subtitle: Text(
+                    formatDistance(alt.distanceKm, settings.unitSystem),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.pop(context, alt),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, here),
+            child: Text('No, check in at ${site.name}'),
+          ),
+        ],
+      ),
+    );
   }
 }
 
