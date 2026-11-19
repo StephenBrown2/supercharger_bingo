@@ -50,7 +50,7 @@ class WebBackgroundService {
   Future<void> _performSync() async {
     try {
       await SyncService.instance.syncSites();
-      await CheckinOutbox.instance.sendDue();
+      await CheckinOutbox.instance.sendDue(reason: 'web-timer');
       final hook = afterSync;
       if (hook != null) await hook();
     } catch (e) {

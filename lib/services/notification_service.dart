@@ -604,7 +604,7 @@ void backgroundSyncCallback() {
           longitude: fix?.longitude ?? saved.lastLongitude,
         );
         await SyncService.instance.syncCommunityData();
-        await CheckinOutbox.instance.sendDue();
+        await CheckinOutbox.instance.sendDue(reason: 'android-background');
         await NotificationService.instance.deliverBackgroundAlerts();
 
         return true;

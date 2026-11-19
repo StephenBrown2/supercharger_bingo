@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import '../database/database.dart';
 import 'api_service.dart';
 import 'checkin_form.dart';
+import 'checkin_log.dart';
 import 'checkin_writer.dart';
 import 'database_service.dart';
 import 'write_result.dart';
@@ -170,30 +171,66 @@ class CheckinOutbox {
       return id;
     });
     _changed();
+    CheckinLog.event('record', {
+      'visit': visitId,
+      'site': siteId,
+      'at': at,
+      'lat': latitude,
+      'lon': longitude,
+      'accuracy': accuracy,
+      'publicNoteChars': _blankToNull(notesPublic)?.length ?? 0,
+      'privateNoteChars': privateNote?.length ?? 0,
+      'vehicle': vehicleId != null,
+    });
 
+    final watch = Stopwatch()..start();
+    Delivery delivery;
     try {
       await _enqueue(() async {
         final entry = await _entry(visitId);
         // A sync that ran first may already have tried it.
-        if (entry != null && entry.attempts == 0) await _sendIfPossible(entry);
+        if (entry != null && entry.attempts == 0) {
+          await _sendIfPossible(entry, 'record');
+        }
       });
       final entry = await _entry(visitId);
-      if (entry == null) return Delivery.sent;
-      return entry.state == OutboxState.waitingForSignIn
+      delivery = entry == null
+          ? Delivery.sent
+          : entry.state == OutboxState.waitingForSignIn
           ? Delivery.waitingForSignIn
           : Delivery.waiting;
-    } catch (_) {
-      return Delivery.waiting;
+    } catch (e) {
+      CheckinLog.event('record.error', {'visit': visitId, 'error': '$e'});
+      delivery = Delivery.waiting;
     }
+    CheckinLog.event('record.delivery', {
+      'visit': visitId,
+      'delivery': delivery.name,
+      'ms': watch.elapsedMilliseconds,
+    });
+    return delivery;
   }
 
   /// Send every entry that is due: waiting past its backoff, waiting for a
   /// sign-in that may now exist, or interrupted mid-send.
-  Future<void> sendDue() => _enqueue(() async {
-    if (!_sendingEnabled || !await _isOnline()) return;
+  /// [reason] names what started it, for the check-in log.
+  Future<void> sendDue({String reason = 'unspecified'}) => _enqueue(() async {
+    final online = _sendingEnabled && await _isOnline();
+    final entries = await _db.select(_db.outboxEntries).get();
     final now = _now();
-    for (final entry in await _db.select(_db.outboxEntries).get()) {
-      if (_isDue(entry, now)) await _send(entry);
+    final due = entries.where((e) => _isDue(e, now)).toList();
+    if (entries.isNotEmpty) {
+      CheckinLog.event('sendDue', {
+        'reason': reason,
+        'sendingEnabled': _sendingEnabled,
+        'online': online,
+        'pending': entries.length,
+        'due': due.map((e) => e.visitId).toList(),
+      });
+    }
+    if (!online) return;
+    for (final entry in due) {
+      await _send(entry, reason);
     }
   });
 
@@ -215,8 +252,14 @@ class CheckinOutbox {
     final entry = await _entry(visitId);
     if (entry == null) return false;
     if (entry.state == OutboxState.sending && !_interrupted(entry, _now())) {
+      CheckinLog.event('remove.refused', {'visit': visitId});
       return false;
     }
+    CheckinLog.event('remove', {
+      'visit': visitId,
+      'state': entry.state.name,
+      'attempts': entry.attempts,
+    });
     final visit = await (_db.select(
       _db.visits,
     )..where((t) => t.id.equals(visitId))).getSingleOrNull();
@@ -228,7 +271,15 @@ class CheckinOutbox {
   /// Match the user's Visits from supercharging.life against local ones,
   /// settling any Sending entry whose Check-in turned up there.
   Future<void> settleFromImport(List<VisitsCompanion> imported) async {
+    final before = await pending();
     await _db.reconcileVisitIds(imported);
+    final after = await pending();
+    final settled = before.keys.where((id) => !after.containsKey(id)).toList();
+    CheckinLog.event('settleFromImport', {
+      'imported': imported.length,
+      'settled': settled,
+      'stillPending': after.length,
+    });
     _changed();
   }
 
@@ -247,20 +298,38 @@ class CheckinOutbox {
     return last == null || !now.isBefore(last.add(interruptedAfter));
   }
 
-  Future<void> _sendIfPossible(OutboxEntry entry) async {
-    if (!_sendingEnabled || !await _isOnline()) return;
-    await _send(entry);
+  Future<void> _sendIfPossible(OutboxEntry entry, String reason) async {
+    final online = _sendingEnabled && await _isOnline();
+    if (!online) {
+      CheckinLog.event('send.skipped', {
+        'visit': entry.visitId,
+        'reason': reason,
+        'sendingEnabled': _sendingEnabled,
+        'online': false,
+      });
+      return;
+    }
+    await _send(entry, reason);
   }
 
   /// One send attempt. The result is written to the entry; a send that throws
   /// leaves it waiting.
-  Future<void> _send(OutboxEntry entry) async {
+  Future<void> _send(OutboxEntry entry, String reason) async {
     final id = entry.visitId;
+    final watch = Stopwatch()..start();
     try {
       if (!await _isSignedIn()) {
+        CheckinLog.event('send.signedOut', {'visit': id, 'reason': reason});
         await _update(id, _waitForSignIn);
         return;
       }
+      CheckinLog.event('send.start', {
+        'visit': id,
+        'reason': reason,
+        'fromState': entry.state.name,
+        'attempt': entry.attempts + 1,
+        'lastAttemptAt': entry.lastAttemptAt,
+      });
       await _update(
         id,
         OutboxEntriesCompanion(
@@ -276,11 +345,18 @@ class CheckinOutbox {
         return;
       }
       final result = await _writer.submit(draft);
+      CheckinLog.event('send.result', {
+        'visit': id,
+        'outcome': result.outcome.name,
+        'message': result.message,
+        'ms': watch.elapsedMilliseconds,
+      });
       switch (result.outcome) {
         case WriteOutcome.accepted:
           await _delete(id);
         case WriteOutcome.needsSignIn:
           await _update(id, _waitForSignIn);
+          CheckinLog.event('session.expired', {'visit': id});
           await _markSessionExpired();
         case WriteOutcome.retry || WriteOutcome.rejected:
           await _update(
@@ -291,7 +367,12 @@ class CheckinOutbox {
             ),
           );
       }
-    } catch (_) {
+    } catch (e) {
+      CheckinLog.event('send.error', {
+        'visit': id,
+        'error': '$e',
+        'ms': watch.elapsedMilliseconds,
+      });
       await _update(
         id,
         OutboxEntriesCompanion(

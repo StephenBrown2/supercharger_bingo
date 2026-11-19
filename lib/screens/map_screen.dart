@@ -9,8 +9,10 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../database/database.dart';
 import '../services/api_service.dart';
+import '../services/checkin_log.dart';
 import '../services/checkin_outbox.dart';
 import '../services/database_service.dart';
+import '../services/life_time.dart' show formatCalendarDate;
 import '../services/location_service.dart';
 import '../services/site_navigation.dart';
 import '../services/site_confirmation.dart';
@@ -1416,9 +1418,37 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       await _operationalNearYou(),
     );
     String? confirmMessage = confirmation?.message;
+    final position = _userPosition;
+    final cached = LocationService.instance.cachedPosition;
+    CheckinLog.event('checkin.start', {
+      'site': target.site.siteId,
+      'name': target.site.name,
+      'status': target.site.status.name,
+      // A date-only value stored as UTC midnight; log the calendar day.
+      'opened': switch (target.site.firstOpeningDay) {
+        final d? => formatCalendarDate(d.toUtc()),
+        null => null,
+      },
+      'km': target.distanceKm,
+      'position': _positionForLog(position),
+      if (position == null) 'cachedPosition': _positionForLog(cached),
+      'confirm': confirmation?.message,
+      'alternatives': [
+        for (final alt in confirmation?.alternatives ?? <SiteWithDistance>[])
+          {'site': alt.site.siteId, 'km': alt.distanceKm},
+      ],
+    });
     if (confirmation != null && confirmation.alternatives.isNotEmpty) {
       if (!mounted) return;
       final choice = await _showDidYouMean(target.site, confirmation);
+      CheckinLog.event('checkin.didYouMean', {
+        'site': target.site.siteId,
+        'choice': choice == null
+            ? 'cancel'
+            : choice.site.siteId == target.site.siteId
+            ? 'here'
+            : choice.site.siteId,
+      });
       if (choice == null) return;
       // A different Site is Operational, so it checks in without confirming.
       if (choice.site.siteId != target.site.siteId) {
@@ -1435,7 +1465,10 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       position: _userPosition,
       confirmMessage: confirmMessage,
     );
-    if (delivery == null) return;
+    if (delivery == null) {
+      CheckinLog.event('checkin.cancel', {'site': site.siteId});
+      return;
+    }
 
     messenger.showSnackBar(
       SnackBar(
@@ -1451,6 +1484,17 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     _closeDrawer();
     _loadSites();
   }
+
+  /// A position for the check-in log: where, how sure, and how old.
+  static Map<String, Object?>? _positionForLog(Position? p) => p == null
+      ? null
+      : {
+          'lat': p.latitude,
+          'lon': p.longitude,
+          'accuracy': p.accuracy,
+          'ageSec': DateTime.now().difference(p.timestamp).inSeconds,
+          'mocked': p.isMocked,
+        };
 
   /// Operational Sites within the check-in search radius of the user, nearest
   /// first. Empty without a location fix.

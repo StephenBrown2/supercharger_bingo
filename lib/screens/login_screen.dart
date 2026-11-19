@@ -85,7 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       // Send check-ins that were waiting for sign-in now, not at the next
       // network change. Failures stay queued for the next sync.
-      CheckinOutbox.instance.sendDue().ignore();
+      CheckinOutbox.instance.sendDue(reason: 'sign-in').ignore();
       _finish();
     } catch (e) {
       if (mounted) {

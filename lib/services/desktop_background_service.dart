@@ -54,7 +54,7 @@ class DesktopBackgroundService {
       // Sync sites, then community First data, then flush pending checkins.
       await SyncService.instance.syncSites();
       await SyncService.instance.syncCommunityData();
-      await CheckinOutbox.instance.sendDue();
+      await CheckinOutbox.instance.sendDue(reason: 'desktop-timer');
       final hook = afterSync;
       if (hook != null) await hook();
     } catch (e) {

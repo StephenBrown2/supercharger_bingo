@@ -61,7 +61,7 @@ class SyncService {
       results,
     ) {
       if (results.any((r) => r != ConnectivityResult.none)) {
-        CheckinOutbox.instance.sendDue().ignore();
+        CheckinOutbox.instance.sendDue(reason: 'connectivity').ignore();
       }
     });
   }

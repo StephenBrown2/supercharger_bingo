@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:supercharger_bingo/database/database.dart';
 import 'package:supercharger_bingo/services/checkin_form.dart';
+import 'package:supercharger_bingo/services/checkin_log.dart';
 import 'package:supercharger_bingo/services/checkin_outbox.dart';
 import 'package:supercharger_bingo/services/checkin_writer.dart';
 import 'package:supercharger_bingo/services/write_result.dart';
@@ -34,6 +37,8 @@ class FakeSession {
   FakeSession({this.signedIn = true});
 }
 
+Directory? _logDir;
+
 /// An outbox over [db] built from fakes, also installed as the app's outbox.
 CheckinOutbox installTestOutbox(
   AppDatabase db, {
@@ -43,6 +48,9 @@ CheckinOutbox installTestOutbox(
   bool online = true,
   bool sendingEnabled = true,
 }) {
+  // Keep the check-in log out of the real documents folder.
+  CheckinLog.directory = () async =>
+      _logDir ??= Directory.systemTemp.createTempSync('checkin_log');
   final s = session ?? FakeSession();
   final outbox = CheckinOutbox(
     db: db,

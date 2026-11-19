@@ -4,10 +4,12 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart'
     show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:geolocator/geolocator.dart';
 
 import '../database/database.dart';
 import '../services/api_service.dart';
+import '../services/checkin_log.dart';
 import '../services/database_service.dart';
 import '../services/life_auth.dart';
 import '../services/location_service.dart';
@@ -480,6 +482,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   // Debug section
                   _buildSectionHeader(theme, 'Debug'),
                   ListTile(
+                    leading: const Icon(Icons.receipt_long),
+                    title: const Text('Copy check-in log'),
+                    subtitle: const Text(
+                      'Every check-in step, kept on this device',
+                    ),
+                    onTap: _copyCheckinLog,
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.playlist_remove),
+                    title: const Text('Clear check-in log'),
+                    subtitle: const Text(
+                      'Start a fresh log before a test drive',
+                    ),
+                    onTap: _clearCheckinLog,
+                  ),
+                  ListTile(
                     leading: const Icon(Icons.notification_add_outlined),
                     title: const Text('Send test notification'),
                     subtitle: const Text('Check that alerts reach this device'),
@@ -680,6 +698,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  /// Copies the field log of check-ins (see CheckinLog) to paste elsewhere.
+  Future<void> _copyCheckinLog() async {
+    final log = await CheckinLog.read();
+    if (!mounted) return;
+    final lines = log.trim().isEmpty ? 0 : log.trim().split('\n').length;
+    if (lines > 0) await Clipboard.setData(ClipboardData(text: log));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          lines == 0
+              ? 'The check-in log is empty'
+              : 'Copied $lines check-in log lines',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _clearCheckinLog() async {
+    await CheckinLog.clear();
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Check-in log cleared')));
   }
 
   Future<void> _sendTestNotification() async {

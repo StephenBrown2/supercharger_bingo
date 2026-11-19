@@ -6,6 +6,8 @@ import 'screens/app_shell.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/setup_screen.dart';
+import 'services/checkin_log.dart';
+import 'services/checkin_outbox.dart';
 import 'services/database_service.dart';
 import 'services/nearest_site_service.dart';
 import 'services/notification_service.dart';
@@ -23,6 +25,14 @@ void main() async {
   SyncService.instance.initialize();
 
   final settings = await DatabaseService.getUserSettings();
+  CheckinLog.event('app.start', {
+    'web': kIsWeb,
+    'signedIn': settings.isAuthenticated,
+    'pending': await CheckinOutbox.instance.pending().then(
+      (p) => p.length,
+      onError: (_) => -1,
+    ),
+  });
   runApp(SuperchargerBingoApp(initialAppearance: settings.appAppearance));
 }
 

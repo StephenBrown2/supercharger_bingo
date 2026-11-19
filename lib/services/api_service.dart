@@ -10,6 +10,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../database/database.dart';
 import '../models/supercharge_info.dart';
 import 'checkin_form.dart';
+import 'checkin_log.dart';
 import 'life_auth.dart';
 import 'life_time.dart';
 import 'write_result.dart';
@@ -331,6 +332,7 @@ class ApiService {
     // treats as a send that was attempted.
     final cancel = CancelToken();
     final timer = Timer(const Duration(seconds: 15), cancel.cancel);
+    final watch = Stopwatch()..start();
     try {
       final response = await _dio.post(
         '$superchargingLifeBaseUrl/supercharging/checkin.php',
@@ -340,19 +342,41 @@ class ApiService {
         // would throw, so read the Location header instead.
         options: Options(followRedirects: false, validateStatus: (_) => true),
       );
-      return writeResultFromHttp(
+      final body = response.data?.toString();
+      final location = response.headers.value('location');
+      final result = writeResultFromHttp(
         statusCode: response.statusCode,
-        body: response.data?.toString(),
-        finalUri:
-            response.headers.value('location') ?? response.realUri.toString(),
+        body: body,
+        finalUri: location ?? response.realUri.toString(),
       );
+      CheckinLog.event('http.checkin', {
+        'site': draft.siteId,
+        'status': response.statusCode,
+        'location': location,
+        'bodyChars': body?.length ?? 0,
+        // The form normally redirects; any other body is worth reading.
+        if (location == null) 'bodyStart': _logSnippet(body),
+        'outcome': result.outcome.name,
+        'ms': watch.elapsedMilliseconds,
+      });
+      return result;
     } on DioException catch (e) {
-      return writeResultFromHttp(
+      final result = writeResultFromHttp(
         statusCode: e.response?.statusCode,
         body: '${e.response?.data ?? ''} ${e.message ?? ''}',
         finalUri:
             e.response?.realUri.toString() ?? e.requestOptions.uri.toString(),
       );
+      CheckinLog.event('http.checkin', {
+        'site': draft.siteId,
+        'dioError': e.type.name,
+        'timedOut': cancel.isCancelled,
+        'status': e.response?.statusCode,
+        'message': e.message,
+        'outcome': result.outcome.name,
+        'ms': watch.elapsedMilliseconds,
+      });
+      return result;
     } finally {
       timer.cancel();
     }
@@ -598,4 +622,11 @@ class SuperchargePage<T> {
   final int recordCount;
 
   const SuperchargePage({required this.results, required this.recordCount});
+}
+
+/// The first 300 characters of [body] on one line, for the check-in log.
+String? _logSnippet(String? body) {
+  if (body == null) return null;
+  final flat = body.replaceAll(RegExp(r'\s+'), ' ').trim();
+  return flat.length <= 300 ? flat : flat.substring(0, 300);
 }
