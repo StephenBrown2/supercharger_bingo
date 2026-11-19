@@ -111,6 +111,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       } else {
         headingController.add(null);
       }
+      _onLiveFix(pos);
     });
     _locationAnimController = AnimationController(
       vsync: this,
@@ -1172,6 +1173,34 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       ),
       child: const Icon(Icons.ev_station, color: Colors.green),
     );
+  }
+
+  /// Moves the open nearby list to a live fix that arrives after it loaded:
+  /// a start from a stale last-known position, or a real move.
+  // ponytail: a 200 m move reselects the closest Site; keep the user's pick
+  // if that ever interrupts a check-in.
+  void _onLiveFix(Position pos) {
+    if (!mounted || !_showCheckinDrawer || _siteFocused || _isLoadingLocation) {
+      return;
+    }
+    final at = _userPosition;
+    // A list the user switched to search stays on search.
+    if (at != null && _searchAll) return;
+    if (at != null &&
+        Geolocator.distanceBetween(
+              at.latitude,
+              at.longitude,
+              pos.latitude,
+              pos.longitude,
+            ) <
+            200) {
+      return;
+    }
+    setState(() {
+      _userPosition = pos;
+      _locationError = null;
+    });
+    _loadNearbySites();
   }
 
   Future<void> _fetchLocationForCheckin() async {

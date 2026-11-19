@@ -109,8 +109,10 @@ class LocationService {
     return true;
   }
 
-  /// Get current position - tries GeoClue first on Linux, falls back to IP geolocation
-  /// Uses cached position if available and not expired
+  /// Current position, or the cached one if still fresh. Devices with real
+  /// location never use IP geolocation, which can be hundreds of km off: a
+  /// slow fix falls back to the last known GPS position. Only Linux desktop,
+  /// where GeoClue is often missing, falls back to IP.
   Future<Position?> getCurrentPosition({bool forceRefresh = false}) async {
     // Return cached position if available and not forcing refresh
     if (!forceRefresh && cachedPosition != null) {
@@ -151,7 +153,7 @@ class LocationService {
         position = await _getPositionFromIP();
       }
     } else {
-      // On other platforms, use standard geolocator with 2s fallback to IP
+      // Fast fix for the UI, else the last known GPS position.
       final hasPermission = await checkPermission();
       if (!hasPermission) return null;
       try {
@@ -165,26 +167,32 @@ class LocationService {
             ).timeout(
               const Duration(seconds: 2),
               onTimeout: () {
-                debugPrint(
-                  'LocationService: Geolocator timed out (2s), falling back to IP',
-                );
+                debugPrint('LocationService: Geolocator timed out (2s)');
                 throw Exception('Geolocator timeout');
               },
             );
       } catch (e) {
         debugPrint('LocationService: Geolocator failed/timeout: $e');
-        // IP location is too imprecise for the car and this endpoint is HTTP.
-        if (!kIsWeb) position = await _getPositionFromIP();
+        try {
+          position = await Geolocator.getLastKnownPosition();
+          debugPrint(
+            'LocationService: last known ${position?.latitude}, '
+            '${position?.longitude} at ${position?.timestamp}',
+          );
+        } catch (_) {
+          // Web and some platforms have no last known position.
+        }
       }
     }
 
-    // Cache the position
-    if (position != null) {
-      _cachedPosition = position;
-      _cacheTimestamp = DateTime.now();
-    }
+    if (position != null) _remember(position);
 
     return position;
+  }
+
+  void _remember(Position position) {
+    _cachedPosition = position;
+    _cacheTimestamp = DateTime.now();
   }
 
   /// Get position from IP-based geolocation service
@@ -269,7 +277,7 @@ class LocationService {
 
   /// Unified position stream:
   /// - Uses Geolocator stream when available
-  /// - On desktop/non-mobile where geolocator may be silent, polls IP-based
+  /// - On Linux desktop, where geolocator may be silent, polls IP-based
   ///   location every 10 seconds (staying under 45 req/min ip-api limit)
   Stream<Position> unifiedPositionStream() {
     final controller = StreamController<Position>.broadcast();
@@ -285,7 +293,9 @@ class LocationService {
     void startIpPolling() {
       ipTimer ??= Timer.periodic(const Duration(seconds: 10), (_) async {
         final pos = await _getPositionFromIP();
-        if (pos != null) emit(pos);
+        if (pos == null) return;
+        _remember(pos);
+        emit(pos);
       });
     }
 
@@ -297,13 +307,15 @@ class LocationService {
     // Subscribe to geolocator stream
     geoSub = getPositionStream().listen(
       (pos) {
-        // On any geolocator update, forward and stop IP fallback
+        // On any geolocator update, forward and stop IP fallback. Caching it
+        // keeps the check-in list on the live fix, not one up to 5 min old.
         stopIpPolling();
+        _remember(pos);
         emit(pos);
       },
       onError: (_) {
-        // If geolocator errors, ensure IP fallback is running
-        startIpPolling();
+        // Only Linux desktop falls back to IP; real location never does.
+        if (isLinuxDesktop) startIpPolling();
       },
     );
 
