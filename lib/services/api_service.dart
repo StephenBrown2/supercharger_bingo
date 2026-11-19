@@ -359,8 +359,7 @@ class ApiService {
         'location': location,
         'checkinId': checkinId,
         'bodyChars': body?.length ?? 0,
-        // The form normally redirects; any other body is worth reading.
-        if (location == null) 'bodyStart': _logSnippet(body),
+        'body': _logBody(body),
         'outcome': result.outcome.name,
         'ms': watch.elapsedMilliseconds,
       });
@@ -378,6 +377,7 @@ class ApiService {
         'timedOut': cancel.isCancelled,
         'status': e.response?.statusCode,
         'message': e.message,
+        'body': _logBody(e.response?.data?.toString()),
         'outcome': result.outcome.name,
         'ms': watch.elapsedMilliseconds,
       });
@@ -630,8 +630,11 @@ class SuperchargePage<T> {
 }
 
 /// The first 300 characters of [body] on one line, for the check-in log.
-String? _logSnippet(String? body) {
+// ponytail: 64 KB cap per entry keeps one page from flushing the 256 KB log;
+// raise it or log to its own file if a full page is ever needed.
+String? _logBody(String? body) {
   if (body == null) return null;
   final flat = body.replaceAll(RegExp(r'\s+'), ' ').trim();
-  return flat.length <= 300 ? flat : flat.substring(0, 300);
+  const max = 64 * 1024;
+  return flat.length <= max ? flat : '${flat.substring(0, max)}[truncated]';
 }
