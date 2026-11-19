@@ -740,16 +740,15 @@ class AppDatabase extends _$AppDatabase {
     return (select(sites)..where((t) => t.visited.equals(true))).get();
   }
 
-  /// Unvisited OPEN sites, plus CONSTRUCTION when asked. Re-emits whenever
-  /// the sites table changes, such as after a check-in.
-  Stream<List<Site>> watchUnvisitedSites({required bool includeConstruction}) {
+  /// Unvisited OPEN sites, plus CONSTRUCTION when asked.
+  Future<List<Site>> unvisitedSites({required bool includeConstruction}) {
     final statuses = [
       SiteStatus.open.name,
       if (includeConstruction) SiteStatus.construction.name,
     ];
     return (select(
       sites,
-    )..where((t) => t.status.isIn(statuses) & t.visited.equals(false))).watch();
+    )..where((t) => t.status.isIn(statuses) & t.visited.equals(false))).get();
   }
 
   /// Unvisited OPEN sites that supercharging.life shows as NACS.

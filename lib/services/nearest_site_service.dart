@@ -1,7 +1,11 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 
+import 'dart:ui' show DartPluginRegistrant;
+
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -62,33 +66,19 @@ String chipDistance(double km, UnitSystem units) {
   return '$number $unit';
 }
 
-/// Android Live Update showing the nearest unvisited site while the app runs.
-/// A location foreground service keeps the position stream alive when the
-/// app is in the background. Swiping the app away stops it (stopWithTask).
+/// Starts and stops the Android Live Update showing the nearest unvisited
+/// site. The work runs in NearestSiteEngineService, a location foreground
+/// service with its own Flutter engine running [nearestSiteMain], so it keeps
+/// updating after Back closes the app. Swiping the app away stops it
+/// (stopWithTask).
 class NearestSiteService {
   static final NearestSiteService instance = NearestSiteService._();
   NearestSiteService._();
 
+  static const _service = MethodChannel('supercharger_bingo/nearest_site');
   final _plugin = FlutterLocalNotificationsPlugin();
-  StreamSubscription<Position>? _positionSub;
-  StreamSubscription<List<Site>>? _sitesSub;
-  List<Site>? _sites;
-  Position? _position;
-  UnitSystem _units = UnitSystem.imperial;
-  String? _lastShown;
-
-  /// The running filter, or null when stopped.
-  bool? _includeConstruction;
-
-  /// Whether the Live Update is showing.
-  bool get running => _includeConstruction != null;
 
   bool get _supported => !kIsWeb && Platform.isAndroid;
-
-  AndroidFlutterLocalNotificationsPlugin? get _android => _plugin
-      .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin
-      >();
 
   /// Start, restart, or stop to match [settings]. Safe to call after any
   /// settings save. Call from the foreground: Android only lets a location
@@ -99,90 +89,101 @@ class NearestSiteService {
 
   Future<void> _sync(UserSettingsTableData settings) async {
     if (!_supported) return;
-    _units = settings.unitSystem;
-    final want = settings.nearestSiteLiveUpdate
-        ? settings.nearestSiteIncludeConstruction
-        : null;
-    if (want != null && want == _includeConstruction) {
-      _update(); // Units may have changed.
+    if (!settings.nearestSiteLiveUpdate ||
+        !await LocationService.instance.checkPermission()) {
+      await _service.invokeMethod<void>('stop');
       return;
     }
-    await stop();
-    if (want == null) return;
-    if (!await LocationService.instance.checkPermission()) return;
-    _includeConstruction = want;
+    await _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(
+          const AndroidNotificationChannel(
+            nearestSiteChannelId,
+            'Nearest Unvisited Site',
+            description: 'Distance to the closest unvisited Supercharger',
+            // Low keeps it silent. Live Updates only rule out minimum
+            // importance.
+            importance: Importance.low,
+          ),
+        );
+    // The service only restarts its engine when this changes, so opening the
+    // app again leaves a running update alone.
+    await _service.invokeMethod<void>('start', {
+      'id': _notificationId,
+      'key':
+          '${settings.nearestSiteIncludeConstruction}|'
+          '${settings.unitSystem.name}',
+    });
+  }
+}
 
-    await _android?.createNotificationChannel(
-      const AndroidNotificationChannel(
-        nearestSiteChannelId,
-        'Nearest Unvisited Site',
-        description: 'Distance to the closest unvisited Supercharger',
-        // Low keeps it silent. Live Updates only rule out minimum importance.
-        importance: Importance.low,
+/// Entry point for NearestSiteEngineService's engine. It reads the settings
+/// once; a change restarts the engine.
+@pragma('vm:entry-point')
+Future<void> nearestSiteMain() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  DartPluginRegistrant.ensureInitialized();
+  await DatabaseService.initialize();
+  final settings = await DatabaseService.db.getUserSettings();
+  await _LiveUpdate(settings).start();
+}
+
+class _LiveUpdate {
+  _LiveUpdate(this._settings);
+  final UserSettingsTableData _settings;
+  final _plugin = FlutterLocalNotificationsPlugin();
+  String? _lastShown;
+
+  Future<void> start() async {
+    await _plugin.initialize(
+      settings: const InitializationSettings(
+        android: AndroidInitializationSettings('ic_stat_bolt'),
       ),
     );
-    await _show(
-      title: 'Nearest unvisited site',
-      body: 'Finding your location…',
+    LocationService.instance.getPositionStream().listen(
+      _update,
+      onError: (Object e) => debugPrint('NearestSiteService: $e'),
     );
-
-    _sitesSub = DatabaseService.db
-        .watchUnvisitedSites(includeConstruction: want)
-        .listen((sites) {
-          _sites = sites;
-          _update();
-        });
-    _positionSub = LocationService.instance.getPositionStream().listen((
-      position,
-    ) {
-      _position = position;
-      _update();
-    }, onError: (Object e) => debugPrint('NearestSiteService: $e'));
   }
 
-  Future<void> stop() async {
-    await _positionSub?.cancel();
-    await _sitesSub?.cancel();
-    _positionSub = null;
-    _sitesSub = null;
-    _sites = null;
-    _position = null;
-    _lastShown = null;
-    _includeConstruction = null;
-    if (_supported) await _android?.stopForegroundService();
-  }
-
-  void _update() {
-    final sites = _sites;
-    final position = _position;
-    if (sites == null || position == null) return;
+  Future<void> _update(Position position) async {
+    // ponytail: re-reads sites on each fix (every 50 m) because this engine's
+    // database connection doesn't see the app's writes, such as a check-in.
+    // Fine for a few thousand rows.
+    final sites = await DatabaseService.db.unvisitedSites(
+      includeConstruction: _settings.nearestSiteIncludeConstruction,
+    );
+    final units = _settings.unitSystem;
     final nearest = findNearestSite(
       sites,
       position.latitude,
       position.longitude,
     );
     if (nearest == null) {
-      _show(
+      await _show(
         title: 'No unvisited sites',
         body: 'Every site in the filter is visited',
       );
       return;
     }
     final site = nearest.site;
-    final distance = formatDistance(nearest.km, _units);
+    final distance = formatDistance(nearest.km, units);
     final construction = site.status == SiteStatus.construction
         ? ' · Under construction'
         : '';
     final direction = compassPoint(nearest.bearing);
-    _show(
+    await _show(
       title: site.name,
       body: '$distance $direction$construction',
-      chip: chipDistance(nearest.km, _units),
+      chip: chipDistance(nearest.km, units),
       icon: compassIcon(direction),
       siteId: site.siteId,
     );
   }
 
+  /// Replaces the service's placeholder notification, which shares its id.
   Future<void> _show({
     required String title,
     required String body,
@@ -195,38 +196,35 @@ class NearestSiteService {
     final key = '$title|$body';
     if (key == _lastShown) return;
     _lastShown = key;
-    await _android?.startForegroundService(
+    await _plugin.show(
       id: _notificationId,
       title: title,
       body: body,
       payload: siteId == null ? null : 'site:$siteId',
-      // Sticky would restart with no notification data after a process kill.
-      startType: AndroidServiceStartType.startNotSticky,
-      foregroundServiceTypes: {
-        AndroidServiceForegroundType.foregroundServiceTypeLocation,
-      },
-      notificationDetails: AndroidNotificationDetails(
-        nearestSiteChannelId,
-        'Nearest Unvisited Site',
-        icon: icon,
-        ongoing: true,
-        autoCancel: false,
-        onlyAlertOnce: true,
-        silent: true,
-        showWhen: false,
-        category: AndroidNotificationCategory.navigation,
-        requestPromotedOngoing: true,
-        shortCriticalText: chip,
-        actions: [
-          if (siteId != null)
-            const AndroidNotificationAction(
-              navigateActionId,
-              'Navigate',
-              showsUserInterface: true,
-              // The service owns this notification; leave it up.
-              cancelNotification: false,
-            ),
-        ],
+      notificationDetails: NotificationDetails(
+        android: AndroidNotificationDetails(
+          nearestSiteChannelId,
+          'Nearest Unvisited Site',
+          icon: icon,
+          ongoing: true,
+          autoCancel: false,
+          onlyAlertOnce: true,
+          silent: true,
+          showWhen: false,
+          category: AndroidNotificationCategory.navigation,
+          requestPromotedOngoing: true,
+          shortCriticalText: chip,
+          actions: [
+            if (siteId != null)
+              const AndroidNotificationAction(
+                navigateActionId,
+                'Navigate',
+                showsUserInterface: true,
+                // The service owns this notification; leave it up.
+                cancelNotification: false,
+              ),
+          ],
+        ),
       ),
     );
   }

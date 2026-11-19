@@ -47,7 +47,7 @@ void main() {
     expect(chipDistance(200, UnitSystem.imperial), '124 mi');
   });
 
-  test('watchUnvisitedSites filters open and optional construction', () async {
+  test('unvisitedSites filters open and optional construction', () async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
     Future<void> add(int id, SiteStatus status, {bool visited = false}) =>
@@ -64,11 +64,9 @@ void main() {
     await add(3, SiteStatus.open, visited: true);
     await add(4, SiteStatus.permit);
 
-    Future<List<int>> ids(bool construction) async =>
-        (await db.watchUnvisitedSites(includeConstruction: construction).first)
-            .map((s) => s.siteId)
-            .toList()
-          ..sort();
+    Future<List<int>> ids(bool construction) async => (await db.unvisitedSites(
+      includeConstruction: construction,
+    )).map((s) => s.siteId).toList()..sort();
     expect(await ids(false), [1]);
     expect(await ids(true), [1, 2]);
   });

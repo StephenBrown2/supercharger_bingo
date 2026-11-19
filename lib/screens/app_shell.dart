@@ -1,7 +1,5 @@
-import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../services/nearest_site_service.dart';
 import '../services/notification_service.dart';
 import 'map_screen.dart';
 import 'settings_screen.dart';
@@ -21,7 +19,6 @@ class _AppShellState extends State<AppShell> {
   // Bumped on each visit to the tab, so the list reloads.
   int _visitsOpens = 0;
   final GlobalKey<MapScreenState> _mapKey = GlobalKey();
-  static const _app = MethodChannel('supercharger_bingo/app');
 
   @override
   void initState() {
@@ -54,43 +51,6 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  /// Back destroys the Dart side, which would leave the nearest site Live
-  /// Update frozen. While it runs, ask whether to keep it running in the
-  /// background (like Home) or stop it and close the app.
-  Future<void> _onBack(bool didPop, Object? _) async {
-    if (didPop) return;
-    final service = NearestSiteService.instance;
-    if (service.running) {
-      final close = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Keep running?'),
-          content: const Text(
-            'Closing the app will stop the live update notification. Do you '
-            'want to leave the app running in the background?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Close App'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Keep Running'),
-            ),
-          ],
-        ),
-      );
-      if (close == null) return; // Dismissed: stay in the app.
-      if (!close) {
-        await _app.invokeMethod<void>('moveToBack');
-        return;
-      }
-    }
-    await service.stop();
-    await SystemNavigator.pop();
-  }
-
   void _onDrawerClosed() {
     setState(() {
       _showCheckinDrawer = false;
@@ -114,14 +74,6 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: _onBack,
-      child: _scaffold(),
-    );
-  }
-
-  Widget _scaffold() {
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,

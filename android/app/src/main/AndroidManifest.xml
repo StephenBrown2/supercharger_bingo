@@ -36,11 +36,11 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <!-- flutter_local_notifications foreground service for the nearest
-             site Live Update. stopWithTask ends it when the app is swiped
-             away, since the Dart side that updates it goes too. -->
+        <!-- Nearest site Live Update. It runs its own Flutter engine, so the
+             update outlives Back. stopWithTask ends it when the app is
+             swiped away. -->
         <service
-            android:name="com.dexterous.flutterlocalnotifications.ForegroundService"
+            android:name=".NearestSiteEngineService"
             android:exported="false"
             android:stopWithTask="true"
             android:foregroundServiceType="location" />
