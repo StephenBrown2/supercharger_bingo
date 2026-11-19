@@ -108,6 +108,17 @@ void main() {
       isOpeningChange(_parsed(id: 4, changeType: 'UPDATE', siteStatus: 'OPEN')),
       isFalse,
     );
+    // supercharging.life shows EXPANDING as OPEN: an expansion is never new.
+    for (final (prev, now) in [('EXPANDING', 'OPEN'), ('OPEN', 'EXPANDING')]) {
+      final change = _parsed(
+        id: 6,
+        changeType: 'UPDATE',
+        siteStatus: now,
+        prevStatus: prev,
+      );
+      expect(change.siteStatus, Status.OPEN);
+      expect(isOpeningChange(change), isFalse);
+    }
     expect(
       isOpeningChange(
         _parsed(id: 5, changeType: 'ADD', siteStatus: 'CONSTRUCTION'),

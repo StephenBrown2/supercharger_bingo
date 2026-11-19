@@ -522,8 +522,6 @@ class ApiService {
     switch (status) {
       case Status.OPEN:
         return SiteStatus.open;
-      case Status.EXPANDING:
-        return SiteStatus.expanding;
       case Status.CONSTRUCTION:
         return SiteStatus.construction;
       case Status.PERMIT:
@@ -543,8 +541,6 @@ class ApiService {
     switch (status) {
       case SiteStatus.open:
         return 'OPEN';
-      case SiteStatus.expanding:
-        return 'EXPANDING';
       case SiteStatus.construction:
         return 'CONSTRUCTION';
       case SiteStatus.permit:
@@ -560,15 +556,15 @@ class ApiService {
     }
   }
 
-  /// Map a supercharge.info status string to the authoritative 8-value enum.
+  /// Map a supercharge.info status string to the app's status enum.
   /// Returns null for null/unrecognized values (caller skips the site).
   @visibleForTesting
   static SiteStatus? parseSiteStatus(String? status) {
     switch (status?.toUpperCase()) {
+      // supercharging.life shows an EXPANDING site as OPEN, and so do we.
       case 'OPEN':
-        return SiteStatus.open;
       case 'EXPANDING':
-        return SiteStatus.expanding;
+        return SiteStatus.open;
       case 'CONSTRUCTION':
         return SiteStatus.construction;
       case 'PERMIT':

@@ -30,18 +30,20 @@ void main() {
   final nearby = [
     near(site(10, SiteStatus.construction), 0.1),
     near(site(11, SiteStatus.open), 0.2),
-    near(site(12, SiteStatus.expanding), 0.3),
+    near(site(12, SiteStatus.open), 0.3),
     near(site(13, SiteStatus.open), 0.4),
     near(site(14, SiteStatus.open), 0.5),
   ];
 
   test('an Operational Site that has opened goes ahead', () {
-    for (final status in [SiteStatus.open, SiteStatus.expanding]) {
-      expect(
-        confirmSite(site(1, status, opened: DateTime.utc(2020)), now, nearby),
-        isNull,
-      );
-    }
+    expect(
+      confirmSite(
+        site(1, SiteStatus.open, opened: DateTime.utc(2020)),
+        now,
+        nearby,
+      ),
+      isNull,
+    );
   });
 
   for (final (status, phrase) in [

@@ -14,7 +14,7 @@ Status: Complete for the POC sources below.
 
 ### 2.1 supercharge.info API
 
-Status: Complete. Region-scoped sync, the eight statuses, one shared site model, and IANA timezones are in place. Country and state are not sent as request filters.
+Status: Complete. Region-scoped sync, the seven stored statuses, one shared site model, and IANA timezones are in place. Country and state are not sent as request filters.
 
 Schema and behavior are taken from the supercharge-info/supercharge.info-api repository.
 See https://github.com/supercharge-info/supercharge.info-api/tree/e61485e11d8a3f4204ef77720e63aee9d308ada2/service-war/src/main/java/com/redshiftsoft/tesla/web/mvc
@@ -25,7 +25,7 @@ Two endpoints matter:
 
 **Region filtering:** requests must be scoped by region (and ideally country/state) based on the user's location to keep response sizes down. The allSites payload is large; pulling the whole planet on every sync is wasteful.
 
-**Status enum (authoritative, 8 values):** `OPEN`, `EXPANDING`, `CONSTRUCTION`, `PERMIT`, `PLAN`, `VOTING`, `CLOSED_TEMP`, `CLOSED_PERM`. This replaces the four-value guess in v0.1. See Section 5 for how each status maps to behavior.
+**Status enum (7 stored values):** `OPEN`, `CONSTRUCTION`, `PERMIT`, `PLAN`, `VOTING`, `CLOSED_TEMP`, `CLOSED_PERM`. supercharge.info also sends `EXPANDING` for an open site that is adding stalls; supercharging.life shows those sites as OPEN, so the app reads `EXPANDING` as `OPEN` and never stores it. An expansion is never a new site and never reopens a First. This replaces the four-value guess in v0.1. See Section 5 for how each status maps to behavior.
 
 **Enum consolidation:** the auto-generated Dart has duplicated `EnumValues`, `Country`, `Region`, `Status`, `Address`, `Gps`, and `Stalls` definitions across the allSites and allChanges files. Consolidate into one shared models library before building on it.
 
@@ -54,7 +54,7 @@ Store only the minimum needed for app operation, not the full API record. The su
 | region, country | string | Kept for region-scoped sync and filtering |
 | lat, lon | float | Needed for map, distance, timezone derivation |
 | timezone | string | IANA, derived at ingestion |
-| status | enum | 8-value supercharge.info status |
+| status | enum | supercharge.info status, EXPANDING read as OPEN |
 | date_opened | date, nullable | Date only, no time |
 | has_first | bool | Any community First recorded |
 | first_date | date, nullable | Site-local date of the earliest qualifying check-in, drives pin color |
@@ -120,11 +120,11 @@ Status: Complete. The filter list below is the written target. The app follows s
 
 ### Status to behavior
 
-Status: Complete. OPEN and EXPANDING stay operational for check-in and pin color. The Tesla EV (Open) and Non-Tesla EV (Open) map filters are OPEN only, matching supercharging.life.
+Status: Complete. EXPANDING is read as OPEN, as supercharging.life shows it, so expanding sites are Operational everywhere: check-in, First, alerts, pins and every Open filter.
 
-The 8 statuses map to behavior as follows:
+The 7 stored statuses map to behavior as follows:
 
-- **Operational (chargeable, eligible for check-in and First):** OPEN, EXPANDING. EXPANDING behaves identically to OPEN.
+- **Operational (chargeable, eligible for check-in and First):** OPEN, which includes supercharge.info's EXPANDING. "Open" in a filter name means Operational.
 - **Construction:** CONSTRUCTION. Visible, not chargeable. Shown in the Unvisited + Construction filter.
 - **Permit:** PERMIT. Visible only under All (or when explicitly selected). Not included in Unvisited + Construction by default, since it is uncertain whether the site will materialize.
 - **Not displayed unless explicitly selected:** PLAN, VOTING. There is no site to check in to yet, so these are irrelevant to normal views and hidden by default.
@@ -138,7 +138,7 @@ Five top-level filters:
 
 - **Tesla EV (Open), default:** OPEN sites with no check-in by the current user.
 - **Non-Tesla EV (Open):** OPEN, unvisited sites with `otherEVs` enabled.
-- **Open + Construction:** OPEN or CONSTRUCTION sites with no check-in. Does not include EXPANDING, PERMIT, PLAN, or VOTING.
+- **Open + Construction:** OPEN or CONSTRUCTION sites with no check-in. Does not include PERMIT, PLAN, or VOTING.
 - **Visited:** any site the current user has checked into, regardless of status.
 - **All:** every site regardless of status, including PERMIT, PLAN, VOTING, and both closed states.
 
@@ -170,7 +170,7 @@ Modeled on the live supercharging.life check-in form, with two deliberate change
 2. Show the 10 closest sites, closest preselected, each formatted as `name (status) (distance)`. Distance uses the user's unit preference (Section 7).
 3. For each listed site, show the user's most recent check-in there if one exists, otherwise "No previous check-in." This is the addition beyond the current web form.
 4. Date defaults to the current timestamp. Optional public note and private note. Optional vehicle selection (defaults to last used).
-5. Site confirmation. A check-in dated before the site's opening date, or at a site that is not Operational (OPEN or EXPANDING), first offers up to three Operational sites within the check-in search radius ("Did you mean?"). Choosing "No, check in here" (or having no alternatives or no location fix) opens the form with the reason at the top and a required public note explaining it. Nothing is recorded until the user confirms. The opening date is checked first, then the status.
+5. Site confirmation. A check-in dated before the site's opening date, or at a site that is not Operational (OPEN), first offers up to three Operational sites within the check-in search radius ("Did you mean?"). Choosing "No, check in here" (or having no alternatives or no location fix) opens the form with the reason at the top and a required public note explaining it. Nothing is recorded until the user confirms. The opening date is checked first, then the status.
 6. Write locally with a full timestamp and the device timezone, then send at once. A failed send stays Pending and is retried; it never blocks the form for more than about 15 seconds.
 
 Fields carried over from the live form: Supercharger picker, link to search all locations, Date (current timestamp), Notes (Private), Notes (Public). Deferred: the post-save navigation dropdown.
@@ -229,7 +229,7 @@ The full request to supercharging.life, covering the OAuth authorization layer o
 
 ## 10. Notifications
 
-Status: Complete for local alerts. New-site alerts come from allChanges ADD and UPDATE-to-OPEN inside the radius, not from dateOpened. First alerts use the yellow First-today window only, once per site-local day. The first poll records the change cursor and does not dump history. Alerts do not require a supercharging.life session. Server-pushed notifications are deferred.
+Status: Complete for local alerts. New-site alerts come from allChanges ADD and UPDATE-to-OPEN inside the radius, not from dateOpened. EXPANDING reads as OPEN, so an expansion starting or finishing never alerts. First alerts use the yellow First-today window only, once per site-local day. The first poll records the change cursor and does not dump history. Alerts do not require a supercharging.life session. Server-pushed notifications are deferred.
 
 In scope, using background sync (Workmanager on mobile, platform services on desktop/web). Two local channels:
 

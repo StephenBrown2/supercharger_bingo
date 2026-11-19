@@ -265,12 +265,20 @@ void main() {
       await db.migration.onUpgrade(Migrator(db), 13, 14);
     });
 
-    test('site persists new enum value and derived timezone column', () async {
+    test('v21 reads a stored EXPANDING Site as OPEN', () async {
+      await db.customStatement(
+        "INSERT INTO sites (site_id, name, status) VALUES (7, 'Grow', 'expanding')",
+      );
+      await db.migration.onUpgrade(Migrator(db), 20, 21);
+      expect((await db.getSiteBySiteId(7))!.status, SiteStatus.open);
+    });
+
+    test('site persists closed status and derived timezone column', () async {
       await db.upsertSite(
         SitesCompanion.insert(
           siteId: 42,
           name: 'Test Site',
-          status: const Value(SiteStatus.expanding),
+          status: const Value(SiteStatus.closedTemp),
           latitude: const Value(40.0),
           longitude: const Value(-105.0),
           timezone: const Value('America/Denver'),
@@ -279,7 +287,7 @@ void main() {
 
       final site = await db.getSiteBySiteId(42);
       expect(site, isNotNull);
-      expect(site!.status, SiteStatus.expanding);
+      expect(site!.status, SiteStatus.closedTemp);
       expect(site.timezone, 'America/Denver');
     });
 

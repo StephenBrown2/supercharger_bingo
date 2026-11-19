@@ -17,7 +17,7 @@ void main() {
     test('First states are green, sky blue, and a plain red Open', () {
       expect(style(SiteStatus.open).color, LifePin.green);
       expect(style(SiteStatus.open).glyph, Icons.circle_outlined);
-      final today = style(SiteStatus.expanding, FirstState.today);
+      final today = style(SiteStatus.open, FirstState.today);
       expect(today.color, const Color(0xFF56B4E9));
       expect(glyphForeground(today.color), Colors.black);
       expect(today.glyph, Icons.schedule);

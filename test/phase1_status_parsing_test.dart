@@ -4,10 +4,10 @@ import 'package:supercharger_bingo/database/database.dart';
 import 'package:supercharger_bingo/services/api_service.dart';
 
 void main() {
-  group('ApiService.parseSiteStatus (SPEC Section 2.1, 8 values)', () {
-    test('maps all eight authoritative statuses', () {
+  group('ApiService.parseSiteStatus (SPEC Section 2.1)', () {
+    test('maps every status, reading EXPANDING as OPEN', () {
       expect(ApiService.parseSiteStatus('OPEN'), SiteStatus.open);
-      expect(ApiService.parseSiteStatus('EXPANDING'), SiteStatus.expanding);
+      expect(ApiService.parseSiteStatus('EXPANDING'), SiteStatus.open);
       expect(
         ApiService.parseSiteStatus('CONSTRUCTION'),
         SiteStatus.construction,
@@ -33,8 +33,8 @@ void main() {
       expect(ApiService.parseSiteStatus('CLOSED'), isNull);
     });
 
-    test('enum has exactly the eight authoritative values', () {
-      expect(SiteStatus.values.length, 8);
+    test('enum has seven values, with no EXPANDING', () {
+      expect(SiteStatus.values.length, 7);
     });
   });
 }

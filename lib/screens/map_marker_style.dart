@@ -47,8 +47,6 @@ String siteStatusWireName(SiteStatus status) {
   switch (status) {
     case SiteStatus.open:
       return 'OPEN';
-    case SiteStatus.expanding:
-      return 'EXPANDING';
     case SiteStatus.construction:
       return 'CONSTRUCTION';
     case SiteStatus.permit:
@@ -136,7 +134,6 @@ MarkerStyle _baseStyle(SiteStatus status, FirstState firstState) {
     case SiteStatus.closedPerm:
       return const MarkerStyle(LifePin.black, Icons.block, 'Closed');
     case SiteStatus.open:
-    case SiteStatus.expanding:
       // Handled by the operational branch above; unreachable.
       return const MarkerStyle(LifePin.green, Icons.circle_outlined, 'Open');
   }

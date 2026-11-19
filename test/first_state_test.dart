@@ -114,14 +114,6 @@ void main() {
           FirstState.today,
         ),
         (
-          'First today on EXPANDING',
-          site(status: SiteStatus.expanding),
-          [row(1, 2)],
-          [],
-          denverNoon(2),
-          FirstState.today,
-        ),
-        (
           'First yesterday: passed',
           site(opened: may2),
           [row(1, 2)],

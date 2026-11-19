@@ -96,8 +96,8 @@ void main() {
     await db.upsertSite(
       SitesCompanion.insert(
         siteId: 4,
-        name: 'NACS expanding',
-        status: const Value(SiteStatus.expanding),
+        name: 'NACS construction',
+        status: const Value(SiteStatus.construction),
         otherEvs: const Value(true),
       ),
     );

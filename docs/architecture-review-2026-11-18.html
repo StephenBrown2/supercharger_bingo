@@ -25,6 +25,7 @@
   <h1 class="font-serif text-4xl">supercharger_bingo</h1>
   <p class="text-sm text-slate-600">Scope: hot spots from the last 40 commits (map_screen, settings_screen, database, notification, sync) plus the uncommitted outbox diff. Domain terms come from GLOSSARY.md (created during this review) and docs/SPEC.md. No ADRs yet.</p>
   <p class="text-sm rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-2"><strong>Update, 2026-11-18:</strong> candidate 1 is done (Check-in outbox, Site confirmation, schema v20). It also closed part of candidates 4 and 5. Candidate 2 is now the top recommendation.</p>
+  <p class="text-sm rounded-md bg-slate-100 border border-slate-300 text-slate-900 px-3 py-2"><strong>Update, 2026-11-19:</strong> candidate 2 is done. Candidate 3 is rejected: the app now reads supercharge.info's EXPANDING as OPEN, as supercharging.life shows it (schema v21), so no Site query can drop expanding Sites. Candidate 4 is now the top recommendation.</p>
   <div class="flex flex-wrap gap-4 text-xs text-slate-600 pt-2">
     <span class="flex items-center gap-2"><span class="inline-block w-5 h-4 border border-slate-500 bg-white"></span>module</span>
     <span class="flex items-center gap-2"><span class="inline-block w-6 border-t-2 border-dashed border-slate-500"></span>seam</span>
@@ -177,6 +178,7 @@ flowchart TD
 <article id="sites" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
   <div class="flex flex-wrap items-center gap-2">
     <h2 class="font-serif text-2xl mr-2">3. A Site query module owns Filter and Status behaviour</h2>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-slate-700 text-white">Rejected</span>
     <span class="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800">Worth exploring</span>
     <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700">local-substitutable</span>
   </div>
@@ -221,6 +223,12 @@ flowchart TD
     <li>Pairs naturally with candidate 2</li>
   </ul>
   <div class="rounded-md bg-amber-50 border border-amber-200 text-amber-900 text-sm px-3 py-2">After candidate 2: the contract agreed for this module is one-way. Site query picks the Sites and never imports the First module; callers compose <code>firstStates(await siteQuery(...), now)</code>, so it does not return First state as the diagram shows. Use <code>isOperational</code> from <code>lib/services/first_state.dart</code> for its status rules. Candidate 2 left Site selection alone, so the EXPANDING drops in the nearby list (<code>getNearbySites(status: open)</code>) and First alerts (<code>getSites(status: open)</code>) are still here to fix.</div>
+  <div class="rounded-md bg-slate-100 border border-slate-300 text-slate-900 text-sm px-3 py-2 space-y-2">
+    <p><strong>Rejected: the cause was deleted instead.</strong> Comparing live data showed supercharging.life has no EXPANDING status: all 27 sites supercharge.info marks EXPANDING are OPEN there, and every other status matches one to one. So the app now reads EXPANDING as OPEN when it parses supercharge.info and never stores it. Every Site query sees one open status, so no caller can drop an expanding Site, and the per-caller filters are simple and correct without a shared module.</p>
+    <p>Decisions: "Open" in the app means Operational, Filters included. An expansion is never a new Site and never reopens a First. The EXPANDING label goes from the UI, matching supercharging.life. <code>Operational</code> and <code>isOperational</code> keep their names.</p>
+    <p>Changed: <code>supercharge_info.dart</code> (<code>"EXPANDING"</code> parses to <code>Status.OPEN</code>; <code>Status.EXPANDING</code> deleted), <code>api_service.dart</code>, <code>database.dart</code> (<code>SiteStatus.expanding</code> deleted; schema 21 migration rewrites stored <code>expanding</code> rows to <code>open</code>), <code>first_state.dart</code> (<code>isOperational</code> is <code>status == open</code>), <code>map_marker_style.dart</code>, <code>site_confirmation.dart</code>, SPEC Sections 2, 5, 6 and 10, and GLOSSARY.md (Operational, plus supercharge.info, supercharging.life and supercharger.bingo). This also fixes a bug: an EXPANDING to OPEN update no longer sends a new-site alert.</p>
+    <p>Tests: parser (EXPANDING reads as OPEN), v21 migration, and alert rule (EXPANDING to OPEN and back never alerts); ten <code>SiteStatus.expanding</code> references updated. <code>flutter analyze</code> clean, 178 tests pass. Checked on Pixel 9 and Pixel 8a (Android 17): the schema 20 install upgraded to 21 and its 11 stored EXPANDING Sites now read OPEN; Tesla EV (Open) shows 3672 Sites; at Bend, OR (formerly EXPANDING) the nearby list leads with "Bend, OR (OPEN)" and Check In opens the form with no Site confirmation. Not checked on a device: searching by name (the device tool could not type into the field). Web: the release build passed all 11 <code>npm run test:web</code> checks across the nine Tesla viewports.</p>
+  </div>
 </article>
 
 <!-- 4 -->
@@ -314,6 +322,7 @@ flowchart LR
     <li>One distance function, not four</li>
   </ul>
   <div class="rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 text-sm px-3 py-2"><strong>Partly done by candidate 1:</strong> <code>saveQueuedCheckin</code> and the pending wrappers are gone (the outbox takes <code>AppDatabase</code> directly), and the startup site cache is used once, so writes no longer have to clear it. Still left: the pass-through methods, the N+1 <code>getLastVisitDates</code>, and four distance functions.</div>
+  <div class="rounded-md bg-amber-50 border border-amber-200 text-amber-900 text-sm px-3 py-2"><strong>After candidate 3 (rejected):</strong> there is no Site query module, so the startup site cache has nowhere to move; it stays with whatever replaces <code>DatabaseService</code>, or is dropped. Its <code>getSites(status: open, visited: false)</code> key is correct again because EXPANDING is stored as OPEN. Site status needs no rule here.</div>
 </article>
 
 <!-- 6 -->
@@ -359,8 +368,8 @@ flowchart LR
 
 <section id="top-recommendation" class="rounded-2xl deep p-8 space-y-3">
   <p class="lbl text-emerald-300">Top recommendation</p>
-  <h2 class="font-serif text-3xl"><a href="#sites" class="underline decoration-emerald-400">A Site query module owns Filter and Status behaviour</a></h2>
-  <p class="text-slate-300">The Check-in outbox (1) and the First module (2) are done. The Site query module is next: the nearby list and First alerts still drop EXPANDING because each caller builds its own status filter. It uses <code>isOperational</code> from <code>first_state.dart</code> and leaves First state to callers.</p>
+  <h2 class="font-serif text-3xl"><a href="#session" class="underline decoration-emerald-400">A Session module replaces string-matched sign-in state</a></h2>
+  <p class="text-slate-300">The Check-in outbox (1) and the First module (2) are done, and the Site query module (3) was rejected because reading EXPANDING as OPEN removed the bug it was meant to prevent. The Session module is next: "needs sign-in" is still derived from four sources, and the banner decides it by comparing user-facing error strings.</p>
 </section>
 
 </main>

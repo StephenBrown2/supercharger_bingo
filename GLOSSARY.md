@@ -4,13 +4,29 @@ An app for recording visits to Tesla Superchargers and racing to be First at new
 
 ## Language
 
+### Sources
+
+**supercharge.info**:
+The community map that lists every Site and its status. Shortened to SCI in conversation only.
+_Avoid_: the map site
+
+**supercharging.life**:
+The site where Check-ins, Firsts and user accounts live. Shortened to SCL in conversation only.
+_Avoid_: the check-in site
+
+**supercharger.bingo**:
+This app. Shortened to SCB in conversation only.
+_Avoid_: the client, Bingo
+
+### Domain
+
 **Site**:
 One Supercharger location from supercharge.info, identified by its stable site id.
 _Avoid_: charger, station, location
 
 **Operational**:
-A Site whose status is OPEN or EXPANDING, where the user can charge.
-_Avoid_: active, live, open (when EXPANDING is meant too)
+A Site that is open, where the user can charge. supercharge.info marks a Site that is adding stalls EXPANDING; supercharging.life and supercharger.bingo show it as OPEN. Expanding never makes a Site new or reopens its First.
+_Avoid_: active, live, expanding
 
 **Site confirmation**:
 The step before a Check-in dated before a Site's opening date, or at a Site that is not Operational, where the user picks a nearby Operational Site instead or confirms the Site with a note explaining why.

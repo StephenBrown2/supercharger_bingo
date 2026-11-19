@@ -16,9 +16,9 @@ enum FirstState {
   passed,
 }
 
-/// OPEN or EXPANDING: the user can charge, and the Site has a First state.
-bool isOperational(SiteStatus status) =>
-    status == SiteStatus.open || status == SiteStatus.expanding;
+/// OPEN (EXPANDING is read as OPEN): the user can charge, and the Site has a
+/// First state.
+bool isOperational(SiteStatus status) => status == SiteStatus.open;
 
 /// Up for grabs or First today: a Check-in now would take or share the First.
 bool isFirstEligible(FirstState? state) =>

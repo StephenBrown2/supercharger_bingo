@@ -6,11 +6,11 @@ part 'database.g.dart';
 // Enums (stored as text in SQLite)
 // ============================================================================
 
-/// Authoritative 8-value supercharge.info status (SPEC Section 2.1).
+/// supercharge.info status (SPEC Section 2.1). EXPANDING is read as [open],
+/// as supercharging.life shows it.
 /// No catch-all: sites with an unrecognized status are skipped on ingestion.
 enum SiteStatus {
   open,
-  expanding,
   construction,
   permit,
   plan,
@@ -345,7 +345,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 20;
+  int get schemaVersion => 21;
 
   @override
   MigrationStrategy get migration {
@@ -644,6 +644,12 @@ class AppDatabase extends _$AppDatabase {
               await _columnExists('visits', 'sync_status')) {
             await m.alterTable(TableMigration(visits));
           }
+        }
+        if (from < 21 && to >= 21) {
+          // EXPANDING is read as OPEN now, as supercharging.life shows it.
+          await customStatement(
+            "UPDATE sites SET status = 'open' WHERE status = 'expanding'",
+          );
         }
       },
     );

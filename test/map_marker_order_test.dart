@@ -63,7 +63,6 @@ void main() {
             name: 'Site $id',
             status: Value(switch (id) {
               3 => SiteStatus.construction,
-              4 => SiteStatus.expanding,
               _ => SiteStatus.open,
             }),
             latitude: const Value(40),

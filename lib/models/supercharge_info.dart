@@ -370,7 +370,6 @@ enum Status {
   CLOSED_PERM,
   CLOSED_TEMP,
   CONSTRUCTION,
-  EXPANDING,
   OPEN,
   PERMIT,
   PLAN,
@@ -381,7 +380,9 @@ final statusValues = EnumValues({
   "CLOSED_PERM": Status.CLOSED_PERM,
   "CLOSED_TEMP": Status.CLOSED_TEMP,
   "CONSTRUCTION": Status.CONSTRUCTION,
-  "EXPANDING": Status.EXPANDING,
+  // supercharging.life shows an EXPANDING site as OPEN, and so does the app.
+  // Keep this key before "OPEN" so [EnumValues.reverse] writes "OPEN".
+  "EXPANDING": Status.OPEN,
   "OPEN": Status.OPEN,
   "PERMIT": Status.PERMIT,
   "PLAN": Status.PLAN,

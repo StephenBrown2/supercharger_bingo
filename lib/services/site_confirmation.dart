@@ -43,7 +43,7 @@ String? _reason(Site site, DateTime at) {
         'If it opened early, say so in your note.';
   }
   return switch (site.status) {
-    SiteStatus.open || SiteStatus.expanding => null,
+    SiteStatus.open => null,
     SiteStatus.construction ||
     SiteStatus.permit ||
     SiteStatus.plan ||
