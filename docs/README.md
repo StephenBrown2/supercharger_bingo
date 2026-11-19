@@ -11,6 +11,7 @@ Everything that is not application code lives here. Agent rules stay in
 | [supercharging-life-api-app-changes.md](supercharging-life-api-app-changes.md) | App work for the official API: what is done and what waits on it |
 | [web-deployment.md](web-deployment.md) | Web release build, Cloudflare hosting and release gates |
 | [web-verification-2026-11-18.md](web-verification-2026-11-18.md) | Web release verification results |
+| [architecture-review-2026-11-18.html](architecture-review-2026-11-18.html) | Deepening candidates for the codebase; open in a browser. Candidate 1 (Check-in outbox) is done |
 | [superpowers/](superpowers/) | Dated design specs and implementation plans |
 | [reports/](reports/) | Finished reports and message drafts for people outside the project |
 | [research/](research/) | Investigations, audits and their source data |

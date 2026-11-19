@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Supercharger Bingo architecture</title>
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+</script>
+<style>
+  .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+  .deep { background: linear-gradient(135deg, #0f172a, #1e293b); color: #e2e8f0; }
+  .seam { border-style: dashed; }
+  .ghost { opacity: .45; }
+  .diagram { min-height: 300px; }
+</style>
+</head>
+<body class="bg-stone-50 text-slate-900 font-sans">
+<main class="max-w-5xl mx-auto px-4 sm:px-6 py-12 space-y-12">
+
+<header class="space-y-3">
+  <p class="lbl text-slate-500">Architecture review · 2026-11-18</p>
+  <h1 class="font-serif text-4xl">supercharger_bingo</h1>
+  <p class="text-sm text-slate-600">Scope: hot spots from the last 40 commits (map_screen, settings_screen, database, notification, sync) plus the uncommitted outbox diff. Domain terms come from GLOSSARY.md (created during this review) and docs/SPEC.md. No ADRs yet.</p>
+  <p class="text-sm rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-2"><strong>Update, 2026-11-18:</strong> candidate 1 is done (Check-in outbox, Site confirmation, schema v20). It also closed part of candidates 4 and 5. Candidate 2 is now the top recommendation.</p>
+  <div class="flex flex-wrap gap-4 text-xs text-slate-600 pt-2">
+    <span class="flex items-center gap-2"><span class="inline-block w-5 h-4 border border-slate-500 bg-white"></span>module</span>
+    <span class="flex items-center gap-2"><span class="inline-block w-6 border-t-2 border-dashed border-slate-500"></span>seam</span>
+    <span class="flex items-center gap-2"><span class="inline-block w-6 border-t-2 border-red-600"></span>leakage</span>
+    <span class="flex items-center gap-2"><span class="inline-block w-5 h-4 deep"></span>deep module</span>
+  </div>
+</header>
+
+<section id="candidates" class="space-y-10">
+
+<!-- 1 -->
+<article id="outbox" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-2">1. Deepen the Check-in outbox</h2>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-600 text-white">Done</span>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800">Strong</span>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700">ports &amp; adapters</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+    <li>lib/screens/checkin_dialog.dart · _submit (196-258)</li>
+    <li>lib/services/database_service.dart · saveQueuedCheckin (202-232)</li>
+    <li>lib/services/sync_service.dart · syncPendingCheckins, _applyWriteResult (546-678)</li>
+    <li>lib/database/database.dart · getPendingCheckins({now}), markPendingVisitSynced</li>
+    <li>lib/services/write_result.dart</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-4 diagram">
+      <p class="lbl text-slate-500 mb-2">Before</p>
+      <pre class="mermaid">
+flowchart TD
+  D[checkin_dialog] -->|opening check #1| DS[DatabaseService.saveQueuedCheckin]
+  D -.reads db directly.-> DB[(AppDatabase)]
+  DS --> DB
+  C[connectivity / background / login] --> S[SyncService.syncPendingCheckins]
+  S -->|opening check #2| DB
+  S --> W[write_result]
+  M[map_screen banner] -.matches lastError strings.-> DB
+  D -->|submitCheckin: send now| S
+  V[visits_screen delete] -.deletes in-flight row.-> DB
+  classDef leak stroke:#dc2626,stroke-width:2px,color:#991b1b;
+  class D,M,V leak
+      </pre>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-4 diagram flex flex-col">
+      <p class="lbl text-slate-500 mb-2">After</p>
+      <div class="flex-1 flex flex-col justify-center gap-3">
+        <div class="flex gap-2 justify-center text-xs">
+          <span class="border border-slate-400 rounded px-2 py-1">checkin_dialog</span>
+          <span class="border border-slate-400 rounded px-2 py-1">map_screen</span>
+          <span class="border border-slate-400 rounded px-2 py-1">background</span>
+        </div>
+        <div class="border-t-2 border-dashed border-slate-500 mx-6"></div>
+        <div class="deep rounded-lg p-4 border-4 border-slate-900">
+          <p class="lbl text-emerald-300">Check-in outbox</p>
+          <p class="text-xs mt-1 text-slate-300">record · send due (clock) · waiting for sign-in? · remove</p>
+          <div class="grid grid-cols-3 gap-1 mt-3 text-[10px] ghost">
+            <span class="border border-slate-500 rounded px-1">opening rule</span>
+            <span class="border border-slate-500 rounded px-1">backoff</span>
+            <span class="border border-slate-500 rounded px-1">stale 10 min</span>
+            <span class="border border-slate-500 rounded px-1">vehicle note</span>
+            <span class="border border-slate-500 rounded px-1">Pending/Visit rows</span>
+            <span class="border border-slate-500 rounded px-1">result → state</span>
+          </div>
+        </div>
+        <div class="border-t-2 border-dashed border-slate-500 mx-6"></div>
+        <div class="flex gap-2 justify-center text-xs">
+          <span class="border border-slate-400 rounded px-2 py-1">checkin.php writer</span>
+          <span class="border border-slate-400 rounded px-2 py-1">fake writer (tests)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p><strong>Problem:</strong> Pending check-in behaviour is spread over the dialog, DatabaseService, SyncService and four status signals. Since 2719576 a check-in sends at once, but the opening rule, the stale rule, "one sender" (a flush chain plus the submitting status) and pending deletion still live in different modules.</p>
+  <p><strong>Solution:</strong> One outbox module owns record, send, retry and removal; the Backend writer sits behind its seam.</p>
+  <ul class="list-disc pl-5 text-sm space-y-1">
+    <li>Locality: opening rule lives once</li>
+    <li>Interface is the test surface: fake writer + fake clock</li>
+    <li>Injected <code>now</code> finally reachable</li>
+    <li>Two adapters justify the writer seam</li>
+    <li>checkin_flow_test stops pumping widgets</li>
+  </ul>
+  <div class="rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 text-sm px-3 py-2 space-y-1">
+    <p><strong>Done.</strong> <code>lib/services/checkin_outbox.dart</code> owns the interface: record, send what's due, Pending state plus a change notifier, remove, settle from import. Injected: Backend writer, clock, <code>AppDatabase</code>, session check, online check, a flag that turns sending off on web.</p>
+    <p>Schema v20: Visits hold the Check-in; <code>outbox_entries</code> (keyed by Visit) hold Waiting to send / Sending / Waiting for sign-in. <code>pending_checkins</code>, <code>sync_status</code> and <code>pending_id</code> are gone.</p>
+    <p>Changed from this card: the opening rule moved <em>out</em> of the outbox into a separate pure decision, <strong>Site confirmation</strong> (<code>site_confirmation.dart</code>). supercharging.life does not refuse check-ins, so the outbox has no Refused state.</p>
+    <p>Tests: <code>checkin_outbox_test.dart</code> (fake writer, fake clock, in-memory database) and <code>site_confirmation_test.dart</code>. Checked on Pixel 9 and Pixel 8a (Android 17) and at all 9 Tesla web viewports.</p>
+    <p>Follow-up agreed: flatten the migrations, with an ADR.</p>
+  </div>
+</article>
+
+<!-- 2 -->
+<article id="first" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-2">2. One module answers "what is this Site's First state?"</h2>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800">Strong</span>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700">local-substitutable</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+    <li>lib/screens/map_marker_style.dart · computeFirstState, isOperational</li>
+    <li>lib/services/alert_rules.dart (imports a screen file)</li>
+    <li>lib/database/database.dart · getEarliestCheckinDates, _getFirstCheckins (748-840)</li>
+    <li>lib/services/checkin_rules.dart · checkinPrecedesOpening</li>
+    <li>lib/screens/map_screen.dart:1123 · firstEligible</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-4 diagram">
+      <p class="lbl text-slate-500 mb-3">Before: four opinions</p>
+      <div class="space-y-2 text-xs">
+        <div class="border-l-4 border-red-500 pl-3 py-1 bg-red-50"><span class="lbl">map_marker_style</span><br/>operational = {open, expanding}; today window</div>
+        <div class="border-l-4 border-red-500 pl-3 py-1 bg-red-50"><span class="lbl">database._getFirstCheckins</span><br/>excludes {plan, permit, construction, voting}; UTC day; DateTime(2000) = "taken"</div>
+        <div class="border-l-4 border-red-500 pl-3 py-1 bg-red-50"><span class="lbl">checkin_rules</span><br/>before-opening in site time zone</div>
+        <div class="border-l-4 border-red-500 pl-3 py-1 bg-red-50"><span class="lbl">map_screen:1123</span><br/>First today counted as <em>not</em> eligible (SPEC §4 says shared)</div>
+      </div>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-4 diagram">
+      <p class="lbl text-slate-500 mb-2">After</p>
+      <pre class="mermaid">
+flowchart TD
+  P[map pins] --> F
+  N[nearby list] --> F
+  A[First-Eligible alert] --> F
+  F["First module<br/>sites + now → up for grabs / today until T / passed"]
+  F --> H[(community check-in history)]
+  F --> TZ[site-local clock]
+  classDef deep fill:#0f172a,color:#e2e8f0,stroke:#0f172a,stroke-width:4px;
+  class F deep
+      </pre>
+    </div>
+  </div>
+  <p><strong>Problem:</strong> The First rule, the Operational status set and the before-opening check each exist in two to four places that already disagree.</p>
+  <p><strong>Solution:</strong> A First module takes sites and a clock and returns each First state; pins, the nearby list and alerts all ask it.</p>
+  <ul class="list-disc pl-5 text-sm space-y-1">
+    <li>Locality: one status set, one clock</li>
+    <li>Service stops importing a screen</li>
+    <li>One table test replaces three suites</li>
+    <li>Line 1123 drift becomes impossible</li>
+  </ul>
+  <div class="rounded-md bg-amber-50 border border-amber-200 text-amber-900 text-sm px-3 py-2">After candidate 1: the before-opening check no longer runs at send time; Site confirmation is its only caller outside the First rule. But Site confirmation now also imports <code>isOperational</code> from <code>map_marker_style.dart</code>, so two services depend on a screen file. Stronger case for this module.</div>
+</article>
+
+<!-- 3 -->
+<article id="sites" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-2">3. A Site query module owns Filter and Status behaviour</h2>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800">Worth exploring</span>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700">local-substitutable</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+    <li>lib/screens/map_screen.dart · _loadSites (203-262), nearby list (1318-1325)</li>
+    <li>lib/services/database_service.dart · getSites (92-119)</li>
+    <li>lib/database/database.dart · getUnvisitedNacsSites, watchUnvisitedSites (722-745)</li>
+    <li>lib/services/notification_service.dart · _notifyFirstWindow (417)</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-4 diagram">
+      <p class="lbl text-slate-500 mb-3">Before: each caller rebuilds the query</p>
+      <div class="grid grid-cols-2 gap-2 text-xs">
+        <div class="border border-slate-400 rounded p-2"><span class="lbl">map filter</span><br/>switch(MapFilter) over getSites flags</div>
+        <div class="border border-slate-400 rounded p-2"><span class="lbl">nearby list</span><br/>status: open <span class="text-red-600">(drops EXPANDING)</span></div>
+        <div class="border border-slate-400 rounded p-2"><span class="lbl">First alerts</span><br/>status: open + manual visited skip <span class="text-red-600">(drops EXPANDING)</span></div>
+        <div class="border border-slate-400 rounded p-2"><span class="lbl">nearest-site watch</span><br/>its own Open + Construction query</div>
+      </div>
+      <div class="mt-3 h-2 bg-red-500 rounded"></div>
+      <p class="text-[10px] text-red-700 mt-1">status rules leak into every caller</p>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-4 diagram flex flex-col justify-center gap-3">
+      <p class="lbl text-slate-500">After</p>
+      <div class="text-xs flex flex-wrap gap-2 justify-center">
+        <span class="border border-slate-400 rounded px-2 py-1">"filter + charger type"</span>
+        <span class="border border-slate-400 rounded px-2 py-1">"check-in candidates near P"</span>
+        <span class="border border-slate-400 rounded px-2 py-1">"First-alert candidates near P"</span>
+      </div>
+      <div class="border-t-2 border-dashed border-slate-500 mx-6"></div>
+      <div class="deep rounded-lg p-4 border-4 border-slate-900 text-xs">
+        <p class="lbl text-emerald-300">Site query module</p>
+        <p class="text-slate-300 mt-1">returns sites + distance + First state</p>
+        <p class="ghost mt-2">Operational / Construction / hidden / closed decided once · one distance function</p>
+      </div>
+    </div>
+  </div>
+  <p><strong>Problem:</strong> SPEC says EXPANDING behaves like OPEN, but the nearby check-in list and First alerts query OPEN only, because each caller assembles its own status filter.</p>
+  <p><strong>Solution:</strong> Callers name the question; the module decides which Statuses answer it.</p>
+  <ul class="list-disc pl-5 text-sm space-y-1">
+    <li>Leverage: one interface, four call sites</li>
+    <li>Top-level Filter gets its first test</li>
+    <li>Pairs naturally with candidate 2</li>
+  </ul>
+</article>
+
+<!-- 4 -->
+<article id="session" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-2">4. A Session module replaces string-matched sign-in state</h2>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800">Worth exploring</span>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700">in-process</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+    <li>lib/screens/login_screen.dart (67-87, 111-153)</li>
+    <li>lib/screens/settings_screen.dart · logout (641-644)</li>
+    <li>lib/services/sync_service.dart · _markSessionExpired (671-678)</li>
+    <li>lib/screens/map_screen.dart · _refreshSignInBanner (152-161)</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-4 diagram">
+      <p class="lbl text-slate-500 mb-2">Before</p>
+      <pre class="mermaid">
+flowchart LR
+  L[login_screen] --> K[SCLSESSION cookie]
+  L --> FL[settings flags]
+  O[settings logout] --> K
+  O --> FL
+  O -.never bumps.-x V[sessionExpiredVersion]
+  S[sync_service] --> V
+  S --> E[lastError text]
+  B[map banner] -.string compare.-> E
+  linkStyle 4,7 stroke:#dc2626,stroke-width:2px;
+      </pre>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-4 diagram">
+      <p class="lbl text-slate-500 mb-2">After</p>
+      <pre class="mermaid">
+flowchart LR
+  L[login_screen] --> SM
+  O[settings] --> SM
+  B[map banner] --> SM
+  SM["Session module<br/>sign in · sign out · expired · waiting? · onChange"]
+  SM -->|release on sign-in| OB[Check-in outbox]
+  classDef deep fill:#0f172a,color:#e2e8f0,stroke:#0f172a,stroke-width:4px;
+  class SM deep
+      </pre>
+    </div>
+  </div>
+  <p><strong>Problem:</strong> "Needs sign-in" is derived from four sources, and the banner decides it by comparing user-facing error strings.</p>
+  <p><strong>Solution:</strong> One module owns the session and notifies; signing in releases the outbox.</p>
+  <ul class="list-disc pl-5 text-sm space-y-1">
+    <li>Logout stops skipping the notifier</li>
+    <li>Copy edits stop breaking logic</li>
+    <li>Expired → sign in → sent, one test</li>
+  </ul>
+  <div class="rounded-md bg-slate-50 border border-slate-200 text-slate-700 text-sm px-3 py-2">Only one auth adapter today (cookie). Keep this in-process; no seam until a second auth path (official API) exists.</div>
+  <div class="rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 text-sm px-3 py-2"><strong>Partly done by candidate 1:</strong> the banner reads Waiting for sign-in from the outbox (no string matching), <code>sessionExpiredVersion</code> is deleted, and the outbox takes "signed in?" and "mark expired" as two injected functions. Still spread: the cookie and <code>isAuthenticated</code> are set by <code>login_screen</code> and cleared by <code>settings_screen</code> logout.</div>
+</article>
+
+<!-- 5 -->
+<article id="dbservice" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-2">5. Dissolve the static DatabaseService pass-through</h2>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800">Worth exploring</span>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700">local-substitutable</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+    <li>lib/services/database_service.dart (whole file)</li>
+    <li>callers using DatabaseService.db directly: checkin_dialog 21-23, sync_service 222/317/387/639</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-4 diagram">
+      <p class="lbl text-slate-500 mb-3">Before: mass diagram</p>
+      <div class="flex items-end gap-6 h-56 justify-center">
+        <div class="flex flex-col items-center gap-1"><div class="w-16 bg-red-300 border border-red-500" style="height:180px"></div><span class="lbl">interface</span></div>
+        <div class="flex flex-col items-center gap-1"><div class="w-16 bg-slate-300 border border-slate-500" style="height:200px"></div><span class="lbl">impl</span></div>
+      </div>
+      <p class="text-xs text-slate-600 mt-2">Mostly forwards to AppDatabase, plus global bootstrap cache, N+1 getLastVisitDates, and one of four distance functions.</p>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-4 diagram">
+      <p class="lbl text-slate-500 mb-3">After</p>
+      <div class="flex items-end gap-6 h-56 justify-center">
+        <div class="flex flex-col items-center gap-1"><div class="w-16 bg-emerald-300 border border-emerald-600" style="height:30px"></div><span class="lbl">interface</span></div>
+        <div class="flex flex-col items-center gap-1"><div class="w-16 deep border border-slate-900" style="height:200px"></div><span class="lbl">impl</span></div>
+      </div>
+      <p class="text-xs text-slate-600 mt-2">Cache moves into Site query (3), saveQueuedCheckin into outbox (1); AppDatabase is injected.</p>
+    </div>
+  </div>
+  <p><strong>Problem:</strong> Shallow static module with hidden global state that every test resets by hand, and callers bypass it.</p>
+  <p><strong>Solution:</strong> Deletion test says "mostly moves": delete it, move the two parts that earn their keep into candidates 1 and 3.</p>
+  <ul class="list-disc pl-5 text-sm space-y-1">
+    <li>No global reset in setUp</li>
+    <li>Database swappable per test</li>
+    <li>One distance function, not four</li>
+  </ul>
+  <div class="rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 text-sm px-3 py-2"><strong>Partly done by candidate 1:</strong> <code>saveQueuedCheckin</code> and the pending wrappers are gone (the outbox takes <code>AppDatabase</code> directly), and the startup site cache is used once, so writes no longer have to clear it. Still left: the pass-through methods, the N+1 <code>getLastVisitDates</code>, and four distance functions.</div>
+</article>
+
+<!-- 6 -->
+<article id="screens" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-2">6. Pull Visit history and data maintenance out of screens</h2>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-slate-200 text-slate-700">Speculative</span>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700">in-process</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+    <li>lib/screens/visits_screen.dart · _delete (55-135), _load</li>
+    <li>lib/screens/settings_screen.dart · reset / re-sync (903-1041)</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-4 diagram">
+      <p class="lbl text-slate-500 mb-3">Before: cross-section</p>
+      <div class="space-y-1 text-xs">
+        <div class="h-10 border-l-4 border-red-500 bg-red-50 pl-3 flex items-center">visits_screen: build own SyncService</div>
+        <div class="h-10 border-l-4 border-red-500 bg-red-50 pl-3 flex items-center">re-sync by username, look up id</div>
+        <div class="h-10 border-l-4 border-red-500 bg-red-50 pl-3 flex items-center">remote delete, then local</div>
+        <div class="h-10 border-l-4 border-red-500 bg-red-50 pl-3 flex items-center">settings: clearAll → syncSites → counts → user</div>
+        <div class="h-10 border-l-4 border-slate-400 bg-slate-50 pl-3 flex items-center">render</div>
+      </div>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-4 diagram">
+      <p class="lbl text-slate-500 mb-3">After</p>
+      <div class="space-y-1 text-xs">
+        <div class="h-24 deep rounded pl-3 flex items-center">Visit history: list (with Pending) · delete locally + remotely</div>
+        <div class="h-16 deep rounded pl-3 flex items-center">Data maintenance: reset · re-sync</div>
+        <div class="h-10 border-l-4 border-slate-400 bg-slate-50 pl-3 flex items-center">screens render</div>
+      </div>
+    </div>
+  </div>
+  <p><strong>Problem:</strong> Domain operations live in button handlers, so the only test surface is the widget.</p>
+  <p><strong>Solution:</strong> Two small modules own the flows; screens render. Wait until 1 lands, since delete overlaps the outbox.</p>
+  <ul class="list-disc pl-5 text-sm space-y-1">
+    <li>Delete rule testable without widgets</li>
+    <li>Per-visit query loop goes away</li>
+  </ul>
+</article>
+
+</section>
+
+<section id="top-recommendation" class="rounded-2xl deep p-8 space-y-3">
+  <p class="lbl text-emerald-300">Top recommendation</p>
+  <h2 class="font-serif text-3xl"><a href="#first" class="underline decoration-emerald-400">One module answers "what is this Site's First state?"</a></h2>
+  <p class="text-slate-300">The Check-in outbox (1) is done. The First module is next: it has a confirmed rule disagreement at map_screen.dart:1123, and two services now import <code>isOperational</code> from a screen file. Field results from live check-ins this weekend may reshape it, so read the check-in log first.</p>
+</section>
+
+</main>
+</body>
+</html>
