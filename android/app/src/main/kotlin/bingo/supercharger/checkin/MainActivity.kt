@@ -32,6 +32,15 @@ class MainActivity : FlutterActivity() {
                     )
                 }
             }
+        // Back offers this so the nearest site Live Update keeps running.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "supercharger_bingo/app")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "moveToBack") {
+                    result.success(moveTaskToBack(true))
+                } else {
+                    result.notImplemented()
+                }
+            }
         // Hands a site to whichever navigation app the user picks: Google
         // Maps, Waze, ABRP and the Tesla app all open geo: links. Android's
         // own picker offers "Always", so it is one tap after the first time.

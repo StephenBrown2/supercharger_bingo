@@ -1,5 +1,7 @@
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../services/nearest_site_service.dart';
 import '../services/notification_service.dart';
 import 'map_screen.dart';
 import 'settings_screen.dart';
@@ -19,6 +21,9 @@ class _AppShellState extends State<AppShell> {
   // Bumped on each visit to the tab, so the list reloads.
   int _visitsOpens = 0;
   final GlobalKey<MapScreenState> _mapKey = GlobalKey();
+  DateTime? _backPressedAt;
+  static const _app = MethodChannel('supercharger_bingo/app');
+  static const _backWindow = Duration(seconds: 4);
 
   @override
   void initState() {
@@ -51,6 +56,39 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
+  /// Back destroys the Dart side, which would leave the nearest site Live
+  /// Update frozen. While it runs, the first Back offers to keep it running
+  /// in the background; a second Back stops it and closes the app.
+  Future<void> _onBack(bool didPop, Object? _) async {
+    if (didPop) return;
+    final service = NearestSiteService.instance;
+    final pressedAt = _backPressedAt;
+    final now = DateTime.now();
+    if (service.running &&
+        (pressedAt == null || now.difference(pressedAt) > _backWindow)) {
+      _backPressedAt = now;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Press Back again to close and stop the nearest site update',
+            ),
+            duration: _backWindow,
+            action: SnackBarAction(
+              label: 'Keep running',
+              onPressed: () => _app.invokeMethod<void>('moveToBack'),
+            ),
+          ),
+        );
+      return;
+    }
+    _backPressedAt = null;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    await service.stop();
+    await SystemNavigator.pop();
+  }
+
   void _onDrawerClosed() {
     setState(() {
       _showCheckinDrawer = false;
@@ -74,6 +112,14 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: _onBack,
+      child: _scaffold(),
+    );
+  }
+
+  Widget _scaffold() {
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,

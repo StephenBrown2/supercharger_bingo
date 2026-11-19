@@ -80,6 +80,9 @@ class NearestSiteService {
   /// The running filter, or null when stopped.
   bool? _includeConstruction;
 
+  /// Whether the Live Update is showing.
+  bool get running => _includeConstruction != null;
+
   bool get _supported => !kIsWeb && Platform.isAndroid;
 
   AndroidFlutterLocalNotificationsPlugin? get _android => _plugin
