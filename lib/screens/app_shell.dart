@@ -21,9 +21,7 @@ class _AppShellState extends State<AppShell> {
   // Bumped on each visit to the tab, so the list reloads.
   int _visitsOpens = 0;
   final GlobalKey<MapScreenState> _mapKey = GlobalKey();
-  DateTime? _backPressedAt;
   static const _app = MethodChannel('supercharger_bingo/app');
-  static const _backWindow = Duration(seconds: 4);
 
   @override
   void initState() {
@@ -57,34 +55,38 @@ class _AppShellState extends State<AppShell> {
   }
 
   /// Back destroys the Dart side, which would leave the nearest site Live
-  /// Update frozen. While it runs, the first Back offers to keep it running
-  /// in the background; a second Back stops it and closes the app.
+  /// Update frozen. While it runs, ask whether to keep it running in the
+  /// background (like Home) or stop it and close the app.
   Future<void> _onBack(bool didPop, Object? _) async {
     if (didPop) return;
     final service = NearestSiteService.instance;
-    final pressedAt = _backPressedAt;
-    final now = DateTime.now();
-    if (service.running &&
-        (pressedAt == null || now.difference(pressedAt) > _backWindow)) {
-      _backPressedAt = now;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: const Text(
-              'Press Back again to close and stop the nearest site update',
-            ),
-            duration: _backWindow,
-            action: SnackBarAction(
-              label: 'Keep running',
-              onPressed: () => _app.invokeMethod<void>('moveToBack'),
-            ),
+    if (service.running) {
+      final close = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Keep running?'),
+          content: const Text(
+            'Closing the app will stop the live update notification. Do you '
+            'want to leave the app running in the background?',
           ),
-        );
-      return;
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Close App'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Keep Running'),
+            ),
+          ],
+        ),
+      );
+      if (close == null) return; // Dismissed: stay in the app.
+      if (!close) {
+        await _app.invokeMethod<void>('moveToBack');
+        return;
+      }
     }
-    _backPressedAt = null;
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
     await service.stop();
     await SystemNavigator.pop();
   }
