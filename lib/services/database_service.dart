@@ -117,16 +117,11 @@ class DatabaseService {
     return db.getAllSites();
   }
 
-  /// Who took the First at a site, for the First Countdown alert.
-  static Future<List<String>> getFirstCheckinNames(int siteId) =>
-      db.getFirstCheckinNames(siteId);
-
-  /// Earliest community check-in date per site, used to derive First state.
-  static Future<Map<int, DateTime>> getEarliestCheckinDates(
-    List<int> siteIds,
-  ) async {
-    return db.getEarliestCheckinDates(siteIds);
-  }
+  /// Community history and confirmed Visits for the First rule.
+  static Future<
+    ({Map<int, List<SiteCheckin>> history, Map<int, List<Visit>> visits})
+  >
+  getFirstEvidence(List<int> siteIds) => db.getFirstEvidence(siteIds);
 
   /// Get a site by its supercharge.info ID
   static Future<Site?> getSiteBySiteId(int siteId) async {

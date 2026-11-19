@@ -342,6 +342,29 @@ void main() {
       },
     );
 
+    test('the check-in detail redirect gives the Visit its id', () async {
+      answers = [
+        (r) => Response(
+          requestOptions: r,
+          statusCode: 302,
+          headers: Headers.fromMap({
+            'location': ['/supercharging/checkin_detail.php?id=90210'],
+          }),
+        ),
+      ];
+      final outbox = CheckinOutbox.live(api: api());
+
+      expect(await outbox.record(siteId: 7), Delivery.sent);
+
+      final form = Map.fromEntries((requests.single.data as FormData).fields);
+      expect(form['destination'], 'checkin_detail');
+      expect((await db.getAllVisits()).single.checkinId, 90210);
+      expect(
+        checkinIdFromRedirect('/supercharging/user_detail.php?id=5'),
+        isNull,
+      );
+    });
+
     test('an unexpected answer is retried, not treated as a refusal', () async {
       answers = [(r) => Response(requestOptions: r, statusCode: 400)];
       final result = await UnofficialCheckinWriter(api()).submit(

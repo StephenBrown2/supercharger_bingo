@@ -30,12 +30,13 @@ class CheckinDraft {
 
 /// Field names from the logged-in `checkin.php` form.
 ///
-/// The post-save `destination` dropdown is omitted. Vehicle ids and VINs are
-/// never sent. Coordinates use the input names, not the script's swapped id.
+/// `destination` asks for the check-in detail page, so the redirect carries
+/// the new check-in id. Vehicle ids and VINs are never sent. Coordinates use the input names, not the script's swapped id.
 Map<String, String> unofficialCheckinFields(CheckinDraft draft) {
   final fields = <String, String>{
     'supercharger_id': draft.siteId.toString(),
     'date': formatLifeDateField(draft.checkinAt, precision: draft.precision),
+    'destination': 'checkin_detail',
   };
   if (draft.userId != null) {
     fields['user_id'] = draft.userId.toString();
@@ -56,4 +57,12 @@ Map<String, String> unofficialCheckinFields(CheckinDraft draft) {
     }
   }
   return fields;
+}
+
+/// The new check-in id from the form's redirect to
+/// `/supercharging/checkin_detail.php?id=N`, or null for any other target.
+int? checkinIdFromRedirect(String? location) {
+  final uri = location == null ? null : Uri.tryParse(location);
+  if (uri == null || !uri.path.endsWith('checkin_detail.php')) return null;
+  return int.tryParse(uri.queryParameters['id'] ?? '');
 }

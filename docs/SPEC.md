@@ -112,7 +112,7 @@ A check-in qualifies as a First if its checkin_date (and checkin_time when avail
 
 First eligibility is open-ended until claimed. A site with no check-ins has its First available indefinitely to whoever checks in first, regardless of how long ago it opened. The first valid check-in starts the clock: the shared-First window then runs until the next midnight in the site's local timezone. Anyone whose qualifying check-in lands on that same site-local calendar day shares the First. After that local midnight, the First is closed and no further shares are possible. So first_date is the site-local date of the earliest check-in (not date_opened), and that date is what the pin color in Section 5 keys off of.
 
-First status is community-wide, not per-user. Until the official API exists, it's derived from imported community history (XLSX) and whatever the active write-path implementation surfaces (Section 2.2, Section 9), with the freshness caveat noted there. Under the future API it becomes authoritative and real-time.
+First status is community-wide, not per-user. Until the official API exists, it's derived from imported community history (XLSX) and whatever the active write-path implementation surfaces (Section 2.2, Section 9), with the freshness caveat noted there. The user's own Check-ins count as soon as supercharging.life confirms them, without waiting for the next history poll; Pending ones do not. Under the future API it becomes authoritative and real-time.
 
 ## 5. Site Status, Filtering, and Pin Color
 
@@ -164,7 +164,7 @@ Because the green/yellow/red boundary moves purely with the passage of time, it 
 
 Status: Complete. Location denial opens an alphabetical full-site search. The closest of the ten nearby sites starts selected. Each row reads name (status) (distance), keeps the most recent check-in line, and has a Check In button. Search all locations is available from the nearby list. The post-save go-to menu stays deferred.
 
-Modeled on the live supercharging.life check-in form, with two deliberate changes: add a most-recent-check-in indicator, and omit the "Save and then go to..." navigation dropdown for now.
+Modeled on the live supercharging.life check-in form, with two deliberate changes: add a most-recent-check-in indicator, and omit the "Save and then go to..." navigation dropdown for now. The post always sends `destination=checkin_detail`, so the redirect carries the new check-in id.
 
 1. Request location. On denial, fall back to a manual, alphabetical full-site search (mirrors the site's `?gps=n` mode).
 2. Show the 10 closest sites, closest preselected, each formatted as `name (status) (distance)`. Distance uses the user's unit preference (Section 7).

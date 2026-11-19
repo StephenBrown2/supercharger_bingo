@@ -72,7 +72,8 @@ void main() {
             visited: Value(id == 7),
             otherEvs: Value(id == 1 || id == 7),
             stallsV3: Value([1, 3, 7].contains(id) ? 4 : 0),
-            timezone: const Value('UTC'),
+            // The bundled tz data has Etc/UTC but no UTC alias.
+            timezone: const Value('Etc/UTC'),
             dateOpened: Value(
               id >= 5
                   ? DateTime.now().toUtc().subtract(

@@ -12,6 +12,7 @@ import '../services/api_service.dart';
 import '../services/checkin_log.dart';
 import '../services/checkin_outbox.dart';
 import '../services/database_service.dart';
+import '../services/first_state.dart';
 import '../services/life_time.dart' show formatCalendarDate;
 import '../services/location_service.dart';
 import '../services/site_navigation.dart';
@@ -49,8 +50,8 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   MapFilter _currentFilter = MapFilter.openUnvisited;
   MapSiteType _currentType = MapSiteType.all;
   List<Site> _sites = [];
-  // Earliest community check-in date per site, used to derive First state.
-  Map<int, DateTime> _firstDates = {};
+  // First state of the Operational sites on screen.
+  Map<int, FirstState> _firstStates = {};
   bool _isLoading = true;
   bool _clusterMarkers = true;
   bool _isLocating = false;
@@ -65,9 +66,8 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   Position? _userPosition;
   List<SiteWithDistance> _nearbySites = [];
   Map<int, DateTime> _lastVisits = {};
-  // Earliest qualifying community check-in for the nearby rows. Absence means
-  // the First is still open.
-  Map<int, DateTime> _nearbyFirstDates = {};
+  // First state of the nearby rows. Absent for sites that are not Operational.
+  Map<int, FirstState> _nearbyFirstStates = {};
   // 'unvisited superchargers within 50 mi', for the empty-list message.
   String? _emptyNearbyLabel;
   bool _isLoadingLocation = false;
@@ -134,7 +134,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       _sites = cached;
       _isLoading = false;
       // Still need First-state inputs for the cached sites.
-      _loadFirstDates(cached);
+      _loadFirstStates(cached);
     } else {
       _loadSites();
     }
@@ -179,15 +179,9 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     if (mounted) _loadSites();
   }
 
-  Future<void> _loadFirstDates(List<Site> sites) async {
-    final operationalIds = sites
-        .where((s) => isOperational(s.status))
-        .map((s) => s.siteId)
-        .toList();
-    final firstDates = await DatabaseService.getEarliestCheckinDates(
-      operationalIds,
-    );
-    if (mounted) setState(() => _firstDates = firstDates);
+  Future<void> _loadFirstStates(List<Site> sites) async {
+    final states = await firstStates(sites, DateTime.now());
+    if (mounted) setState(() => _firstStates = states);
   }
 
   @override
@@ -239,17 +233,10 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           break;
       }
       sites = sites.where(_currentType.matches).toList();
-      // Derive First state inputs for the operational sites on screen.
-      final operationalIds = sites
-          .where((s) => isOperational(s.status))
-          .map((s) => s.siteId)
-          .toList();
-      final firstDates = await DatabaseService.getEarliestCheckinDates(
-        operationalIds,
-      );
+      final states = await firstStates(sites, DateTime.now());
       setState(() {
         _sites = sites;
-        _firstDates = firstDates;
+        _firstStates = states;
         _isLoading = false;
       });
     } catch (e) {
@@ -402,7 +389,9 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                           height: 24,
                           child: _MapMarker(
                             site: site,
-                            firstDate: _firstDates[site.siteId],
+                            firstState:
+                                _firstStates[site.siteId] ??
+                                _nearbyFirstStates[site.siteId],
                           ),
                         );
                       }),
@@ -692,14 +681,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   List<Marker> _buildMarkers(FirstState? firstState) {
     return _sites
         .where((site) {
-          final state = isOperational(site.status) && !site.visited
-              ? computeFirstState(
-                  firstDate: _firstDates[site.siteId],
-                  siteLocalNow: TimezoneService.instance.getLocalTimeAtSite(
-                    site,
-                  ),
-                )
-              : null;
+          final state = site.visited ? null : _firstStates[site.siteId];
           return state == firstState;
         })
         .map((site) {
@@ -712,7 +694,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               onTap: () => _showSiteInfo(site),
               child: _MapMarker(
                 site: site,
-                firstDate: _firstDates[site.siteId],
+                firstState: _firstStates[site.siteId],
               ),
             ),
           );
@@ -1120,7 +1102,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     final recent = lastVisit != null
         ? 'Last: ${_formatShortDate(lastVisit)}'
         : 'No previous check-in';
-    final firstEligible = !_nearbyFirstDates.containsKey(site.siteId);
+    final firstEligible = isFirstEligible(_nearbyFirstStates[site.siteId]);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -1294,13 +1276,13 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     final visible = _matchingSites();
     final ids = visible.map((site) => site.siteId).toList();
     final lastVisits = await DatabaseService.getLastVisitDates(ids);
-    final firstDates = await DatabaseService.getEarliestCheckinDates(ids);
+    final states = await firstStates(visible, DateTime.now());
     if (!mounted || generation != _searchGeneration) return;
     setState(() {
       _searchAll = true;
       _nearbySites = _withDistance(visible);
       _lastVisits = lastVisits;
-      _nearbyFirstDates = firstDates;
+      _nearbyFirstStates = states;
       _isLoadingSites = false;
       _selectedSiteId = null;
     });
@@ -1326,7 +1308,9 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
 
       final siteIds = sites.map((s) => s.site.siteId).toList();
       final lastVisits = await DatabaseService.getLastVisitDates(siteIds);
-      final firstDates = await DatabaseService.getEarliestCheckinDates(siteIds);
+      final states = await firstStates([
+        for (final s in sites) s.site,
+      ], DateTime.now());
 
       final radius = settings.unitSystem == UnitSystem.imperial
           ? '${(settings.checkinRadiusKm * 0.621371).round()} mi'
@@ -1338,7 +1322,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         _searchAll = false;
         _nearbySites = sites;
         _lastVisits = lastVisits;
-        _nearbyFirstDates = firstDates;
+        _nearbyFirstStates = states;
         _isLoadingSites = false;
         _selectedSiteId = sites.isEmpty ? null : sites.first.site.siteId;
       });
@@ -1560,26 +1544,20 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
 }
 
 /// Custom map marker with accessible design: Okabe-Ito colour paired with a
-/// redundant glyph (SPEC Section 5). The green/yellow/red First boundary is
-/// recomputed here at render time from the site's earliest check-in date and
-/// its local timezone, never from date_opened.
+/// redundant glyph (SPEC Section 5). [firstState] comes from the First module;
+/// it is ignored for sites that are not Operational.
 class _MapMarker extends StatelessWidget {
   final Site site;
-  final DateTime? firstDate;
+  final FirstState? firstState;
 
-  const _MapMarker({required this.site, this.firstDate});
+  const _MapMarker({required this.site, this.firstState});
 
   @override
   Widget build(BuildContext context) {
-    final siteLocalNow = TimezoneService.instance.getLocalTimeAtSite(site);
-    final firstState = computeFirstState(
-      firstDate: firstDate,
-      siteLocalNow: siteLocalNow,
-    );
     return PinDot(
       markerStyleFor(
         status: site.status,
-        firstState: firstState,
+        firstState: firstState ?? FirstState.passed,
         visited: site.visited,
       ),
     );

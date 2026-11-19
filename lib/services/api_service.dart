@@ -344,15 +344,20 @@ class ApiService {
       );
       final body = response.data?.toString();
       final location = response.headers.value('location');
-      final result = writeResultFromHttp(
+      var result = writeResultFromHttp(
         statusCode: response.statusCode,
         body: body,
         finalUri: location ?? response.realUri.toString(),
       );
+      final checkinId = checkinIdFromRedirect(location);
+      if (result.outcome == WriteOutcome.accepted && checkinId != null) {
+        result = WriteResult(WriteOutcome.accepted, null, checkinId);
+      }
       CheckinLog.event('http.checkin', {
         'site': draft.siteId,
         'status': response.statusCode,
         'location': location,
+        'checkinId': checkinId,
         'bodyChars': body?.length ?? 0,
         // The form normally redirects; any other body is worth reading.
         if (location == null) 'bodyStart': _logSnippet(body),

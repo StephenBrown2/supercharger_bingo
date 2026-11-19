@@ -35,3 +35,39 @@ _Avoid_: queue, pending table, sync
 **Backend writer**:
 Whatever delivers a Check-in to supercharging.life; today the unofficial check-in form, later the official API.
 _Avoid_: submitter, uploader
+
+**Community history**:
+Everyone's Check-ins at Sites, as supercharging.life publishes them.
+_Avoid_: site check-ins, others' check-ins, feed
+
+**Opening date**:
+The earliest known day a Site opened. A Check-in dated before it never counts toward the First.
+_Avoid_: date_opened, first opened, launch date
+
+**First**:
+The earliest site-local day with a qualifying Check-in at a Site, on or after its Opening date. Everyone who checks in at the Site on that day shares it.
+_Avoid_: first check-in, FTC, claim
+
+**First state**:
+Where an Operational Site stands in the race for its First: Up for grabs, First today or First passed. Sites that are not Operational have no First state.
+_Avoid_: first status, pin state, eligibility
+
+**Up for grabs**:
+The First state of a Site with no known First, so the next qualifying Check-in takes it.
+_Avoid_: unclaimed, available, green
+
+**First today**:
+The First state of a Site whose First is today at the Site, so a Check-in before the next site-local midnight shares it.
+_Avoid_: shared-First window, yellow, blue
+
+**First passed**:
+The First state of a Site whose First day has ended, or that is known to have Check-ins whose dates are missing.
+_Avoid_: taken, claimed, closed, red
+
+**First-eligible**:
+A Site that is Up for grabs or First today, where a Check-in now would take or share the First.
+_Avoid_: up for grabs (when First today is meant too)
+
+**First-today alert**:
+A notification that a nearby Site is First today, sent at most once per site-local day.
+_Avoid_: First-eligible alert, first window alert

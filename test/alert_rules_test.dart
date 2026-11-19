@@ -116,28 +116,6 @@ void main() {
     );
   });
 
-  test('the First window is only the yellow pin', () {
-    final today = DateTime(2026, 11, 10, 15);
-    expect(
-      isInFirstWindow(earliestCheckin: null, siteLocalNow: today),
-      isFalse,
-    );
-    expect(
-      isInFirstWindow(
-        earliestCheckin: DateTime(2026, 11, 10, 1),
-        siteLocalNow: today,
-      ),
-      isTrue,
-    );
-    expect(
-      isInFirstWindow(
-        earliestCheckin: DateTime(2026, 11, 9),
-        siteLocalNow: today,
-      ),
-      isFalse,
-    );
-  });
-
   test('the first poll records a cursor and does not alert', () {
     final plan = planOpeningAlerts(
       changes: [_parsed(id: 9, changeType: 'ADD', siteStatus: 'OPEN')],

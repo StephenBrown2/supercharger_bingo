@@ -18,7 +18,11 @@ class WriteResult {
   final WriteOutcome outcome;
   final String? message;
 
-  const WriteResult(this.outcome, [this.message]);
+  /// The supercharging.life check-in id of an accepted check-in, when the
+  /// writer learned it.
+  final int? checkinId;
+
+  const WriteResult(this.outcome, [this.message, this.checkinId]);
 
   static const accepted = WriteResult(WriteOutcome.accepted);
   static const rejected = WriteResult(

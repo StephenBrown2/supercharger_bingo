@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../database/database.dart';
+import '../services/first_state.dart';
 
 /// Marker styling for the map (SPEC Section 5).
 ///
@@ -22,20 +23,6 @@ class LifePin {
   static const Color grey = Color(0xFF999999);
 }
 
-/// Three-state First colouring for operational sites. The boundary moves with
-/// the passage of time, so it is recomputed at render time from stored dates.
-enum FirstState {
-  /// No First recorded yet. Up for grabs.
-  upForGrabs,
-
-  /// A First exists and its date equals today in the site's local timezone.
-  /// Still inside the shared-First window.
-  today,
-
-  /// A First exists and its date has passed (site-local).
-  passed,
-}
-
 /// Resolved marker appearance: a colour plus a redundant glyph and a label.
 class MarkerStyle {
   final Color color;
@@ -54,10 +41,6 @@ Color glyphForeground(Color background) => background == LifePin.grey
     : background.computeLuminance() > 0.179
     ? Colors.black
     : Colors.white;
-
-/// Whether a status is operational (chargeable, First applies): OPEN/EXPANDING.
-bool isOperational(SiteStatus status) =>
-    status == SiteStatus.open || status == SiteStatus.expanding;
 
 /// Wire spelling used on supercharging.life, for the check-in picker row.
 String siteStatusWireName(SiteStatus status) {
@@ -90,25 +73,6 @@ String checkinPickerLabel({
   final statusName = siteStatusWireName(status);
   if (distance == null || distance.isEmpty) return '$name ($statusName)';
   return '$name ($statusName) ($distance)';
-}
-
-/// Compute the First state for an operational site from its earliest qualifying
-/// check-in date ([firstDate], null if none) and the current site-local time
-/// ([siteLocalNow]). Pure: compares calendar dates only.
-FirstState computeFirstState({
-  required DateTime? firstDate,
-  required DateTime siteLocalNow,
-}) {
-  if (firstDate == null) return FirstState.upForGrabs;
-  final first = DateTime(firstDate.year, firstDate.month, firstDate.day);
-  final today = DateTime(
-    siteLocalNow.year,
-    siteLocalNow.month,
-    siteLocalNow.day,
-  );
-  if (first.isBefore(today)) return FirstState.passed;
-  // Same day, or a (defensive) future date still inside today's window.
-  return FirstState.today;
 }
 
 /// Resolve the marker style for a site. Operational sites use [firstState];

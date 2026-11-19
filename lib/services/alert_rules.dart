@@ -1,5 +1,4 @@
 import '../models/supercharge_info.dart';
-import '../screens/map_marker_style.dart';
 
 /// A new-site alert: allChanges ADD of an OPEN site, or an UPDATE that
 /// becomes OPEN from some other status (SPEC Section 10).
@@ -9,20 +8,6 @@ bool isOpeningChange(AllChanges change) {
   return change.changeType == ChangeType.UPDATE &&
       change.prevStatus != null &&
       change.prevStatus != Status.OPEN;
-}
-
-/// The shared First window is the yellow pin: a First exists and its date
-/// is still today at the site. A site with no First, or one whose First day
-/// has passed, is not in that window.
-bool isInFirstWindow({
-  required DateTime? earliestCheckin,
-  required DateTime siteLocalNow,
-}) {
-  return computeFirstState(
-        firstDate: earliestCheckin,
-        siteLocalNow: siteLocalNow,
-      ) ==
-      FirstState.today;
 }
 
 /// Which opening changes should notify, and the cursor to store afterward.

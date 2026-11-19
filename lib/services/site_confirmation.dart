@@ -1,7 +1,7 @@
 import '../database/database.dart';
-import '../screens/map_marker_style.dart' show isOperational;
 import 'checkin_rules.dart';
 import 'database_service.dart' show SiteWithDistance;
+import 'first_state.dart' show isOperational;
 import 'life_time.dart';
 
 /// Site confirmation for a Check-in the user should double-check first.

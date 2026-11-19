@@ -757,101 +757,40 @@ class AppDatabase extends _$AppDatabase {
         .get();
   }
 
-  /// Earliest community check-in date per site (the site-local "first_date"
-  /// that drives pin colour, SPEC Section 4/5). Derived at render time rather
-  /// than stored, so it always reflects the current SiteCheckins data.
-  Future<Map<int, DateTime>> getEarliestCheckinDates(List<int> siteIds) async {
-    if (siteIds.isEmpty) return {};
-    final firsts = await _getFirstCheckins(siteIds);
-    final result = <int, DateTime>{};
-    for (final entry in firsts.entries) {
-      if (entry.value.isEmpty) continue;
-      result[entry.key] = _checkinDay(entry.value.first.checkinDate);
-    }
-    // Missing recent history must not reopen an older claimed site. A known
-    // premature visit has an empty entry and must not use this fallback.
-    final missing = siteIds.where((id) => !firsts.containsKey(id)).toList();
-    if (missing.isNotEmpty) {
-      final taken =
-          await (select(sites)..where(
-                (t) =>
-                    t.siteId.isIn(missing) &
-                    t.hasCheckins.equals(true) &
-                    t.status.isIn([
-                      SiteStatus.open.name,
-                      SiteStatus.expanding.name,
-                      SiteStatus.closedTemp.name,
-                      SiteStatus.closedPerm.name,
-                    ]),
-              ))
-              .get();
-      for (final site in taken) {
-        result[site.siteId] = DateTime(2000);
-      }
-    }
-    return result;
-  }
-
-  // The feed's checkinDate is already a site-local calendar date, not a clock.
-  static DateTime _checkinDay(DateTime date) {
-    final utc = date.toUtc();
-    return DateTime(utc.year, utc.month, utc.day);
-  }
-
-  Future<Map<int, List<SiteCheckin>>> _getFirstCheckins(List<int> ids) async {
-    if (ids.isEmpty) return {};
+  /// Evidence for the First rule at [siteIds]: Community history in check-in
+  /// order, and the user's confirmed Visits (those without an outbox entry).
+  Future<({Map<int, List<SiteCheckin>> history, Map<int, List<Visit>> visits})>
+  getFirstEvidence(List<int> siteIds) async {
+    final history = <int, List<SiteCheckin>>{};
+    final confirmed = <int, List<Visit>>{};
+    if (siteIds.isEmpty) return (history: history, visits: confirmed);
     final rows =
-        await (select(siteCheckins).join([
-                innerJoin(sites, sites.siteId.equalsExp(siteCheckins.siteId)),
-              ])
-              ..where(siteCheckins.siteId.isIn(ids))
+        await (select(siteCheckins)
+              ..where((t) => t.siteId.isIn(siteIds))
               ..orderBy([
-                OrderingTerm.asc(siteCheckins.checkinDate),
-                OrderingTerm.asc(siteCheckins.checkinTime),
-                OrderingTerm.asc(siteCheckins.checkinId),
+                (t) => OrderingTerm.asc(t.checkinDate),
+                (t) => OrderingTerm.asc(t.checkinTime),
+                (t) => OrderingTerm.asc(t.checkinId),
               ]))
             .get();
-    final history = <int, List<SiteCheckin>>{};
-    final siteById = <int, Site>{};
     for (final row in rows) {
-      final site = row.readTable(sites);
-      if ([
-        SiteStatus.plan,
-        SiteStatus.permit,
-        SiteStatus.construction,
-        SiteStatus.voting,
-      ].contains(site.status)) {
-        continue;
-      }
-      siteById[site.siteId] = site;
-      (history[site.siteId] ??= []).add(row.readTable(siteCheckins));
+      (history[row.siteId] ??= []).add(row);
     }
-    final result = <int, List<SiteCheckin>>{};
-    for (final entry in history.entries) {
-      final site = siteById[entry.key]!;
-      final opened = site.firstOpeningDay;
-      bool beforeOpening(SiteCheckin row) =>
-          opened != null &&
-          _checkinDay(row.checkinDate).isBefore(_checkinDay(opened));
-      // A premature cached First can suppress the rightful later rows' flags.
-      // shortcut: recovery uses cached history, fetch full history if the feed truncates it.
-      final invalidFirst = entry.value.any(
-        (row) => row.isFirstAtSupercharger && beforeOpening(row),
-      );
-      final eligible = entry.value.where(
-        (row) =>
-            !beforeOpening(row) && (row.isFirstAtSupercharger || invalidFirst),
-      );
-      if (eligible.isEmpty) {
-        if (entry.value.any(beforeOpening)) result[entry.key] = [];
-        continue;
-      }
-      final day = _checkinDay(eligible.first.checkinDate);
-      result[entry.key] = eligible
-          .where((row) => _checkinDay(row.checkinDate) == day)
-          .toList();
+    final visitRows =
+        await (select(visits).join([
+              leftOuterJoin(
+                outboxEntries,
+                outboxEntries.visitId.equalsExp(visits.id),
+              ),
+            ])..where(
+              visits.siteId.isIn(siteIds) & outboxEntries.visitId.isNull(),
+            ))
+            .get();
+    for (final row in visitRows) {
+      final visit = row.readTable(visits);
+      (confirmed[visit.siteId] ??= []).add(visit);
     }
-    return result;
+    return (history: history, visits: confirmed);
   }
 
   Future<void> recordFirstOpeningDates(Map<int, DateTime> dates) async {
@@ -984,6 +923,19 @@ class AppDatabase extends _$AppDatabase {
     return visit?.checkinDate;
   }
 
+  /// Record the id supercharging.life gave a Visit's Check-in, unless another
+  /// Visit already holds it.
+  Future<void> attachCheckinId(int visitId, int checkinId) =>
+      transaction(() async {
+        final holder = await (select(
+          visits,
+        )..where((t) => t.checkinId.equals(checkinId))).getSingleOrNull();
+        if (holder != null) return;
+        await (update(visits)..where((t) => t.id.equals(visitId))).write(
+          VisitsCompanion(checkinId: Value(checkinId)),
+        );
+      });
+
   /// Attach IDs only for unique matches in both the local and server history.
   ///
   /// A Visit still Sending that matches was confirmed by supercharging.life
@@ -1059,14 +1011,6 @@ class AppDatabase extends _$AppDatabase {
           ..orderBy([(t) => OrderingTerm.desc(t.checkinTime)])
           ..limit(limit))
         .get();
-  }
-
-  /// Who took the First at [siteId]: everyone marked First on the first
-  /// such day, in check-in order. A First can be shared, so there may be
-  /// several. Empty when the First has aged out of the history feed.
-  Future<List<String>> getFirstCheckinNames(int siteId) async {
-    final rows = (await _getFirstCheckins([siteId]))[siteId] ?? const [];
-    return [for (final row in rows) row.displayName ?? row.username];
   }
 
   Future<DateTime?> getLastPublicCheckinDate(int siteId) async {

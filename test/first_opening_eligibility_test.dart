@@ -2,7 +2,6 @@ import 'package:drift/drift.dart' show Value, Migrator;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supercharger_bingo/database/database.dart';
-import 'package:supercharger_bingo/services/alert_rules.dart';
 import 'package:supercharger_bingo/services/checkin_rules.dart';
 
 void main() {
@@ -47,8 +46,6 @@ void main() {
       await db.recordFirstOpeningDates({1: DateTime.utc(2026, 5, 2)});
       await visit(1, 1);
       await visit(2, 2);
-      expect(await db.getEarliestCheckinDates([1]), {1: DateTime(2026, 5, 2)});
-      expect(await db.getFirstCheckinNames(1), ['user2']);
       final reopened = (await db.getSiteBySiteId(1))!;
       expect(
         checkinPrecedesOpening(
@@ -118,108 +115,10 @@ void main() {
       // Refreshing the row must not cache the previous UTC day as firstOpened.
       await site(opened: DateTime.utc(2026, 5, 2));
       await visit(1, 1);
-      expect(await db.getEarliestCheckinDates([1]), isEmpty);
-    },
-  );
-
-  test(
-    'pre-opening First plus positive counts leaves no award or countdown',
-    () async {
-      await site(opened: DateTime.utc(2026, 5, 2));
-      await visit(1, 1);
-      final dates = await db.getEarliestCheckinDates([1]);
-      expect(dates, isEmpty);
-      expect(await db.getFirstCheckinNames(1), isEmpty);
       expect(
-        isInFirstWindow(
-          earliestCheckin: dates[1],
-          siteLocalNow: DateTime(2026, 5, 2, 12),
-        ),
-        isFalse,
+        (await db.getSiteBySiteId(1))!.firstOpeningDay!.toUtc(),
+        DateTime.utc(2026, 5, 2),
       );
-      final history = await db.getSiteCheckins(1);
-      expect(history, hasLength(1));
-      expect(history.single.isFirstAtSupercharger, isTrue);
-    },
-  );
-
-  test(
-    'invalid upstream First does not hide later unflagged shared Firsts',
-    () async {
-      await site(opened: DateTime.utc(2026, 5, 2));
-      await visit(1, 1);
-      await visit(2, 2, first: false);
-      await visit(3, 2, first: false);
-      await visit(4, 3, first: false);
-      expect(await db.getEarliestCheckinDates([1]), {1: DateTime(2026, 5, 2)});
-      expect(await db.getFirstCheckinNames(1), ['user2', 'user3']);
-      expect(await db.getSiteCheckins(1), hasLength(4));
-    },
-  );
-
-  test(
-    'unflagged premature visits cannot activate the count fallback',
-    () async {
-      await site(opened: DateTime.utc(2026, 5, 2));
-      await visit(1, 1, first: false);
-      expect(await db.getEarliestCheckinDates([1]), isEmpty);
-      expect(await db.getSiteCheckins(1), hasLength(1));
-    },
-  );
-
-  for (final status in [
-    SiteStatus.plan,
-    SiteStatus.permit,
-    SiteStatus.construction,
-    SiteStatus.voting,
-  ]) {
-    test(
-      '${status.name} cannot consume First with or without an opening date',
-      () async {
-        await visit(1, 2);
-        for (final opened in [null, DateTime.utc(2026, 5, 2)]) {
-          await site(status: status, opened: opened);
-          expect(await db.getEarliestCheckinDates([1]), isEmpty);
-          expect(await db.getFirstCheckinNames(1), isEmpty);
-        }
-      },
-    );
-  }
-
-  test('closed sites keep legitimate opening-day Firsts', () async {
-    await site(status: SiteStatus.closedPerm, opened: DateTime.utc(2026, 5, 2));
-    await visit(1, 1);
-    await visit(2, 2);
-    expect(await db.getEarliestCheckinDates([1]), {1: DateTime(2026, 5, 2)});
-    expect(await db.getFirstCheckinNames(1), ['user2']);
-  });
-
-  test(
-    'older counted sites stay claimed without inventing a countdown',
-    () async {
-      await site(opened: DateTime.utc(2026, 5, 2));
-      final dates = await db.getEarliestCheckinDates([1]);
-      expect(dates, {1: DateTime(2000)});
-      expect(
-        isInFirstWindow(
-          earliestCheckin: dates[1],
-          siteLocalNow: DateTime(2026, 5, 2, 12),
-        ),
-        isFalse,
-      );
-    },
-  );
-
-  test(
-    'unknown operational opening keeps conservative claimed fallback',
-    () async {
-      await site();
-      expect(await db.getEarliestCheckinDates([1]), {1: DateTime(2000)});
-      expect(await db.getFirstCheckinNames(1), isEmpty);
-      await visit(1, 2, first: false);
-      expect(await db.getFirstCheckinNames(1), isEmpty);
-      await visit(2, 3);
-      expect(await db.getFirstCheckinNames(1), ['user2']);
     },
   );
 }

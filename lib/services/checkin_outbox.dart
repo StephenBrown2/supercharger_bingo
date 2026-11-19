@@ -349,10 +349,13 @@ class CheckinOutbox {
         'visit': id,
         'outcome': result.outcome.name,
         'message': result.message,
+        'checkinId': result.checkinId,
         'ms': watch.elapsedMilliseconds,
       });
       switch (result.outcome) {
         case WriteOutcome.accepted:
+          final checkinId = result.checkinId;
+          if (checkinId != null) await _db.attachCheckinId(id, checkinId);
           await _delete(id);
         case WriteOutcome.needsSignIn:
           await _update(id, _waitForSignIn);

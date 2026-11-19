@@ -14,6 +14,7 @@ import 'background/background_stub.dart'
     if (dart.library.html) 'background/background_web.dart'
     as background;
 import 'database_service.dart';
+import 'first_state.dart';
 import 'location_service.dart';
 import 'nearest_site_service.dart' show navigateActionId;
 import 'site_navigation.dart';
@@ -430,17 +431,10 @@ class NotificationService {
       nearby.add(site);
       distances[site.siteId] = distance;
     }
-    final firstDates = await DatabaseService.getEarliestCheckinDates(
-      nearby.map((site) => site.siteId).toList(),
-    );
+    final states = await firstStates(nearby, DateTime.now());
     for (final site in nearby) {
+      if (states[site.siteId] != FirstState.today) continue;
       final localNow = TimezoneService.instance.getLocalTimeAtSite(site);
-      if (!isInFirstWindow(
-        earliestCheckin: firstDates[site.siteId],
-        siteLocalNow: localNow,
-      )) {
-        continue;
-      }
       open.add(_firstNotificationId(site));
       final day =
           '${localNow.year.toString().padLeft(4, '0')}-'
@@ -532,7 +526,7 @@ class NotificationService {
     // Site on the first line, since collapsed Android shows only that line.
     // Android has a live countdown in the header, so only iOS needs the
     // time left in the text.
-    final names = await DatabaseService.getFirstCheckinNames(site.siteId);
+    final names = await firstDayNames(site);
     final shareWith = names.isEmpty ? '' : ' with ${joinNames(names)}';
     final body =
         '${site.name}\n'

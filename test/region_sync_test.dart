@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:supercharger_bingo/database/database.dart';
 import 'package:supercharger_bingo/services/api_service.dart';
 import 'package:supercharger_bingo/services/database_service.dart';
+import 'package:supercharger_bingo/services/first_state.dart';
 import 'package:supercharger_bingo/services/sync_service.dart';
 
 import 'support/test_sqlite3.dart';
@@ -124,7 +125,11 @@ void main() {
           ),
         );
       await SyncService(apiService: ApiService(dio: dio)).syncCommunityData();
-      expect(await db.getEarliestCheckinDates([50]), isEmpty);
+      final site = (await db.getSiteBySiteId(50))!;
+      expect(
+        (await firstStates([site], DateTime.now()))[50],
+        FirstState.upForGrabs,
+      );
       expect(await db.getSiteCheckins(50), hasLength(1));
       expect(
         requests.where((r) => r.queryParameters['id'] == 50),

@@ -3,36 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:supercharger_bingo/database/database.dart';
 import 'package:supercharger_bingo/screens/map_marker_style.dart';
+import 'package:supercharger_bingo/services/first_state.dart';
 
 void main() {
-  group('computeFirstState (SPEC Section 4/5)', () {
-    final now = DateTime(2026, 6, 18, 14, 0);
-
-    test('no check-in date => up for grabs', () {
-      expect(
-        computeFirstState(firstDate: null, siteLocalNow: now),
-        FirstState.upForGrabs,
-      );
-    });
-
-    test('first date today (site-local) => today (shared window)', () {
-      expect(
-        computeFirstState(
-          firstDate: DateTime(2026, 6, 18, 9, 30),
-          siteLocalNow: now,
-        ),
-        FirstState.today,
-      );
-    });
-
-    test('first date before today => passed', () {
-      expect(
-        computeFirstState(firstDate: DateTime(2026, 6, 17), siteLocalNow: now),
-        FirstState.passed,
-      );
-    });
-  });
-
   group('markerStyleFor (supercharging.life colours + glyphs)', () {
     MarkerStyle style(SiteStatus status, [FirstState? first, bool v = false]) =>
         markerStyleFor(
