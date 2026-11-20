@@ -81,7 +81,7 @@ class NearestSiteEngineService : Service() {
             .setSmallIcon(icon)
             .setContentTitle(update.title)
             .setContentText(update.body)
-            .setContentIntent(openApp(update.siteId))
+            .setContentIntent(openApp(update.siteId, checkIn = false))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)
@@ -101,20 +101,26 @@ class NearestSiteEngineService : Service() {
                     .setCriticalMetric(0),
             )
         }
+        if (update.siteId != null && update.checkIn) {
+            builder.addAction(0, "Check In", openApp(update.siteId, checkIn = true))
+        }
         if (update.siteId != null && update.latitude != null && update.longitude != null) {
             builder.addAction(0, "Navigate", navigate(update))
         }
         return builder.build()
     }
 
-    /** Opens the app on the site, the way a tap on any site alert does. */
-    private fun openApp(siteId: Int?): PendingIntent {
+    /** Opens the app on the site, the way a tap on any site alert does, or
+     *  straight into checking in there. */
+    private fun openApp(siteId: Int?, checkIn: Boolean): PendingIntent {
         val intent = Intent(this, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .putExtra(MainActivity.EXTRA_CHECK_IN, checkIn)
         siteId?.let { intent.putExtra(MainActivity.EXTRA_SITE_ID, it) }
         return PendingIntent.getActivity(
             this,
-            0,
+            // Separate request codes keep each intent's extras.
+            if (checkIn) 2 else 0,
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
@@ -140,6 +146,7 @@ class NearestSiteEngineService : Service() {
         val metric: String? = null,
         val metricLabel: String? = null,
         val siteId: Int? = null,
+        val checkIn: Boolean = false,
         val latitude: Double? = null,
         val longitude: Double? = null,
     ) {
@@ -152,6 +159,7 @@ class NearestSiteEngineService : Service() {
                 metric = call.argument("metric"),
                 metricLabel = call.argument("metricLabel"),
                 siteId = call.argument("siteId"),
+                checkIn = call.argument<Boolean>("checkIn") ?: false,
                 latitude = call.argument("latitude"),
                 longitude = call.argument("longitude"),
             )

@@ -77,11 +77,14 @@ class MainActivity : FlutterActivity() {
         takeSite(intent)?.let { nearestSite?.invokeMethod("openSite", it) }
     }
 
-    private fun takeSite(intent: Intent?): Int? {
+    private fun takeSite(intent: Intent?): Map<String, Any>? {
         if (intent?.hasExtra(EXTRA_SITE_ID) != true) return null
-        val siteId = intent.getIntExtra(EXTRA_SITE_ID, 0)
+        val site = mapOf(
+            "siteId" to intent.getIntExtra(EXTRA_SITE_ID, 0),
+            "checkIn" to intent.getBooleanExtra(EXTRA_CHECK_IN, false),
+        )
         intent.removeExtra(EXTRA_SITE_ID)
-        return siteId
+        return site
     }
 
     override fun onRequestPermissionsResult(
@@ -100,5 +103,6 @@ class MainActivity : FlutterActivity() {
     companion object {
         private const val BACKGROUND_REQUEST = 7301
         const val EXTRA_SITE_ID = "nearest_site_id"
+        const val EXTRA_CHECK_IN = "nearest_site_check_in"
     }
 }

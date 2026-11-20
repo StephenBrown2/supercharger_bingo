@@ -39,15 +39,15 @@ class _AppShellState extends State<AppShell> {
 
   void _openRequestedSite() {
     final request = NotificationService.instance.openSiteRequest;
-    final siteId = request.value;
-    if (siteId == null || !mounted) return;
+    final site = request.value;
+    if (site == null || !mounted) return;
     request.value = null;
     setState(() {
       _selectedIndex = 0;
       _showCheckinDrawer = false;
     });
     WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _mapKey.currentState?.showSite(siteId),
+      (_) => _mapKey.currentState?.showSite(site.siteId, checkIn: site.checkIn),
     );
   }
 

@@ -23,6 +23,9 @@ import 'checkin_outbox.dart';
 import 'sync_service.dart';
 import 'timezone_service.dart';
 
+/// A site to show on the map, and whether to start a check-in there.
+typedef SiteRequest = ({int siteId, bool checkIn});
+
 /// Background work task names
 const String backgroundSyncTask = 'com.superchargerbingo.backgroundSync';
 
@@ -40,9 +43,10 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
   bool _initialized = false;
 
-  /// Site id from a tapped notification, waiting for the map to show it.
-  /// AppShell takes it and sets it back to null.
-  final ValueNotifier<int?> openSiteRequest = ValueNotifier(null);
+  /// Site from a tapped notification, waiting for the map to show it, and
+  /// whether to start a check-in there. AppShell takes it and sets it back
+  /// to null.
+  final ValueNotifier<SiteRequest?> openSiteRequest = ValueNotifier(null);
 
   NotificationService._();
 
@@ -150,7 +154,8 @@ class NotificationService {
       });
       return;
     }
-    openSiteRequest.value = siteId;
+    if (siteId == null) return;
+    openSiteRequest.value = (siteId: siteId, checkIn: false);
   }
 
   /// Request notification permissions (iOS)

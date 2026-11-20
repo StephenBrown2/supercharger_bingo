@@ -708,12 +708,18 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   bool _siteFocused = false;
 
   /// Zoom to a site and open its sheet, for a tapped notification.
-  Future<void> showSite(int siteId) async {
+  /// Centre the map on a site and open its sheet, or with [checkIn] go
+  /// straight to checking in there.
+  Future<void> showSite(int siteId, {bool checkIn = false}) async {
     final site = await DatabaseService.getSiteBySiteId(siteId);
     if (site == null || !mounted) return;
     _siteFocused = true;
     _mapController.move(LatLng(site.latitude, site.longitude), 14);
-    _showSiteInfo(site);
+    if (checkIn) {
+      await _checkInFromSheet(site);
+    } else {
+      _showSiteInfo(site);
+    }
   }
 
   ModalBottomSheetRoute<void>? _siteSheetRoute;
@@ -1410,7 +1416,12 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _checkInFromSheet(Site site) async {
-    final position = _userPosition ?? LocationService.instance.cachedPosition;
+    // The map only follows fixes while the check-in drawer is open, so take
+    // a current one. The check-in records it.
+    final position =
+        await LocationService.instance.getCurrentPosition() ?? _userPosition;
+    if (!mounted) return;
+    if (position != null) _userPosition = position;
     final distanceKm = position == null
         ? 0.0
         : TimezoneService.instance.calculateDistanceKm(

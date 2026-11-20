@@ -47,6 +47,10 @@ NearestSite? findNearestSite(List<Site> sites, double lat, double lon) {
   return (site: best.site, km: best.km, bearing: bearing);
 }
 
+/// Within this distance the Live Update offers Check In. Generous enough for
+/// GPS drift and site coordinates a little off the stalls.
+const double checkInFromNotificationKm = 1.0;
+
 /// Eight-point compass direction for a bearing in degrees (-180 to 180).
 String compassPoint(double bearing) {
   const points = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
@@ -84,13 +88,18 @@ class NearestSiteService {
   /// Route Live Update taps to the map. Call once at startup.
   Future<void> listenForTaps() async {
     if (!_supported) return;
-    void open(int siteId) =>
-        NotificationService.instance.openSiteRequest.value = siteId;
+    void open(Object? request) {
+      if (request is! Map) return;
+      NotificationService.instance.openSiteRequest.value = (
+        siteId: request['siteId'] as int,
+        checkIn: request['checkIn'] == true,
+      );
+    }
+
     _service.setMethodCallHandler((call) async {
-      if (call.method == 'openSite') open(call.arguments as int);
+      if (call.method == 'openSite') open(call.arguments);
     });
-    final launchSite = await _service.invokeMethod<int>('takeLaunchSite');
-    if (launchSite != null) open(launchSite);
+    open(await _service.invokeMethod<Object?>('takeLaunchSite'));
   }
 
   /// Start, restart, or stop to match [settings]. Safe to call after any
@@ -191,6 +200,7 @@ class _LiveUpdate {
       'metric': distance,
       'metricLabel': '$direction$construction',
       'siteId': site.siteId,
+      'checkIn': nearest.km <= checkInFromNotificationKm,
       'latitude': site.latitude,
       'longitude': site.longitude,
     });
@@ -199,7 +209,7 @@ class _LiveUpdate {
   Future<void> _show(Map<String, Object?> update) async {
     // Only repost when the text changes, which is every 0.1 mi or km. The
     // body holds the direction, so an icon change always reposts too.
-    final key = '${update['title']}|${update['body']}';
+    final key = '${update['title']}|${update['body']}|${update['checkIn']}';
     if (key == _lastShown) return;
     _lastShown = key;
     await _native.invokeMethod<void>('show', update);
