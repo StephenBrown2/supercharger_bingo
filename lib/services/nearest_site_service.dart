@@ -57,6 +57,11 @@ String compassPoint(double bearing) {
   return points[((bearing % 360) / 45).round() % 8];
 }
 
+/// Where a site lies from the user, such as "Northwest of here", for a
+/// [compassPoint]. Stands in for a missing street.
+String directionPhrase(String point) =>
+    '${const {'N': 'North', 'NE': 'Northeast', 'E': 'East', 'SE': 'Southeast', 'S': 'South', 'SW': 'Southwest', 'W': 'West', 'NW': 'Northwest'}[point]} of here';
+
 /// Drawable for the bolt-shaped compass needle pointing [direction].
 String compassIcon(String direction) =>
     'ic_stat_compass_${direction.toLowerCase()}';
@@ -199,12 +204,18 @@ class _LiveUpdate {
       // Android 17 shows the distance large on the right, with this line
       // under the name. The status bar chip's needle gives the direction.
       'metric': distance,
-      'metricLabel': '${site.street ?? direction}$construction',
+      'metricLabel':
+          '${_street(site) ?? directionPhrase(direction)}$construction',
       'siteId': site.siteId,
       'checkIn': nearest.km <= checkInFromNotificationKm,
       'latitude': site.latitude,
       'longitude': site.longitude,
     });
+  }
+
+  static String? _street(Site site) {
+    final street = site.street?.trim();
+    return street == null || street.isEmpty ? null : street;
   }
 
   Future<void> _show(Map<String, Object?> update) async {
