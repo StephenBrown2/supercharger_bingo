@@ -273,6 +273,21 @@ void main() {
       expect((await db.getSiteBySiteId(7))!.status, SiteStatus.open);
     });
 
+    test('v22 adds the street once and reloads every site', () async {
+      await db.customStatement('ALTER TABLE sites DROP COLUMN street');
+      await db.upsertRegionSync(100, 5000);
+      await db.migration.onUpgrade(Migrator(db), 21, 22);
+      final columns = await db
+          .customSelect("SELECT name FROM pragma_table_info('sites')")
+          .get();
+      expect(
+        columns.map((row) => row.read<String>('name')),
+        contains('street'),
+      );
+      expect(await db.getRegionSync(100), isNull);
+      await db.migration.onUpgrade(Migrator(db), 21, 22);
+    });
+
     test('site persists closed status and derived timezone column', () async {
       await db.upsertSite(
         SitesCompanion.insert(

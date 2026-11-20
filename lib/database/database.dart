@@ -108,6 +108,7 @@ class Sites extends Table {
       textEnum<SiteStatus>().withDefault(Constant(SiteStatus.plan.name))();
   RealColumn get latitude => real().withDefault(const Constant(0.0))();
   RealColumn get longitude => real().withDefault(const Constant(0.0))();
+  TextColumn get street => text().nullable()();
   TextColumn get city => text().nullable()();
   TextColumn get state => text().nullable()();
   TextColumn get country => text().withDefault(const Constant('Unknown'))();
@@ -345,7 +346,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 21;
+  int get schemaVersion => 22;
 
   @override
   MigrationStrategy get migration {
@@ -650,6 +651,14 @@ class AppDatabase extends _$AppDatabase {
           await customStatement(
             "UPDATE sites SET status = 'open' WHERE status = 'expanding'",
           );
+        }
+        if (from < 22 && to >= 22) {
+          // The Live Update shows the street. Site sync only fetches changed
+          // sites, so forget the cursors to reload every site once.
+          if (!await _columnExists('sites', 'street')) {
+            await m.addColumn(sites, sites.street);
+          }
+          await delete(regionSyncs).go();
         }
       },
     );

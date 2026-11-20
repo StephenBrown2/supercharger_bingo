@@ -488,6 +488,7 @@ class ApiService {
       status: Value(_siteStatus(site.status)),
       latitude: Value(site.gps.latitude),
       longitude: Value(site.gps.longitude),
+      street: Value(site.address.street),
       city: Value(site.address.city),
       state: Value(site.address.state),
       country: Value(countryValues.reverse[site.address.country] ?? 'Unknown'),

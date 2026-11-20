@@ -85,6 +85,15 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0.0),
   );
+  static const VerificationMeta _streetMeta = const VerificationMeta('street');
+  @override
+  late final GeneratedColumn<String> street = GeneratedColumn<String>(
+    'street',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _cityMeta = const VerificationMeta('city');
   @override
   late final GeneratedColumn<String> city = GeneratedColumn<String>(
@@ -294,6 +303,7 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
     status,
     latitude,
     longitude,
+    street,
     city,
     state,
     country,
@@ -359,6 +369,12 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
       context.handle(
         _longitudeMeta,
         longitude.isAcceptableOrUnknown(data['longitude']!, _longitudeMeta),
+      );
+    }
+    if (data.containsKey('street')) {
+      context.handle(
+        _streetMeta,
+        street.isAcceptableOrUnknown(data['street']!, _streetMeta),
       );
     }
     if (data.containsKey('city')) {
@@ -514,6 +530,10 @@ class $SitesTable extends Sites with TableInfo<$SitesTable, Site> {
         DriftSqlType.double,
         data['${effectivePrefix}longitude'],
       )!,
+      street: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}street'],
+      ),
       city: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}city'],
@@ -602,6 +622,7 @@ class Site extends DataClass implements Insertable<Site> {
   final SiteStatus status;
   final double latitude;
   final double longitude;
+  final String? street;
   final String? city;
   final String? state;
   final String country;
@@ -640,6 +661,7 @@ class Site extends DataClass implements Insertable<Site> {
     required this.status,
     required this.latitude,
     required this.longitude,
+    this.street,
     this.city,
     this.state,
     required this.country,
@@ -674,6 +696,9 @@ class Site extends DataClass implements Insertable<Site> {
     }
     map['latitude'] = Variable<double>(latitude);
     map['longitude'] = Variable<double>(longitude);
+    if (!nullToAbsent || street != null) {
+      map['street'] = Variable<String>(street);
+    }
     if (!nullToAbsent || city != null) {
       map['city'] = Variable<String>(city);
     }
@@ -719,6 +744,9 @@ class Site extends DataClass implements Insertable<Site> {
       status: Value(status),
       latitude: Value(latitude),
       longitude: Value(longitude),
+      street: street == null && nullToAbsent
+          ? const Value.absent()
+          : Value(street),
       city: city == null && nullToAbsent ? const Value.absent() : Value(city),
       state: state == null && nullToAbsent
           ? const Value.absent()
@@ -766,6 +794,7 @@ class Site extends DataClass implements Insertable<Site> {
       ),
       latitude: serializer.fromJson<double>(json['latitude']),
       longitude: serializer.fromJson<double>(json['longitude']),
+      street: serializer.fromJson<String?>(json['street']),
       city: serializer.fromJson<String?>(json['city']),
       state: serializer.fromJson<String?>(json['state']),
       country: serializer.fromJson<String>(json['country']),
@@ -798,6 +827,7 @@ class Site extends DataClass implements Insertable<Site> {
       ),
       'latitude': serializer.toJson<double>(latitude),
       'longitude': serializer.toJson<double>(longitude),
+      'street': serializer.toJson<String?>(street),
       'city': serializer.toJson<String?>(city),
       'state': serializer.toJson<String?>(state),
       'country': serializer.toJson<String>(country),
@@ -826,6 +856,7 @@ class Site extends DataClass implements Insertable<Site> {
     SiteStatus? status,
     double? latitude,
     double? longitude,
+    Value<String?> street = const Value.absent(),
     Value<String?> city = const Value.absent(),
     Value<String?> state = const Value.absent(),
     String? country,
@@ -851,6 +882,7 @@ class Site extends DataClass implements Insertable<Site> {
     status: status ?? this.status,
     latitude: latitude ?? this.latitude,
     longitude: longitude ?? this.longitude,
+    street: street.present ? street.value : this.street,
     city: city.present ? city.value : this.city,
     state: state.present ? state.value : this.state,
     country: country ?? this.country,
@@ -880,6 +912,7 @@ class Site extends DataClass implements Insertable<Site> {
       status: data.status.present ? data.status.value : this.status,
       latitude: data.latitude.present ? data.latitude.value : this.latitude,
       longitude: data.longitude.present ? data.longitude.value : this.longitude,
+      street: data.street.present ? data.street.value : this.street,
       city: data.city.present ? data.city.value : this.city,
       state: data.state.present ? data.state.value : this.state,
       country: data.country.present ? data.country.value : this.country,
@@ -924,6 +957,7 @@ class Site extends DataClass implements Insertable<Site> {
           ..write('status: $status, ')
           ..write('latitude: $latitude, ')
           ..write('longitude: $longitude, ')
+          ..write('street: $street, ')
           ..write('city: $city, ')
           ..write('state: $state, ')
           ..write('country: $country, ')
@@ -954,6 +988,7 @@ class Site extends DataClass implements Insertable<Site> {
     status,
     latitude,
     longitude,
+    street,
     city,
     state,
     country,
@@ -983,6 +1018,7 @@ class Site extends DataClass implements Insertable<Site> {
           other.status == this.status &&
           other.latitude == this.latitude &&
           other.longitude == this.longitude &&
+          other.street == this.street &&
           other.city == this.city &&
           other.state == this.state &&
           other.country == this.country &&
@@ -1010,6 +1046,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
   final Value<SiteStatus> status;
   final Value<double> latitude;
   final Value<double> longitude;
+  final Value<String?> street;
   final Value<String?> city;
   final Value<String?> state;
   final Value<String> country;
@@ -1035,6 +1072,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
     this.status = const Value.absent(),
     this.latitude = const Value.absent(),
     this.longitude = const Value.absent(),
+    this.street = const Value.absent(),
     this.city = const Value.absent(),
     this.state = const Value.absent(),
     this.country = const Value.absent(),
@@ -1061,6 +1099,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
     this.status = const Value.absent(),
     this.latitude = const Value.absent(),
     this.longitude = const Value.absent(),
+    this.street = const Value.absent(),
     this.city = const Value.absent(),
     this.state = const Value.absent(),
     this.country = const Value.absent(),
@@ -1088,6 +1127,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
     Expression<String>? status,
     Expression<double>? latitude,
     Expression<double>? longitude,
+    Expression<String>? street,
     Expression<String>? city,
     Expression<String>? state,
     Expression<String>? country,
@@ -1114,6 +1154,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
       if (status != null) 'status': status,
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
+      if (street != null) 'street': street,
       if (city != null) 'city': city,
       if (state != null) 'state': state,
       if (country != null) 'country': country,
@@ -1142,6 +1183,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
     Value<SiteStatus>? status,
     Value<double>? latitude,
     Value<double>? longitude,
+    Value<String?>? street,
     Value<String?>? city,
     Value<String?>? state,
     Value<String>? country,
@@ -1168,6 +1210,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
       status: status ?? this.status,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
+      street: street ?? this.street,
       city: city ?? this.city,
       state: state ?? this.state,
       country: country ?? this.country,
@@ -1213,6 +1256,9 @@ class SitesCompanion extends UpdateCompanion<Site> {
     }
     if (longitude.present) {
       map['longitude'] = Variable<double>(longitude.value);
+    }
+    if (street.present) {
+      map['street'] = Variable<String>(street.value);
     }
     if (city.present) {
       map['city'] = Variable<String>(city.value);
@@ -1278,6 +1324,7 @@ class SitesCompanion extends UpdateCompanion<Site> {
           ..write('status: $status, ')
           ..write('latitude: $latitude, ')
           ..write('longitude: $longitude, ')
+          ..write('street: $street, ')
           ..write('city: $city, ')
           ..write('state: $state, ')
           ..write('country: $country, ')
@@ -6230,6 +6277,7 @@ typedef $$SitesTableCreateCompanionBuilder =
       Value<SiteStatus> status,
       Value<double> latitude,
       Value<double> longitude,
+      Value<String?> street,
       Value<String?> city,
       Value<String?> state,
       Value<String> country,
@@ -6257,6 +6305,7 @@ typedef $$SitesTableUpdateCompanionBuilder =
       Value<SiteStatus> status,
       Value<double> latitude,
       Value<double> longitude,
+      Value<String?> street,
       Value<String?> city,
       Value<String?> state,
       Value<String> country,
@@ -6317,6 +6366,11 @@ class $$SitesTableFilterComposer extends Composer<_$AppDatabase, $SitesTable> {
 
   ColumnFilters<double> get longitude => $composableBuilder(
     column: $table.longitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get street => $composableBuilder(
+    column: $table.street,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6450,6 +6504,11 @@ class $$SitesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get street => $composableBuilder(
+    column: $table.street,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get city => $composableBuilder(
     column: $table.city,
     builder: (column) => ColumnOrderings(column),
@@ -6568,6 +6627,9 @@ class $$SitesTableAnnotationComposer
   GeneratedColumn<double> get longitude =>
       $composableBuilder(column: $table.longitude, builder: (column) => column);
 
+  GeneratedColumn<String> get street =>
+      $composableBuilder(column: $table.street, builder: (column) => column);
+
   GeneratedColumn<String> get city =>
       $composableBuilder(column: $table.city, builder: (column) => column);
 
@@ -6669,6 +6731,7 @@ class $$SitesTableTableManager
                 Value<SiteStatus> status = const Value.absent(),
                 Value<double> latitude = const Value.absent(),
                 Value<double> longitude = const Value.absent(),
+                Value<String?> street = const Value.absent(),
                 Value<String?> city = const Value.absent(),
                 Value<String?> state = const Value.absent(),
                 Value<String> country = const Value.absent(),
@@ -6694,6 +6757,7 @@ class $$SitesTableTableManager
                 status: status,
                 latitude: latitude,
                 longitude: longitude,
+                street: street,
                 city: city,
                 state: state,
                 country: country,
@@ -6721,6 +6785,7 @@ class $$SitesTableTableManager
                 Value<SiteStatus> status = const Value.absent(),
                 Value<double> latitude = const Value.absent(),
                 Value<double> longitude = const Value.absent(),
+                Value<String?> street = const Value.absent(),
                 Value<String?> city = const Value.absent(),
                 Value<String?> state = const Value.absent(),
                 Value<String> country = const Value.absent(),
@@ -6746,6 +6811,7 @@ class $$SitesTableTableManager
                 status: status,
                 latitude: latitude,
                 longitude: longitude,
+                street: street,
                 city: city,
                 state: state,
                 country: country,

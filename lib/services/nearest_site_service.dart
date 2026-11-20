@@ -196,9 +196,10 @@ class _LiveUpdate {
       'body': '${formatDistance(nearest.km, units)} $direction$construction',
       'chip': distance,
       'icon': compassIcon(direction),
-      // Android 17 shows this large on the right.
+      // Android 17 shows the distance large on the right, with this line
+      // under the name. The status bar chip's needle gives the direction.
       'metric': distance,
-      'metricLabel': '$direction$construction',
+      'metricLabel': '${site.street ?? direction}$construction',
       'siteId': site.siteId,
       'checkIn': nearest.km <= checkInFromNotificationKm,
       'latitude': site.latitude,
