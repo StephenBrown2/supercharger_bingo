@@ -101,11 +101,12 @@ class NearestSiteEngineService : Service() {
                     .setCriticalMetric(0),
             )
         }
-        if (update.siteId != null && update.checkIn) {
-            builder.addAction(0, "Check In", openApp(update.siteId, checkIn = true))
-        }
+        // Same order as the site sheet: Navigate, then Check In.
         if (update.siteId != null && update.latitude != null && update.longitude != null) {
             builder.addAction(0, "Navigate", navigate(update))
+        }
+        if (update.siteId != null && update.checkIn) {
+            builder.addAction(0, "Check In", openApp(update.siteId, checkIn = true))
         }
         return builder.build()
     }
