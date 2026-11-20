@@ -8,7 +8,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:geolocator/geolocator.dart';
 
 import '../database/database.dart';
-import '../services/api_service.dart';
+import '../services/session.dart';
 import '../services/checkin_log.dart';
 import '../services/database_service.dart';
 import '../services/life_auth.dart';
@@ -24,7 +24,6 @@ import 'vehicles_screen.dart';
 class MutableSettings {
   int? userId;
   String? username;
-  bool isAuthenticated;
   PollingInterval pollingInterval;
   double notificationRadiusKm;
   MapFilter mapFilter;
@@ -47,7 +46,6 @@ class MutableSettings {
   MutableSettings({
     this.userId,
     this.username,
-    this.isAuthenticated = false,
     this.pollingInterval = PollingInterval.hours24,
     this.notificationRadiusKm = 100.0,
     this.mapFilter = MapFilter.openUnvisited,
@@ -72,7 +70,6 @@ class MutableSettings {
     return MutableSettings(
       userId: data.odUserId,
       username: data.username,
-      isAuthenticated: data.isAuthenticated,
       pollingInterval: data.pollingInterval,
       notificationRadiusKm: data.notificationRadiusKm,
       mapFilter: data.mapFilter,
@@ -98,7 +95,6 @@ class MutableSettings {
     return UserSettingsTableCompanion(
       odUserId: Value(userId),
       username: Value(username),
-      isAuthenticated: Value(isAuthenticated),
       pollingInterval: Value(pollingInterval),
       notificationRadiusKm: Value(notificationRadiusKm),
       mapFilter: Value(mapFilter),
@@ -131,13 +127,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isLoading = true;
   bool _isSyncingSites = false;
   int? _siteCount;
+  bool _signedIn = false;
+  late final AppLifecycleListener _sessionLifecycle;
 
   @override
   void initState() {
     super.initState();
+    Session.instance.addListener(_refreshSession);
+    _sessionLifecycle = AppLifecycleListener(onResume: _refreshSession);
+    _refreshSession();
     _loadSettings();
     _loadSiteCount();
     _loadLocationAccess();
+  }
+
+  @override
+  void dispose() {
+    _sessionLifecycle.dispose();
+    Session.instance.removeListener(_refreshSession);
+    super.dispose();
+  }
+
+  Future<void> _refreshSession() async {
+    final signedIn = await Session.instance.isSignedIn();
+    if (mounted && _signedIn != signedIn) {
+      setState(() => _signedIn = signedIn);
+    }
   }
 
   /// Null hides the row. Only phones run background alerts.
@@ -265,9 +280,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             child: const Text('Log out'),
                           )
                         : null,
-                    onTap: !kIsWeb && _settings?.isAuthenticated != true
-                        ? _handleLogin
-                        : null,
+                    onTap: !kIsWeb && !_signedIn ? _handleLogin : null,
                   ),
                   const Divider(),
 
@@ -619,18 +632,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
     final provider = _settings?.authProvider;
     final label = provider == null ? null : authProviderLabel(provider);
-    if (_settings?.isAuthenticated == true) {
+    if (_signedIn) {
       return label == null ? 'Signed in' : 'Signed in with $label';
     }
     if (label != null) {
-      return '$label. Check-ins wait here to sync';
+      return 'Device-only. Check-ins wait here to sync';
     }
     return 'Tap to log in';
   }
 
   bool get _showLogout =>
-      !kIsWeb &&
-      (_settings?.isAuthenticated == true || _settings?.authProvider != null);
+      !kIsWeb && (_signedIn || _settings?.authProvider != null);
 
   void _handleLogin() {
     Navigator.of(context).push(
@@ -656,10 +668,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
           FilledButton(
             onPressed: () async {
               Navigator.pop(dialogContext);
-              _settings?.isAuthenticated = false;
-              _settings?.authProvider = null;
-              await _saveSettings();
-              await ApiService.instance.clearSessionCookie();
+              try {
+                await Session.instance.signOut();
+                _settings?.authProvider = null;
+                await _saveSettings();
+              } catch (_) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Could not log out')),
+                  );
+                }
+                return;
+              }
               if (mounted) {
                 setState(() {});
                 ScaffoldMessenger.of(

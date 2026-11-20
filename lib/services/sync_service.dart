@@ -351,14 +351,12 @@ class SyncService {
 
       debugPrint('syncUserByUsername: Found user: $username (ID: $userId)');
 
-      // Save user info to settings - mark as authenticated since we found them
+      // Save the imported profile.
       await DatabaseService.updateUserSettings(
         UserSettingsTableCompanion(
           odUserId: Value(userId),
           username: Value(username),
           displayName: Value(userData['displayname'] as String?),
-          isAuthenticated: const Value(true),
-          lastLoginAt: Value(DateTime.now()),
         ),
       );
 

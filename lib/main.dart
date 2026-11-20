@@ -11,6 +11,7 @@ import 'services/checkin_outbox.dart';
 import 'services/database_service.dart';
 import 'services/nearest_site_service.dart';
 import 'services/notification_service.dart';
+import 'services/session.dart';
 import 'services/sync_service.dart';
 import 'services/timezone_service.dart';
 import 'theme/app_theme.dart';
@@ -28,7 +29,7 @@ void main() async {
   final settings = await DatabaseService.getUserSettings();
   CheckinLog.event('app.start', {
     'web': kIsWeb,
-    'signedIn': settings.isAuthenticated,
+    'signedIn': await Session.instance.isSignedIn(),
     'pending': await CheckinOutbox.instance.pending().then(
       (p) => p.length,
       onError: (_) => -1,

@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show Migrator, Value;
 import 'package:drift/native.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supercharger_bingo/database/database.dart';
 import 'package:supercharger_bingo/services/api_service.dart';
@@ -9,6 +10,7 @@ import 'package:supercharger_bingo/services/checkin_outbox.dart';
 import 'package:supercharger_bingo/services/checkin_writer.dart';
 import 'package:supercharger_bingo/services/checkin_form.dart';
 import 'package:supercharger_bingo/services/database_service.dart';
+import 'package:supercharger_bingo/services/session.dart';
 import 'package:supercharger_bingo/services/write_result.dart';
 
 import 'support/outbox.dart';
@@ -150,6 +152,37 @@ void main() {
     expect(session.expired, 1);
   });
 
+  test('sign-out leaves a send claimed by another engine in flight', () async {
+    final visitId = await _pendingVisit(db, state: OutboxState.waiting);
+    final writer = FakeWriter();
+    final outbox = CheckinOutbox(
+      db: db,
+      writer: writer,
+      isOnline: () async => true,
+      isSignedIn: () async {
+        await (db.update(
+          db.outboxEntries,
+        )..where((t) => t.visitId.equals(visitId))).write(
+          OutboxEntriesCompanion(
+            state: const Value(OutboxState.sending),
+            attempts: const Value(1),
+            lastAttemptAt: Value(start),
+          ),
+        );
+        return false;
+      },
+      markSessionExpired: () async {},
+      now: () => start,
+    );
+
+    await outbox.sendDue();
+
+    expect(writer.drafts, isEmpty);
+    final entry = (await entries()).single;
+    expect(entry.state, OutboxState.sending);
+    expect(entry.attempts, 1);
+  });
+
   test('a failed send waits out its backoff before the next try', () async {
     final clock = FakeClock(start);
     final writer = FakeWriter([WriteResult.retry, WriteResult.accepted]);
@@ -285,7 +318,7 @@ void main() {
     late List<RequestOptions> requests;
     late List<Response<dynamic> Function(RequestOptions)> answers;
 
-    ApiService api() {
+    ApiService api({String? sessionId = 'test-session'}) {
       final dio = Dio()
         ..interceptors.add(
           InterceptorsWrapper(
@@ -297,7 +330,7 @@ void main() {
             },
           ),
         );
-      return ApiService(dio: dio, sessionId: 'test-session');
+      return ApiService(dio: dio, sessionId: sessionId);
     }
 
     setUp(() {
@@ -389,17 +422,17 @@ void main() {
         ];
         final loginAt = DateTime.utc(2026, 1, 1);
         await db.updateUserSettings(
-          UserSettingsTableCompanion(
-            isAuthenticated: const Value(true),
-            lastLoginAt: Value(loginAt),
-          ),
+          UserSettingsTableCompanion(lastLoginAt: Value(loginAt)),
         );
-        final outbox = CheckinOutbox.live(api: api());
+        FlutterSecureStorage.setMockInitialValues({
+          'sclsession': 'test-session',
+        });
+        final outbox = CheckinOutbox.live(api: api(sessionId: null));
 
         expect(await outbox.record(siteId: 7), Delivery.waitingForSignIn);
 
+        expect(await Session.instance.isSignedIn(), isFalse);
         final settings = await db.getUserSettings();
-        expect(settings.isAuthenticated, isFalse);
         expect(
           settings.lastLoginAt?.millisecondsSinceEpoch,
           loginAt.millisecondsSinceEpoch,

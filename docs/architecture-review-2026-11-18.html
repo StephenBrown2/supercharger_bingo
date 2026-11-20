@@ -235,14 +235,14 @@ flowchart TD
 <article id="session" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
   <div class="flex flex-wrap items-center gap-2">
     <h2 class="font-serif text-2xl mr-2">4. A Session module replaces string-matched sign-in state</h2>
-    <span class="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800">Worth exploring</span>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-600 text-white">Done</span>
     <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700">in-process</span>
   </div>
   <ul class="font-mono text-sm text-slate-700 space-y-0.5">
-    <li>lib/screens/login_screen.dart (67-87, 111-153)</li>
-    <li>lib/screens/settings_screen.dart · logout (641-644)</li>
-    <li>lib/services/sync_service.dart · _markSessionExpired (671-678)</li>
-    <li>lib/screens/map_screen.dart · _refreshSignInBanner (152-161)</li>
+    <li>lib/services/session.dart</li>
+    <li>lib/services/api_service.dart and lib/services/checkin_outbox.dart</li>
+    <li>lib/screens/login_screen.dart, settings_screen.dart and map_screen.dart</li>
+    <li>lib/database/database.dart (schema v23)</li>
   </ul>
   <div class="grid md:grid-cols-2 gap-4">
     <div class="rounded-lg border border-slate-200 p-4 diagram">
@@ -267,22 +267,21 @@ flowchart LR
   L[login_screen] --> SM
   O[settings] --> SM
   B[map banner] --> SM
-  SM["Session module<br/>sign in · sign out · expired · waiting? · onChange"]
-  SM -->|release on sign-in| OB[Check-in outbox]
+  API[Authenticated requests] --> SM
+  OB[Check-in outbox] -->|read and listen| SM
+  SM["Session module<br/>sign in · sign out · expire current credential · notify"]
   classDef deep fill:#0f172a,color:#e2e8f0,stroke:#0f172a,stroke-width:4px;
   class SM deep
       </pre>
     </div>
   </div>
-  <p><strong>Problem:</strong> "Needs sign-in" is derived from four sources, and the banner decides it by comparing user-facing error strings.</p>
+  <p><strong>Problem:</strong> After candidate 1 removed string matching from the banner, the saved cookie and the settings flag could still disagree.</p>
   <p><strong>Solution:</strong> One module owns the session and notifies; signing in releases the outbox.</p>
-  <ul class="list-disc pl-5 text-sm space-y-1">
-    <li>Logout stops skipping the notifier</li>
-    <li>Copy edits stop breaking logic</li>
-    <li>Expired → sign in → sent, one test</li>
-  </ul>
-  <div class="rounded-md bg-slate-50 border border-slate-200 text-slate-700 text-sm px-3 py-2">Only one auth adapter today (cookie). Keep this in-process; no seam until a second auth path (official API) exists.</div>
-  <div class="rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 text-sm px-3 py-2"><strong>Partly done by candidate 1:</strong> the banner reads Waiting for sign-in from the outbox (no string matching), <code>sessionExpiredVersion</code> is deleted, and the outbox takes "signed in?" and "mark expired" as two injected functions. Still spread: the cookie and <code>isAuthenticated</code> are set by <code>login_screen</code> and cleared by <code>settings_screen</code> logout.</div>
+  <div class="rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 text-sm px-3 py-2 space-y-2">
+    <p><strong>Done.</strong> The in-process <code>Session</code> owns the stored cookie and notifies listeners on sign-in, sign-out and expiry. Schema v23 removes <code>isAuthenticated</code>. Import and resync update profile and history. Web use stays Device-only until official OAuth.</p>
+    <p>The outbox reads the stored Session in both Android engines. Sign-in wakes the outbox. Sign-out holds unsent Check-ins and lets in-flight requests settle. Expiry applies only to the credential used by the request.</p>
+    <p>Flutter analysis was clean and 183 tests passed, including migration, offline sign-out, stale expiry and overlapping sends. The release APK was checked on Pixel 9 and Pixel 8a Android 17 emulators for login entry, Device-only continuation, logout and relaunch. The release web build passed Chromium checks at all nine Tesla viewport sizes. Physical Pixel 9 installation was blocked by the wireless ADB connection. Live OAuth, remote submissions and physical Tesla browsers remain unverified.</p>
+  </div>
 </article>
 
 <!-- 5 -->
@@ -294,7 +293,7 @@ flowchart LR
   </div>
   <ul class="font-mono text-sm text-slate-700 space-y-0.5">
     <li>lib/services/database_service.dart (whole file)</li>
-    <li>callers using DatabaseService.db directly: checkin_dialog 21-23, sync_service 222/317/387/639</li>
+    <li>Direct database callers include <code>checkin_outbox.dart</code>, <code>sync_service.dart</code> and <code>session.dart</code></li>
   </ul>
   <div class="grid md:grid-cols-2 gap-4">
     <div class="rounded-lg border border-slate-200 p-4 diagram">
@@ -323,6 +322,7 @@ flowchart LR
   </ul>
   <div class="rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 text-sm px-3 py-2"><strong>Partly done by candidate 1:</strong> <code>saveQueuedCheckin</code> and the pending wrappers are gone (the outbox takes <code>AppDatabase</code> directly), and the startup site cache is used once, so writes no longer have to clear it. Still left: the pass-through methods, the N+1 <code>getLastVisitDates</code>, and four distance functions.</div>
   <div class="rounded-md bg-amber-50 border border-amber-200 text-amber-900 text-sm px-3 py-2"><strong>After candidate 3 (rejected):</strong> there is no Site query module, so the startup site cache has nowhere to move; it stays with whatever replaces <code>DatabaseService</code>, or is dropped. Its <code>getSites(status: open, visited: false)</code> key is correct again because EXPANDING is stored as OPEN. Site status needs no rule here.</div>
+  <p class="text-sm">The Session uses an AppDatabase write transaction to serialize secure storage mutations across Android engines. Preserve that guarantee when changing how the database is supplied.</p>
 </article>
 
 <!-- 6 -->
@@ -368,8 +368,8 @@ flowchart LR
 
 <section id="top-recommendation" class="rounded-2xl deep p-8 space-y-3">
   <p class="lbl text-emerald-300">Top recommendation</p>
-  <h2 class="font-serif text-3xl"><a href="#session" class="underline decoration-emerald-400">A Session module replaces string-matched sign-in state</a></h2>
-  <p class="text-slate-300">The Check-in outbox (1) and the First module (2) are done, and the Site query module (3) was rejected because reading EXPANDING as OPEN removed the bug it was meant to prevent. The Session module is next: "needs sign-in" is still derived from four sources, and the banner decides it by comparing user-facing error strings.</p>
+  <h2 class="font-serif text-3xl"><a href="#dbservice" class="underline decoration-emerald-400">Dissolve the static DatabaseService pass-through</a></h2>
+  <p class="text-slate-300">The Check-in outbox (1), First module (2) and Session module (4) are done. The Site query module (3) was rejected after site imports began reading EXPANDING as OPEN. DatabaseService (5) is the next open candidate.</p>
 </section>
 
 </main>

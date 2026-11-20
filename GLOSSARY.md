@@ -20,6 +20,13 @@ _Avoid_: the client, Bingo
 
 ### Domain
 
+**Session**:
+The user's sign-in to supercharging.life that lets the app send Check-ins. A user with a Session is signed in.
+
+**Device-only**:
+Using the app without a Session. Visits recorded this way stay Pending until supercharging.life accepts their Check-ins.
+_Avoid_: local sign-in, offline login
+
 **Site**:
 One Supercharger location from supercharge.info, identified by its stable site id.
 _Avoid_: charger, station, location

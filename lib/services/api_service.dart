@@ -1,17 +1,15 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
-import 'package:dio_cookie_manager/dio_cookie_manager.dart';
-import 'package:cookie_jar/cookie_jar.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../database/database.dart';
 import '../models/supercharge_info.dart';
 import 'checkin_form.dart';
 import 'checkin_log.dart';
 import 'life_auth.dart';
+import 'session.dart';
 import 'life_time.dart';
 import 'write_result.dart';
 import 'timezone_service.dart';
@@ -22,15 +20,12 @@ class ApiService {
   static ApiService get instance => _instance ??= ApiService();
 
   late final Dio _dio;
-  CookieJar? _cookieJar;
-  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
   /// When set, skips secure storage. Tests pass a fake session so a post is
   /// allowed without the plugin.
   final String? sessionId;
 
   static const String sessionCookieName = lifeSessionCookieName;
-  static const String _sessionStorageKey = 'sclsession';
 
   // API endpoints
   static const String superchargeInfoBaseUrl = 'https://supercharge.info';
@@ -56,57 +51,25 @@ class ApiService {
             },
           ),
         );
-    // CookieManager doesn't work on web
-    if (!kIsWeb) {
-      _cookieJar = CookieJar();
-      _dio.interceptors.add(CookieManager(_cookieJar!));
+  }
+
+  Future<bool> isSignedIn() async =>
+      !kIsWeb &&
+      (sessionId?.isNotEmpty == true || await Session.instance.isSignedIn());
+
+  Future<SessionCredential?> _session() async {
+    if (kIsWeb) return null;
+    final testCookie = sessionId;
+    if (testCookie != null && testCookie.isNotEmpty) {
+      return (id: '', cookie: testCookie);
     }
+    return Session.instance.current();
   }
 
-  /// Store the supercharging.life session. The live site sets SCLSESSION
-  /// (not HttpOnly), which is what checkin.php expects.
-  Future<void> setSessionCookie(String sessionId) async {
-    try {
-      await _secureStorage.write(key: _sessionStorageKey, value: sessionId);
-    } catch (_) {}
-    await _saveSessionCookie(sessionId);
-  }
-
-  Future<void> _saveSessionCookie(String sessionId) async {
-    if (_cookieJar == null) return;
-    final uri = Uri.parse(superchargingLifeBaseUrl);
-    await _cookieJar!.saveFromResponse(uri, [
-      Cookie(sessionCookieName, sessionId)
-        ..domain = '.supercharging.life'
-        ..path = '/'
-        ..secure = true,
-    ]);
-  }
-
-  /// Get stored session cookie. Null when the plugin is unavailable.
-  Future<String?> getSessionCookie() async {
-    if (sessionId != null && sessionId!.isNotEmpty) return sessionId;
-    try {
-      return await _secureStorage.read(key: _sessionStorageKey);
-    } catch (_) {
-      return null;
+  Future<void> _expire(WriteResult result, SessionCredential used) async {
+    if (result.outcome == WriteOutcome.needsSignIn && sessionId == null) {
+      await Session.instance.markExpired(used);
     }
-  }
-
-  /// Put a stored session back into the cookie jar after a process restart.
-  Future<void> restoreSessionCookie() async {
-    final stored = await getSessionCookie();
-    if (stored == null || stored.isEmpty) return;
-    await _saveSessionCookie(stored);
-  }
-
-  /// Clear session cookie (logout)
-  Future<void> clearSessionCookie() async {
-    try {
-      await _secureStorage.delete(key: _sessionStorageKey);
-      await _secureStorage.delete(key: 'sclphpsessid');
-    } catch (_) {}
-    await _cookieJar?.deleteAll();
   }
 
   /// Fetch all supercharger sites from supercharge.info
@@ -324,9 +287,8 @@ class ApiService {
   /// failure is [WriteOutcome.retry]. Anything else that is not a 200 is
   /// [WriteOutcome.rejected], which [UnofficialCheckinWriter] retries.
   Future<WriteResult> submitCheckin(CheckinDraft draft) async {
-    final session = await getSessionCookie();
-    if (session == null || session.isEmpty) return WriteResult.needsSignIn;
-    await restoreSessionCookie();
+    final session = await _session();
+    if (session == null) return WriteResult.needsSignIn;
     // The check-in dialog waits on this post, so cap it at 15 seconds. A
     // cancelled post is a retry; it may still have landed, which the outbox
     // treats as a send that was attempted.
@@ -340,7 +302,11 @@ class ApiService {
         cancelToken: cancel,
         // The form answers with a 302. Dio does not follow it for a POST and
         // would throw, so read the Location header instead.
-        options: Options(followRedirects: false, validateStatus: (_) => true),
+        options: Options(
+          headers: {'cookie': '$sessionCookieName=${session.cookie}'},
+          followRedirects: false,
+          validateStatus: (_) => true,
+        ),
       );
       final body = response.data?.toString();
       final location = response.headers.value('location');
@@ -363,6 +329,7 @@ class ApiService {
         'outcome': result.outcome.name,
         'ms': watch.elapsedMilliseconds,
       });
+      await _expire(result, session);
       return result;
     } on DioException catch (e) {
       final result = writeResultFromHttp(
@@ -381,6 +348,7 @@ class ApiService {
         'outcome': result.outcome.name,
         'ms': watch.elapsedMilliseconds,
       });
+      await _expire(result, session);
       return result;
     } finally {
       timer.cancel();
@@ -389,14 +357,17 @@ class ApiService {
 
   Future<WriteResult> deleteCheckin(int checkinId) async {
     if (checkinId <= 0) return WriteResult.rejected;
-    final session = await getSessionCookie();
-    if (session == null || session.isEmpty) return WriteResult.needsSignIn;
-    await restoreSessionCookie();
+    final session = await _session();
+    if (session == null) return WriteResult.needsSignIn;
     try {
       final response = await _dio.get(
         '$superchargingLifeBaseUrl/supercharging/misc.php',
         queryParameters: {'action': 'delete_checkin', 'checkin_id': checkinId},
-        options: Options(followRedirects: false, validateStatus: (_) => true),
+        options: Options(
+          headers: {'cookie': '$sessionCookieName=${session.cookie}'},
+          followRedirects: false,
+          validateStatus: (_) => true,
+        ),
       );
       final location = response.headers.value('location');
       final result = writeResultFromHttp(
@@ -404,7 +375,10 @@ class ApiService {
         body: response.data?.toString(),
         finalUri: location,
       );
-      if (result.outcome != WriteOutcome.accepted) return result;
+      if (result.outcome != WriteOutcome.accepted) {
+        await _expire(result, session);
+        return result;
+      }
       final destination = location == null
           ? null
           : response.realUri.resolve(location);

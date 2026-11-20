@@ -245,10 +245,8 @@ class UserSettingsTable extends Table {
   IntColumn get odUserId => integer().nullable()();
   TextColumn get username => text().nullable()();
   TextColumn get displayName => text().nullable()();
-  BoolColumn get isAuthenticated =>
-      boolean().withDefault(const Constant(false))();
 
-  /// GitHub or Google. Set for a live session and for a device-only sign-in.
+  /// GitHub or Google. Set for a live session and for a device-only use.
   TextColumn get authProvider => textEnum<AuthProvider>().nullable()();
   DateTimeColumn get firstLoginAt => dateTime().nullable()();
   DateTimeColumn get lastLoginAt => dateTime().nullable()();
@@ -346,7 +344,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 22;
+  int get schemaVersion => 23;
 
   @override
   MigrationStrategy get migration {
@@ -659,6 +657,13 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(sites, sites.street);
           }
           await delete(regionSyncs).go();
+        }
+        if (from < 23 &&
+            to >= 23 &&
+            await _columnExists('user_settings', 'is_authenticated')) {
+          await customStatement(
+            'ALTER TABLE user_settings DROP COLUMN is_authenticated',
+          );
         }
       },
     );

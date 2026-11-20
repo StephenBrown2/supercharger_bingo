@@ -3,8 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:material_ui/material_ui.dart';
 
 import '../database/database.dart';
-import '../services/api_service.dart';
-import '../services/checkin_outbox.dart';
+import '../services/session.dart';
 import '../services/database_service.dart';
 import '../services/sync_service.dart';
 import 'life_login_page.dart';
@@ -65,7 +64,6 @@ class _LoginScreenState extends State<LoginScreen> {
       _statusMessage = 'Saving supercharging.life session...';
     });
     try {
-      await ApiService.instance.setSessionCookie(sessionId);
       var found = false;
       if (displayName.isNotEmpty) {
         try {
@@ -77,15 +75,12 @@ class _LoginScreenState extends State<LoginScreen> {
       await DatabaseService.updateUserSettings(
         UserSettingsTableCompanion(
           authProvider: Value(provider),
-          isAuthenticated: const Value(true),
           lastLoginAt: Value(DateTime.now()),
           username: found ? const Value.absent() : Value(displayName),
           displayName: found ? const Value.absent() : Value(displayName),
         ),
       );
-      // Send check-ins that were waiting for sign-in now, not at the next
-      // network change. Failures stay queued for the next sync.
-      CheckinOutbox.instance.sendDue(reason: 'sign-in').ignore();
+      await Session.instance.signIn(sessionId);
       _finish();
     } catch (e) {
       if (mounted) {
@@ -112,7 +107,6 @@ class _LoginScreenState extends State<LoginScreen> {
       await DatabaseService.updateUserSettings(
         UserSettingsTableCompanion(
           authProvider: Value(provider),
-          isAuthenticated: const Value(false),
           lastLoginAt: Value(DateTime.now()),
         ),
       );
@@ -144,10 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
         await SyncService.instance.syncSuperchargerCheckinCounts();
       }
       await DatabaseService.updateUserSettings(
-        UserSettingsTableCompanion(
-          isAuthenticated: const Value(false),
-          lastLoginAt: Value(DateTime.now()),
-        ),
+        UserSettingsTableCompanion(lastLoginAt: Value(DateTime.now())),
       );
       _finish();
     } catch (e) {

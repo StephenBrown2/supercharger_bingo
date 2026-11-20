@@ -12,6 +12,7 @@ import '../services/api_service.dart';
 import '../services/checkin_log.dart';
 import '../services/checkin_outbox.dart';
 import '../services/database_service.dart';
+import '../services/session.dart';
 import '../services/first_state.dart';
 import '../services/life_time.dart' show formatCalendarDate;
 import '../services/location_service.dart';
@@ -163,9 +164,8 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       MaterialPageRoute(builder: (_) => LoginScreen(onLoginSuccess: () {})),
     );
     if (!mounted) return;
-    final settings = await DatabaseService.getUserSettings();
     // Signing in hides it at once; the outbox then sends what was waiting.
-    if (settings.isAuthenticated) {
+    if (await Session.instance.isSignedIn() && mounted) {
       setState(() => _needsSignIn = false);
     } else {
       await _refreshSignInBanner();

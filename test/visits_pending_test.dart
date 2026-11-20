@@ -254,7 +254,6 @@ void main() {
 
       final settings = await db.getUserSettings();
       expect(settings.authProvider, AuthProvider.github);
-      expect(settings.isAuthenticated, isFalse);
       expect(settings.lastLoginAt, isNotNull);
       expect(finished, isTrue);
       await tester.pumpWidget(const SizedBox());

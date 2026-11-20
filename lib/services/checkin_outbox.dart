@@ -10,6 +10,7 @@ import 'checkin_form.dart';
 import 'checkin_log.dart';
 import 'checkin_writer.dart';
 import 'database_service.dart';
+import 'session.dart';
 import 'write_result.dart';
 
 /// What [CheckinOutbox.record] did with a new Check-in.
@@ -96,19 +97,12 @@ class CheckinOutbox {
   /// Tests pass their own [api] to exercise the real writer and session.
   factory CheckinOutbox.live({ApiService? api}) {
     final life = api ?? ApiService.instance;
-    return CheckinOutbox(
+    final outbox = CheckinOutbox(
       db: DatabaseService.db,
       writer: UnofficialCheckinWriter(life),
-      isSignedIn: () async {
-        final session = await life.getSessionCookie();
-        return session != null && session.isNotEmpty;
-      },
-      markSessionExpired: () async {
-        await life.clearSessionCookie();
-        await DatabaseService.updateUserSettings(
-          const UserSettingsTableCompanion(isAuthenticated: Value(false)),
-        );
-      },
+      isSignedIn: life.isSignedIn,
+      // The live writer expires the credential attached to its request.
+      markSessionExpired: () async {},
       isOnline: () async {
         try {
           final results = await Connectivity().checkConnectivity();
@@ -119,6 +113,27 @@ class CheckinOutbox {
       },
       sendingEnabled: !kIsWeb,
     );
+    if (api == null && !kIsWeb) {
+      Session.instance.addListener(() => outbox._sessionChanged().ignore());
+    }
+    return outbox;
+  }
+
+  Future<void> _sessionChanged() async {
+    if (await _isSignedIn()) {
+      await sendDue(reason: 'sign-in');
+    } else {
+      await _holdWaiting();
+    }
+  }
+
+  Future<void> _holdWaiting() async {
+    await (_db.update(
+      _db.outboxEntries,
+    )..where((t) => t.state.equalsValue(OutboxState.waiting))).write(
+      const OutboxEntriesCompanion(state: Value(OutboxState.waitingForSignIn)),
+    );
+    _changed();
   }
 
   /// Record a Check-in at [siteId] made now and send it right away.
@@ -317,10 +332,18 @@ class CheckinOutbox {
   Future<void> _send(OutboxEntry entry, String reason) async {
     final id = entry.visitId;
     final watch = Stopwatch()..start();
+    final unchanged = _db.update(_db.outboxEntries)
+      ..where(
+        (t) =>
+            t.visitId.equals(id) &
+            t.state.equalsValue(entry.state) &
+            t.attempts.equals(entry.attempts),
+      );
+    var claimed = false;
     try {
       if (!await _isSignedIn()) {
         CheckinLog.event('send.signedOut', {'visit': id, 'reason': reason});
-        await _update(id, _waitForSignIn);
+        if (await unchanged.write(_waitForSignIn) != 0) _changed();
         return;
       }
       CheckinLog.event('send.start', {
@@ -330,14 +353,17 @@ class CheckinOutbox {
         'attempt': entry.attempts + 1,
         'lastAttemptAt': entry.lastAttemptAt,
       });
-      await _update(
-        id,
-        OutboxEntriesCompanion(
-          state: const Value(OutboxState.sending),
-          lastAttemptAt: Value(_now()),
-          attempts: Value(entry.attempts + 1),
-        ),
-      );
+      claimed =
+          await unchanged.write(
+            OutboxEntriesCompanion(
+              state: const Value(OutboxState.sending),
+              lastAttemptAt: Value(_now()),
+              attempts: Value(entry.attempts + 1),
+            ),
+          ) !=
+          0;
+      if (!claimed) return;
+      _changed();
       final draft = await _draftFor(entry);
       if (draft == null) {
         // The Visit is gone; nothing to send.
@@ -369,6 +395,7 @@ class CheckinOutbox {
               lastError: Value(result.message ?? WriteResult.retry.message),
             ),
           );
+          if (!await _isSignedIn()) await _holdWaiting();
       }
     } catch (e) {
       CheckinLog.event('send.error', {
@@ -376,6 +403,7 @@ class CheckinOutbox {
         'error': '$e',
         'ms': watch.elapsedMilliseconds,
       });
+      if (!claimed) return;
       await _update(
         id,
         OutboxEntriesCompanion(
@@ -383,6 +411,7 @@ class CheckinOutbox {
           lastError: Value(WriteResult.retry.message),
         ),
       );
+      if (!await _isSignedIn()) await _holdWaiting();
     }
   }
 

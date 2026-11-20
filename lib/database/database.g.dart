@@ -3398,21 +3398,6 @@ class $UserSettingsTableTable extends UserSettingsTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _isAuthenticatedMeta = const VerificationMeta(
-    'isAuthenticated',
-  );
-  @override
-  late final GeneratedColumn<bool> isAuthenticated = GeneratedColumn<bool>(
-    'is_authenticated',
-    aliasedName,
-    false,
-    type: DriftSqlType.bool,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("is_authenticated" IN (0, 1))',
-    ),
-    defaultValue: const Constant(false),
-  );
   @override
   late final GeneratedColumnWithTypeConverter<AuthProvider?, String>
   authProvider =
@@ -3720,7 +3705,6 @@ class $UserSettingsTableTable extends UserSettingsTable
     odUserId,
     username,
     displayName,
-    isAuthenticated,
     authProvider,
     firstLoginAt,
     lastLoginAt,
@@ -3779,15 +3763,6 @@ class $UserSettingsTableTable extends UserSettingsTable
         displayName.isAcceptableOrUnknown(
           data['display_name']!,
           _displayNameMeta,
-        ),
-      );
-    }
-    if (data.containsKey('is_authenticated')) {
-      context.handle(
-        _isAuthenticatedMeta,
-        isAuthenticated.isAcceptableOrUnknown(
-          data['is_authenticated']!,
-          _isAuthenticatedMeta,
         ),
       );
     }
@@ -3987,10 +3962,6 @@ class $UserSettingsTableTable extends UserSettingsTable
         DriftSqlType.string,
         data['${effectivePrefix}display_name'],
       ),
-      isAuthenticated: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}is_authenticated'],
-      )!,
       authProvider: $UserSettingsTableTable.$converterauthProvidern.fromSql(
         attachedDatabase.typeMapping.read(
           DriftSqlType.string,
@@ -4134,9 +4105,8 @@ class UserSettingsTableData extends DataClass
   final int? odUserId;
   final String? username;
   final String? displayName;
-  final bool isAuthenticated;
 
-  /// GitHub or Google. Set for a live session and for a device-only sign-in.
+  /// GitHub or Google. Set for a live session and for a device-only use.
   final AuthProvider? authProvider;
   final DateTime? firstLoginAt;
   final DateTime? lastLoginAt;
@@ -4182,7 +4152,6 @@ class UserSettingsTableData extends DataClass
     this.odUserId,
     this.username,
     this.displayName,
-    required this.isAuthenticated,
     this.authProvider,
     this.firstLoginAt,
     this.lastLoginAt,
@@ -4221,7 +4190,6 @@ class UserSettingsTableData extends DataClass
     if (!nullToAbsent || displayName != null) {
       map['display_name'] = Variable<String>(displayName);
     }
-    map['is_authenticated'] = Variable<bool>(isAuthenticated);
     if (!nullToAbsent || authProvider != null) {
       map['auth_provider'] = Variable<String>(
         $UserSettingsTableTable.$converterauthProvidern.toSql(authProvider),
@@ -4307,7 +4275,6 @@ class UserSettingsTableData extends DataClass
       displayName: displayName == null && nullToAbsent
           ? const Value.absent()
           : Value(displayName),
-      isAuthenticated: Value(isAuthenticated),
       authProvider: authProvider == null && nullToAbsent
           ? const Value.absent()
           : Value(authProvider),
@@ -4365,7 +4332,6 @@ class UserSettingsTableData extends DataClass
       odUserId: serializer.fromJson<int?>(json['odUserId']),
       username: serializer.fromJson<String?>(json['username']),
       displayName: serializer.fromJson<String?>(json['displayName']),
-      isAuthenticated: serializer.fromJson<bool>(json['isAuthenticated']),
       authProvider: $UserSettingsTableTable.$converterauthProvidern.fromJson(
         serializer.fromJson<String?>(json['authProvider']),
       ),
@@ -4427,7 +4393,6 @@ class UserSettingsTableData extends DataClass
       'odUserId': serializer.toJson<int?>(odUserId),
       'username': serializer.toJson<String?>(username),
       'displayName': serializer.toJson<String?>(displayName),
-      'isAuthenticated': serializer.toJson<bool>(isAuthenticated),
       'authProvider': serializer.toJson<String?>(
         $UserSettingsTableTable.$converterauthProvidern.toJson(authProvider),
       ),
@@ -4478,7 +4443,6 @@ class UserSettingsTableData extends DataClass
     Value<int?> odUserId = const Value.absent(),
     Value<String?> username = const Value.absent(),
     Value<String?> displayName = const Value.absent(),
-    bool? isAuthenticated,
     Value<AuthProvider?> authProvider = const Value.absent(),
     Value<DateTime?> firstLoginAt = const Value.absent(),
     Value<DateTime?> lastLoginAt = const Value.absent(),
@@ -4508,7 +4472,6 @@ class UserSettingsTableData extends DataClass
     odUserId: odUserId.present ? odUserId.value : this.odUserId,
     username: username.present ? username.value : this.username,
     displayName: displayName.present ? displayName.value : this.displayName,
-    isAuthenticated: isAuthenticated ?? this.isAuthenticated,
     authProvider: authProvider.present ? authProvider.value : this.authProvider,
     firstLoginAt: firstLoginAt.present ? firstLoginAt.value : this.firstLoginAt,
     lastLoginAt: lastLoginAt.present ? lastLoginAt.value : this.lastLoginAt,
@@ -4556,9 +4519,6 @@ class UserSettingsTableData extends DataClass
       displayName: data.displayName.present
           ? data.displayName.value
           : this.displayName,
-      isAuthenticated: data.isAuthenticated.present
-          ? data.isAuthenticated.value
-          : this.isAuthenticated,
       authProvider: data.authProvider.present
           ? data.authProvider.value
           : this.authProvider,
@@ -4640,7 +4600,6 @@ class UserSettingsTableData extends DataClass
           ..write('odUserId: $odUserId, ')
           ..write('username: $username, ')
           ..write('displayName: $displayName, ')
-          ..write('isAuthenticated: $isAuthenticated, ')
           ..write('authProvider: $authProvider, ')
           ..write('firstLoginAt: $firstLoginAt, ')
           ..write('lastLoginAt: $lastLoginAt, ')
@@ -4677,7 +4636,6 @@ class UserSettingsTableData extends DataClass
     odUserId,
     username,
     displayName,
-    isAuthenticated,
     authProvider,
     firstLoginAt,
     lastLoginAt,
@@ -4711,7 +4669,6 @@ class UserSettingsTableData extends DataClass
           other.odUserId == this.odUserId &&
           other.username == this.username &&
           other.displayName == this.displayName &&
-          other.isAuthenticated == this.isAuthenticated &&
           other.authProvider == this.authProvider &&
           other.firstLoginAt == this.firstLoginAt &&
           other.lastLoginAt == this.lastLoginAt &&
@@ -4746,7 +4703,6 @@ class UserSettingsTableCompanion
   final Value<int?> odUserId;
   final Value<String?> username;
   final Value<String?> displayName;
-  final Value<bool> isAuthenticated;
   final Value<AuthProvider?> authProvider;
   final Value<DateTime?> firstLoginAt;
   final Value<DateTime?> lastLoginAt;
@@ -4776,7 +4732,6 @@ class UserSettingsTableCompanion
     this.odUserId = const Value.absent(),
     this.username = const Value.absent(),
     this.displayName = const Value.absent(),
-    this.isAuthenticated = const Value.absent(),
     this.authProvider = const Value.absent(),
     this.firstLoginAt = const Value.absent(),
     this.lastLoginAt = const Value.absent(),
@@ -4807,7 +4762,6 @@ class UserSettingsTableCompanion
     this.odUserId = const Value.absent(),
     this.username = const Value.absent(),
     this.displayName = const Value.absent(),
-    this.isAuthenticated = const Value.absent(),
     this.authProvider = const Value.absent(),
     this.firstLoginAt = const Value.absent(),
     this.lastLoginAt = const Value.absent(),
@@ -4838,7 +4792,6 @@ class UserSettingsTableCompanion
     Expression<int>? odUserId,
     Expression<String>? username,
     Expression<String>? displayName,
-    Expression<bool>? isAuthenticated,
     Expression<String>? authProvider,
     Expression<DateTime>? firstLoginAt,
     Expression<DateTime>? lastLoginAt,
@@ -4869,7 +4822,6 @@ class UserSettingsTableCompanion
       if (odUserId != null) 'od_user_id': odUserId,
       if (username != null) 'username': username,
       if (displayName != null) 'display_name': displayName,
-      if (isAuthenticated != null) 'is_authenticated': isAuthenticated,
       if (authProvider != null) 'auth_provider': authProvider,
       if (firstLoginAt != null) 'first_login_at': firstLoginAt,
       if (lastLoginAt != null) 'last_login_at': lastLoginAt,
@@ -4910,7 +4862,6 @@ class UserSettingsTableCompanion
     Value<int?>? odUserId,
     Value<String?>? username,
     Value<String?>? displayName,
-    Value<bool>? isAuthenticated,
     Value<AuthProvider?>? authProvider,
     Value<DateTime?>? firstLoginAt,
     Value<DateTime?>? lastLoginAt,
@@ -4941,7 +4892,6 @@ class UserSettingsTableCompanion
       odUserId: odUserId ?? this.odUserId,
       username: username ?? this.username,
       displayName: displayName ?? this.displayName,
-      isAuthenticated: isAuthenticated ?? this.isAuthenticated,
       authProvider: authProvider ?? this.authProvider,
       firstLoginAt: firstLoginAt ?? this.firstLoginAt,
       lastLoginAt: lastLoginAt ?? this.lastLoginAt,
@@ -4987,9 +4937,6 @@ class UserSettingsTableCompanion
     }
     if (displayName.present) {
       map['display_name'] = Variable<String>(displayName.value);
-    }
-    if (isAuthenticated.present) {
-      map['is_authenticated'] = Variable<bool>(isAuthenticated.value);
     }
     if (authProvider.present) {
       map['auth_provider'] = Variable<String>(
@@ -5103,7 +5050,6 @@ class UserSettingsTableCompanion
           ..write('odUserId: $odUserId, ')
           ..write('username: $username, ')
           ..write('displayName: $displayName, ')
-          ..write('isAuthenticated: $isAuthenticated, ')
           ..write('authProvider: $authProvider, ')
           ..write('firstLoginAt: $firstLoginAt, ')
           ..write('lastLoginAt: $lastLoginAt, ')
@@ -7823,7 +7769,6 @@ typedef $$UserSettingsTableTableCreateCompanionBuilder =
       Value<int?> odUserId,
       Value<String?> username,
       Value<String?> displayName,
-      Value<bool> isAuthenticated,
       Value<AuthProvider?> authProvider,
       Value<DateTime?> firstLoginAt,
       Value<DateTime?> lastLoginAt,
@@ -7855,7 +7800,6 @@ typedef $$UserSettingsTableTableUpdateCompanionBuilder =
       Value<int?> odUserId,
       Value<String?> username,
       Value<String?> displayName,
-      Value<bool> isAuthenticated,
       Value<AuthProvider?> authProvider,
       Value<DateTime?> firstLoginAt,
       Value<DateTime?> lastLoginAt,
@@ -7908,11 +7852,6 @@ class $$UserSettingsTableTableFilterComposer
 
   ColumnFilters<String> get displayName => $composableBuilder(
     column: $table.displayName,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<bool> get isAuthenticated => $composableBuilder(
-    column: $table.isAuthenticated,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8071,11 +8010,6 @@ class $$UserSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<bool> get isAuthenticated => $composableBuilder(
-    column: $table.isAuthenticated,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<String> get authProvider => $composableBuilder(
     column: $table.authProvider,
     builder: (column) => ColumnOrderings(column),
@@ -8218,11 +8152,6 @@ class $$UserSettingsTableTableAnnotationComposer
 
   GeneratedColumn<String> get displayName => $composableBuilder(
     column: $table.displayName,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<bool> get isAuthenticated => $composableBuilder(
-    column: $table.isAuthenticated,
     builder: (column) => column,
   );
 
@@ -8394,7 +8323,6 @@ class $$UserSettingsTableTableTableManager
                 Value<int?> odUserId = const Value.absent(),
                 Value<String?> username = const Value.absent(),
                 Value<String?> displayName = const Value.absent(),
-                Value<bool> isAuthenticated = const Value.absent(),
                 Value<AuthProvider?> authProvider = const Value.absent(),
                 Value<DateTime?> firstLoginAt = const Value.absent(),
                 Value<DateTime?> lastLoginAt = const Value.absent(),
@@ -8426,7 +8354,6 @@ class $$UserSettingsTableTableTableManager
                 odUserId: odUserId,
                 username: username,
                 displayName: displayName,
-                isAuthenticated: isAuthenticated,
                 authProvider: authProvider,
                 firstLoginAt: firstLoginAt,
                 lastLoginAt: lastLoginAt,
@@ -8458,7 +8385,6 @@ class $$UserSettingsTableTableTableManager
                 Value<int?> odUserId = const Value.absent(),
                 Value<String?> username = const Value.absent(),
                 Value<String?> displayName = const Value.absent(),
-                Value<bool> isAuthenticated = const Value.absent(),
                 Value<AuthProvider?> authProvider = const Value.absent(),
                 Value<DateTime?> firstLoginAt = const Value.absent(),
                 Value<DateTime?> lastLoginAt = const Value.absent(),
@@ -8490,7 +8416,6 @@ class $$UserSettingsTableTableTableManager
                 odUserId: odUserId,
                 username: username,
                 displayName: displayName,
-                isAuthenticated: isAuthenticated,
                 authProvider: authProvider,
                 firstLoginAt: firstLoginAt,
                 lastLoginAt: lastLoginAt,
