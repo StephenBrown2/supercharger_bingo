@@ -1,3 +1,9 @@
+# Android release APKs
+
+Build Android release APKs with `flutter build apk --release --split-per-abi`.
+Install the APK from `build/app/outputs/flutter-apk/` that matches the target
+device's ABI. For a physical Pixel 9, use `app-arm64-v8a-release.apk`.
+
 # Android verification
 
 Always verify changes on both a Pixel 9 Android emulator and a Pixel 8a Android
