@@ -12,6 +12,7 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private var pendingBackground: MethodChannel.Result? = null
+    private var nearestSite: MethodChannel? = null
 
     // Android 11+ ignores a background location request sent together with
     // the foreground ones, which is what geolocator does. Ask for it alone.
@@ -32,19 +33,22 @@ class MainActivity : FlutterActivity() {
                     )
                 }
             }
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "supercharger_bingo/nearest_site")
-            .setMethodCallHandler { call, result ->
+        nearestSite = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "supercharger_bingo/nearest_site").apply {
+            setMethodCallHandler { call, result ->
                 when (call.method) {
                     "start" -> NearestSiteEngineService.start(
-                        this,
+                        this@MainActivity,
                         call.argument<Int>("id")!!,
                         call.argument<String>("key")!!,
                     )
-                    "stop" -> NearestSiteEngineService.stop(this)
+                    "stop" -> NearestSiteEngineService.stop(this@MainActivity)
+                    // A Live Update tap that launched the app, read once.
+                    "takeLaunchSite" -> return@setMethodCallHandler result.success(takeSite(intent))
                     else -> return@setMethodCallHandler result.notImplemented()
                 }
                 result.success(null)
             }
+        }
         // Hands a site to whichever navigation app the user picks: Google
         // Maps, Waze, ABRP and the Tesla app all open geo: links. Android's
         // own picker offers "Always", so it is one tap after the first time.
@@ -67,6 +71,19 @@ class MainActivity : FlutterActivity() {
             }
     }
 
+    // A Live Update tap while the app is open.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        takeSite(intent)?.let { nearestSite?.invokeMethod("openSite", it) }
+    }
+
+    private fun takeSite(intent: Intent?): Int? {
+        if (intent?.hasExtra(EXTRA_SITE_ID) != true) return null
+        val siteId = intent.getIntExtra(EXTRA_SITE_ID, 0)
+        intent.removeExtra(EXTRA_SITE_ID)
+        return siteId
+    }
+
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
@@ -80,7 +97,8 @@ class MainActivity : FlutterActivity() {
         pendingBackground = null
     }
 
-    private companion object {
-        const val BACKGROUND_REQUEST = 7301
+    companion object {
+        private const val BACKGROUND_REQUEST = 7301
+        const val EXTRA_SITE_ID = "nearest_site_id"
     }
 }

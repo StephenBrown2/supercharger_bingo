@@ -12,6 +12,7 @@ import 'package:geolocator/geolocator.dart';
 import '../database/database.dart';
 import 'database_service.dart';
 import 'location_service.dart';
+import 'notification_service.dart';
 
 const String nearestSiteChannelId = 'nearest_unvisited';
 
@@ -80,6 +81,18 @@ class NearestSiteService {
 
   bool get _supported => !kIsWeb && Platform.isAndroid;
 
+  /// Route Live Update taps to the map. Call once at startup.
+  Future<void> listenForTaps() async {
+    if (!_supported) return;
+    void open(int siteId) =>
+        NotificationService.instance.openSiteRequest.value = siteId;
+    _service.setMethodCallHandler((call) async {
+      if (call.method == 'openSite') open(call.arguments as int);
+    });
+    final launchSite = await _service.invokeMethod<int>('takeLaunchSite');
+    if (launchSite != null) open(launchSite);
+  }
+
   /// Start, restart, or stop to match [settings]. Safe to call after any
   /// settings save. Call from the foreground: Android only lets a location
   /// service start while the app is visible.
@@ -133,15 +146,10 @@ Future<void> nearestSiteMain() async {
 class _LiveUpdate {
   _LiveUpdate(this._settings);
   final UserSettingsTableData _settings;
-  final _plugin = FlutterLocalNotificationsPlugin();
+  static const _native = MethodChannel('supercharger_bingo/live_update');
   String? _lastShown;
 
   Future<void> start() async {
-    await _plugin.initialize(
-      settings: const InitializationSettings(
-        android: AndroidInitializationSettings('ic_stat_bolt'),
-      ),
-    );
     LocationService.instance.getPositionStream().listen(
       _update,
       onError: (Object e) => debugPrint('NearestSiteService: $e'),
@@ -162,70 +170,38 @@ class _LiveUpdate {
       position.longitude,
     );
     if (nearest == null) {
-      await _show(
-        title: 'No unvisited sites',
-        body: 'Every site in the filter is visited',
-      );
+      await _show({
+        'title': 'No unvisited sites',
+        'body': 'Every site in the filter is visited',
+      });
       return;
     }
     final site = nearest.site;
-    final distance = formatDistance(nearest.km, units);
+    final distance = chipDistance(nearest.km, units);
+    final direction = compassPoint(nearest.bearing);
     final construction = site.status == SiteStatus.construction
         ? ' · Under construction'
         : '';
-    final direction = compassPoint(nearest.bearing);
-    await _show(
-      title: site.name,
-      body: '$distance $direction$construction',
-      chip: chipDistance(nearest.km, units),
-      icon: compassIcon(direction),
-      siteId: site.siteId,
-    );
+    await _show({
+      'title': site.name,
+      'body': '${formatDistance(nearest.km, units)} $direction$construction',
+      'chip': distance,
+      'icon': compassIcon(direction),
+      // Android 17 shows this large on the right.
+      'metric': distance,
+      'metricLabel': '$direction$construction',
+      'siteId': site.siteId,
+      'latitude': site.latitude,
+      'longitude': site.longitude,
+    });
   }
 
-  /// Replaces the service's placeholder notification, which shares its id.
-  Future<void> _show({
-    required String title,
-    required String body,
-    String? chip,
-    String icon = 'ic_stat_bolt',
-    int? siteId,
-  }) async {
+  Future<void> _show(Map<String, Object?> update) async {
     // Only repost when the text changes, which is every 0.1 mi or km. The
     // body holds the direction, so an icon change always reposts too.
-    final key = '$title|$body';
+    final key = '${update['title']}|${update['body']}';
     if (key == _lastShown) return;
     _lastShown = key;
-    await _plugin.show(
-      id: _notificationId,
-      title: title,
-      body: body,
-      payload: siteId == null ? null : 'site:$siteId',
-      notificationDetails: NotificationDetails(
-        android: AndroidNotificationDetails(
-          nearestSiteChannelId,
-          'Nearest Unvisited Site',
-          icon: icon,
-          ongoing: true,
-          autoCancel: false,
-          onlyAlertOnce: true,
-          silent: true,
-          showWhen: false,
-          category: AndroidNotificationCategory.navigation,
-          requestPromotedOngoing: true,
-          shortCriticalText: chip,
-          actions: [
-            if (siteId != null)
-              const AndroidNotificationAction(
-                navigateActionId,
-                'Navigate',
-                showsUserInterface: true,
-                // The service owns this notification; leave it up.
-                cancelNotification: false,
-              ),
-          ],
-        ),
-      ),
-    );
+    await _native.invokeMethod<void>('show', update);
   }
 }

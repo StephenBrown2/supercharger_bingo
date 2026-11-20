@@ -48,4 +48,6 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // MetricStyle for the nearest site Live Update.
+    implementation("androidx.core:core-ktx:1.19.1")
 }

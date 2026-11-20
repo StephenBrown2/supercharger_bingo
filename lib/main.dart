@@ -22,6 +22,7 @@ void main() async {
   await DatabaseService.initialize();
   await TimezoneService.instance.initialize();
   await NotificationService.instance.initialize();
+  await NearestSiteService.instance.listenForTaps();
   SyncService.instance.initialize();
 
   final settings = await DatabaseService.getUserSettings();
