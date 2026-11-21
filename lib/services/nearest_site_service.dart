@@ -63,7 +63,7 @@ String compassIcon(String direction) =>
 
 /// Status bar chip text. Android shows about seven characters.
 String chipDistance(double km, UnitSystem units) {
-  final value = units == UnitSystem.imperial ? km * 0.621371 : km;
+  final value = displayFromKm(km, units);
   final unit = units == UnitSystem.imperial ? 'mi' : 'km';
   final number = value < 10
       ? value.toStringAsFixed(1)

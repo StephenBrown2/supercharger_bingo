@@ -361,7 +361,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: const Text('Notification Radius'),
                     subtitle: Text(
                       _settings?.unitSystem == UnitSystem.imperial
-                          ? 'Alerts within ${(_settings!.notificationRadiusKm * 0.621371).toStringAsFixed(0)} mi'
+                          ? 'Alerts within ${displayFromKm(_settings!.notificationRadiusKm, UnitSystem.imperial).toStringAsFixed(0)} mi'
                           : 'Alerts within ${_settings?.notificationRadiusKm.toStringAsFixed(0)} km',
                     ),
                     trailing: const Icon(Icons.chevron_right),
@@ -414,7 +414,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: const Text('Check-in Search Radius'),
                     subtitle: Text(
                       _settings?.unitSystem == UnitSystem.imperial
-                          ? 'Sites within ${(_settings!.checkinRadiusKm * 0.621371).toStringAsFixed(0)} mi'
+                          ? 'Sites within ${displayFromKm(_settings!.checkinRadiusKm, UnitSystem.imperial).toStringAsFixed(0)} mi'
                           : 'Sites within ${_settings?.checkinRadiusKm.toStringAsFixed(0)} km',
                     ),
                     trailing: const Icon(Icons.chevron_right),
@@ -831,19 +831,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required double maxDisplay,
     required void Function(double km) applyKm,
   }) async {
-    final isImperial = _settings?.unitSystem == UnitSystem.imperial;
+    final units = _settings?.unitSystem ?? UnitSystem.metric;
     final saved = await showDialog<double>(
       context: context,
       builder: (context) => _RangeValueDialog(
         title: title,
-        initial: isImperial ? currentKm * 0.621371 : currentKm,
+        initial: displayFromKm(currentKm, units),
         min: minDisplay,
         max: maxDisplay,
-        unit: isImperial ? 'mi' : 'km',
+        unit: units == UnitSystem.imperial ? 'mi' : 'km',
       ),
     );
     if (saved == null || !mounted) return;
-    setState(() => applyKm(isImperial ? saved / 0.621371 : saved));
+    setState(() => applyKm(kmFromDisplay(saved, units)));
     await _saveSettings();
   }
 

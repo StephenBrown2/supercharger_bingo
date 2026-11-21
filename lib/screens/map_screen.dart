@@ -1327,7 +1327,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       ], DateTime.now());
 
       final radius = settings.unitSystem == UnitSystem.imperial
-          ? '${(settings.checkinRadiusKm * 0.621371).round()} mi'
+          ? '${displayFromKm(settings.checkinRadiusKm, UnitSystem.imperial).round()} mi'
           : '${settings.checkinRadiusKm.round()} km';
       setState(() {
         _emptyNearbyLabel = settings.includeVisitedNearby

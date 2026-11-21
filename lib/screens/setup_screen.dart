@@ -341,7 +341,7 @@ class _SetupScreenState extends State<SetupScreen> {
     required RadiusRange range,
     required ValueChanged<double> onChanged,
   }) {
-    final shown = (_imperial ? km * 0.621371 : km).clamp(range.min, range.max);
+    final shown = displayFromKm(km, _units).clamp(range.min, range.max);
     final unit = _imperial ? 'mi' : 'km';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

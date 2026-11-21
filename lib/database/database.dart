@@ -64,13 +64,19 @@ RadiusRange checkinRadiusRange(UnitSystem units) => units == UnitSystem.imperial
     ? (min: 1, max: 250, initial: 25)
     : (min: 2, max: 400, initial: 40);
 
+const _milesPerKm = 0.621371;
+
 double kmFromDisplay(double value, UnitSystem units) =>
-    units == UnitSystem.imperial ? value / 0.621371 : value;
+    units == UnitSystem.imperial ? value / _milesPerKm : value;
+
+/// [km] in the user's units, unrounded.
+double displayFromKm(double km, UnitSystem units) =>
+    units == UnitSystem.imperial ? km * _milesPerKm : km;
 
 /// One decimal, in the user's units, for lists and notifications.
 String formatDistance(double distanceKm, UnitSystem units) {
   if (units == UnitSystem.imperial) {
-    return '${(distanceKm * 0.621371).toStringAsFixed(1)} mi';
+    return '${displayFromKm(distanceKm, units).toStringAsFixed(1)} mi';
   }
   return '${distanceKm.toStringAsFixed(1)} km';
 }

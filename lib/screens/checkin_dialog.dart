@@ -96,9 +96,7 @@ class _CheckinDialogState extends State<_CheckinDialog> {
     final theme = Theme.of(context);
     final site = widget.site;
     final imperial = widget.unitSystem == UnitSystem.imperial;
-    final distance = imperial
-        ? widget.distanceKm / 1.609344
-        : widget.distanceKm;
+    final distance = displayFromKm(widget.distanceKm, widget.unitSystem);
     final distanceUnit = imperial ? 'mi' : 'km';
     final confirming = widget.confirmMessage != null;
     final noteMissing = confirming && _publicController.text.trim().isEmpty;
