@@ -12,6 +12,13 @@ declaring the work complete. Install the updated app on each emulator and
 exercise the affected flows. Report the results for both devices and any
 verification that could not be completed.
 
+If an emulator is held by another session (`DEVICE_IN_USE`), don't skip the
+check and don't take over or close that session. Find the holder with
+`ListAgents` and ask it with `SendMessage` to release the emulator, passing
+`notify_when_idle: true`. Then resume when it replies. When you finish, close
+your device sessions and tell it the emulators are free and which build you
+left installed.
+
 # Tesla browser verification
 
 For web changes, test the release build at every size below (width x height).
