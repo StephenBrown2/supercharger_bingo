@@ -29,7 +29,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
   }
 
   Future<void> _load() async {
-    final vehicles = await DatabaseService.getVehicles();
+    final vehicles = await DatabaseService.db.getAllVehicles();
     if (mounted) {
       setState(() {
         _vehicles = vehicles;
@@ -87,7 +87,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
 
   Future<void> _delete(Vehicle v) async {
     await VehicleService.instance.deleteVin(v.id);
-    await DatabaseService.deleteVehicle(v.id);
+    await DatabaseService.db.deleteVehicle(v.id);
     await _load();
   }
 
@@ -130,7 +130,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
       }
     }
 
-    await DatabaseService.upsertVehicle(
+    await DatabaseService.db.upsertVehicle(
       VehiclesCompanion(
         id: Value(id),
         label: Value(label),

@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supercharger_bingo/database/database.dart';
-import 'package:supercharger_bingo/services/database_service.dart';
 import 'package:supercharger_bingo/services/site_confirmation.dart';
 
 void main() {
@@ -23,8 +22,7 @@ void main() {
     visited: false,
     dateOpened: opened,
   );
-  SiteWithDistance near(Site s, double km) =>
-      SiteWithDistance(site: s, distanceKm: km);
+  SiteWithDistance near(Site s, double km) => (site: s, distanceKm: km);
 
   final now = DateTime.utc(2026, 11, 18, 15);
   final nearby = [

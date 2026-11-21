@@ -149,7 +149,7 @@ class NotificationService {
     if (!payload.startsWith('site:')) return;
     final siteId = int.tryParse(payload.substring(5));
     if (response.actionId == navigateActionId && siteId != null) {
-      DatabaseService.getSiteBySiteId(siteId).then((site) {
+      DatabaseService.db.getSiteBySiteId(siteId).then((site) {
         if (site != null) navigateToSite(site);
       });
       return;
@@ -251,7 +251,7 @@ class NotificationService {
   /// and does not require a supercharging.life session.
   Future<void> deliverBackgroundAlerts() async {
     if (kIsWeb) return;
-    final settings = await DatabaseService.getUserSettings();
+    final settings = await DatabaseService.db.getUserSettings();
     final lat = settings.lastLatitude;
     final lng = settings.lastLongitude;
     if (lat == null || lng == null) return;
@@ -276,7 +276,7 @@ class NotificationService {
             nextCursor;
       }
       if (nextCursor != null && nextCursor != settings.lastNotifiedChangeId) {
-        await DatabaseService.updateUserSettings(
+        await DatabaseService.db.updateUserSettings(
           UserSettingsTableCompanion(lastNotifiedChangeId: Value(nextCursor)),
         );
       }
@@ -317,7 +317,7 @@ class NotificationService {
     );
     for (final change in page.results) {
       if (!isOpeningChange(change)) continue;
-      final distance = TimezoneService.instance.calculateDistanceKm(
+      final distance = distanceKm(
         lat,
         lng,
         change.site.gps.latitude,
@@ -335,23 +335,25 @@ class NotificationService {
     double radiusKm,
     UnitSystem units,
   ) async {
-    final distance = TimezoneService.instance.calculateDistanceKm(
+    final distance = distanceKm(
       lat,
       lng,
       change.site.gps.latitude,
       change.site.gps.longitude,
     );
     if (distance > radiusKm) return;
-    final claimed = await DatabaseService.claimNotification(
+    final claimed = await DatabaseService.db.claimNotification(
       siteId: change.siteId,
       channel: newSuperchargersChannelId,
       dedupeKey: '${change.id}',
     );
     if (!claimed) return;
-    var site = await DatabaseService.getSiteBySiteId(change.siteId);
+    var site = await DatabaseService.db.getSiteBySiteId(change.siteId);
     if (site == null) {
-      await DatabaseService.upsertSites([ApiService.companionFor(change.site)]);
-      site = await DatabaseService.getSiteBySiteId(change.siteId);
+      await DatabaseService.db.upsertSites([
+        ApiService.companionFor(change.site),
+      ]);
+      site = await DatabaseService.db.getSiteBySiteId(change.siteId);
     }
     if (site == null) return;
     await showNewSuperchargerNotification(site, distance, units);
@@ -362,7 +364,7 @@ class NotificationService {
   /// daily dedupe would keep them gone), and remove ones no longer open.
   Future<void> checkFirstWindowsOnStartup() async {
     if (kIsWeb) return;
-    final settings = await DatabaseService.getUserSettings();
+    final settings = await DatabaseService.db.getUserSettings();
     final lat = settings.lastLatitude;
     final lng = settings.lastLongitude;
     if (lat == null || lng == null || !settings.notifyFirstEligible) return;
@@ -421,17 +423,14 @@ class NotificationService {
     bool repost = false,
   }) async {
     final open = <int>{};
-    final openSites = await DatabaseService.getSites(status: SiteStatus.open);
+    final openSites = await DatabaseService.db.getSites(
+      status: SiteStatus.open,
+    );
     final nearby = <Site>[];
     final distances = <int, double>{};
     for (final site in openSites) {
       if (site.visited) continue;
-      final distance = TimezoneService.instance.calculateDistanceKm(
-        lat,
-        lng,
-        site.latitude,
-        site.longitude,
-      );
+      final distance = distanceKm(lat, lng, site.latitude, site.longitude);
       if (distance > radiusKm) continue;
       nearby.add(site);
       distances[site.siteId] = distance;
@@ -445,7 +444,7 @@ class NotificationService {
           '${localNow.year.toString().padLeft(4, '0')}-'
           '${localNow.month.toString().padLeft(2, '0')}-'
           '${localNow.day.toString().padLeft(2, '0')}';
-      final claimed = await DatabaseService.claimNotification(
+      final claimed = await DatabaseService.db.claimNotification(
         siteId: site.siteId,
         channel: firstEligibleChannelId,
         dedupeKey: day,
@@ -597,7 +596,7 @@ void backgroundSyncCallback() {
         // was open rather than letting syncSites fall back to IP lookup.
         // With neither, syncSites looks one up itself, IP lookup included.
         final fix = await LocationService.instance.backgroundPosition();
-        final saved = await DatabaseService.getUserSettings();
+        final saved = await DatabaseService.db.getUserSettings();
         await SyncService.instance.syncSites(
           latitude: fix?.latitude ?? saved.lastLatitude,
           longitude: fix?.longitude ?? saved.lastLongitude,

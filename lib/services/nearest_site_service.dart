@@ -27,14 +27,9 @@ typedef NearestSite = ({Site site, double km, double bearing});
 NearestSite? findNearestSite(List<Site> sites, double lat, double lon) {
   NearestSite? best;
   for (final site in sites) {
-    final m = Geolocator.distanceBetween(
-      lat,
-      lon,
-      site.latitude,
-      site.longitude,
-    );
-    if (best == null || m / 1000 < best.km) {
-      best = (site: site, km: m / 1000, bearing: 0);
+    final km = distanceKm(lat, lon, site.latitude, site.longitude);
+    if (best == null || km < best.km) {
+      best = (site: site, km: km, bearing: 0);
     }
   }
   if (best == null) return null;

@@ -32,7 +32,7 @@ Future<Map<int, FirstState>> firstStates(
 ) async {
   final operational = sites.where((s) => isOperational(s.status)).toList();
   if (operational.isEmpty) return {};
-  final evidence = await DatabaseService.getFirstEvidence([
+  final evidence = await DatabaseService.db.getFirstEvidence([
     for (final site in operational) site.siteId,
   ]);
   return {
@@ -49,7 +49,7 @@ Future<Map<int, FirstState>> firstStates(
 /// Who took the First at [site] in Community history, in check-in order.
 /// Empty when the First is unknown or has aged out of the history.
 Future<List<String>> firstDayNames(Site site) async {
-  final evidence = await DatabaseService.getFirstEvidence([site.siteId]);
+  final evidence = await DatabaseService.db.getFirstEvidence([site.siteId]);
   final rows = _first(
     site,
     evidence.history[site.siteId] ?? const [],

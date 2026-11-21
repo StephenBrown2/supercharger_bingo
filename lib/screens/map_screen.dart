@@ -19,7 +19,6 @@ import '../services/location_service.dart';
 import '../services/site_navigation.dart';
 import '../services/site_confirmation.dart';
 import '../services/sync_service.dart';
-import '../services/timezone_service.dart';
 import '../services/write_result.dart';
 import 'checkin_dialog.dart';
 import 'login_screen.dart';
@@ -127,19 +126,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       parent: _drawerAnimController,
       curve: Curves.easeInOut,
     );
-    // Use a non-empty splash snapshot for the first paint. An empty snapshot
-    // is the pre-sync cache and must not stick.
-    final cached = DatabaseService.bootstrapSites;
-    if (cached != null &&
-        cached.isNotEmpty &&
-        _currentFilter == MapFilter.openUnvisited) {
-      _sites = cached;
-      _isLoading = false;
-      // Still need First-state inputs for the cached sites.
-      _loadFirstStates(cached);
-    } else {
-      _loadSites();
-    }
+    _loadSites();
     _showCheckinDrawer = widget.showCheckinDrawer;
 
     // Recompute pin colours once community check-in data finishes syncing.
@@ -180,11 +167,6 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     if (mounted) _loadSites();
   }
 
-  Future<void> _loadFirstStates(List<Site> sites) async {
-    final states = await firstStates(sites, DateTime.now());
-    if (mounted) setState(() => _firstStates = states);
-  }
-
   @override
   void dispose() {
     SyncService.instance.communityDataVersion.removeListener(_onCommunityData);
@@ -203,18 +185,18 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       switch (_currentFilter) {
         case MapFilter.openUnvisited:
           // Open and unvisited
-          sites = await DatabaseService.getSites(
+          sites = await DatabaseService.db.getSites(
             status: SiteStatus.open,
             visited: false,
           );
           break;
         case MapFilter.openUnvisitedConstruction:
           // Open + construction, unvisited
-          final openSites = await DatabaseService.getSites(
+          final openSites = await DatabaseService.db.getSites(
             status: SiteStatus.open,
             visited: false,
           );
-          final constructionSites = await DatabaseService.getSites(
+          final constructionSites = await DatabaseService.db.getSites(
             status: SiteStatus.construction,
             visited: false,
           );
@@ -222,15 +204,15 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           break;
         case MapFilter.visited:
           // Any site the current user has checked into, regardless of status.
-          sites = await DatabaseService.getSites(visited: true);
+          sites = await DatabaseService.db.getSites(visited: true);
           break;
         case MapFilter.unvisitedNacs:
           // OPEN, unvisited, open to non-Tesla vehicles.
-          sites = await DatabaseService.getUnvisitedNacsSites();
+          sites = await DatabaseService.db.getUnvisitedNacsSites();
           break;
         case MapFilter.all:
           // All sites
-          sites = await DatabaseService.getSites();
+          sites = await DatabaseService.db.getSites();
           break;
       }
       sites = sites.where(_currentType.matches).toList();
@@ -283,7 +265,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
 
   /// Reload on tab changes because the map stays mounted behind settings.
   Future<void> _loadClusteringSetting() async {
-    final settings = await DatabaseService.getUserSettings();
+    final settings = await DatabaseService.db.getUserSettings();
     if (mounted && _clusterMarkers != settings.clusterMarkers) {
       setState(() => _clusterMarkers = settings.clusterMarkers);
     }
@@ -711,7 +693,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   /// Centre the map on a site and open its sheet, or with [checkIn] go
   /// straight to checking in there.
   Future<void> showSite(int siteId, {bool checkIn = false}) async {
-    final site = await DatabaseService.getSiteBySiteId(siteId);
+    final site = await DatabaseService.db.getSiteBySiteId(siteId);
     if (site == null || !mounted) return;
     _siteFocused = true;
     _mapController.move(LatLng(site.latitude, site.longitude), 14);
@@ -1058,7 +1040,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                       itemBuilder: (context, index) {
                         final siteWithDist = _nearbySites[index];
                         return FutureBuilder<UserSettingsTableData>(
-                          future: DatabaseService.getUserSettings(),
+                          future: DatabaseService.db.getUserSettings(),
                           builder: (context, snapshot) {
                             if (!snapshot.hasData) {
                               return const SizedBox.shrink();
@@ -1193,13 +1175,8 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     // A list the user switched to search stays on search.
     if (at != null && _searchAll) return;
     if (at != null &&
-        Geolocator.distanceBetween(
-              at.latitude,
-              at.longitude,
-              pos.latitude,
-              pos.longitude,
-            ) <
-            200) {
+        distanceKm(at.latitude, at.longitude, pos.latitude, pos.longitude) <
+            0.2) {
       return;
     }
     setState(() {
@@ -1275,11 +1252,11 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     final position = _userPosition;
     return [
       for (final site in sites)
-        SiteWithDistance(
+        (
           site: site,
           distanceKm: position == null
-              ? 0
-              : TimezoneService.instance.calculateDistanceKm(
+              ? 0.0
+              : distanceKm(
                   position.latitude,
                   position.longitude,
                   site.latitude,
@@ -1293,7 +1270,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     setState(() => _isLoadingSites = true);
     try {
       if (_allSites.isEmpty) {
-        final sites = await DatabaseService.getSites();
+        final sites = await DatabaseService.db.getSites();
         sites.sort(
           (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
         );
@@ -1310,7 +1287,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     final generation = ++_searchGeneration;
     final visible = _matchingSites();
     final ids = visible.map((site) => site.siteId).toList();
-    final lastVisits = await DatabaseService.getLastVisitDates(ids);
+    final lastVisits = await DatabaseService.db.getLastVisitDates(ids);
     final states = await firstStates(visible, DateTime.now());
     if (!mounted || generation != _searchGeneration) return;
     setState(() {
@@ -1330,19 +1307,21 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
 
     try {
       // Get user settings for radius
-      final settings = await DatabaseService.getUserSettings();
+      final settings = await DatabaseService.db.getUserSettings();
 
-      final sites = await DatabaseService.getNearbySites(
-        latitude: _userPosition!.latitude,
-        longitude: _userPosition!.longitude,
+      final sites = nearbySites(
+        await DatabaseService.db.getSites(
+          status: SiteStatus.open,
+          visited: settings.includeVisitedNearby ? null : false,
+        ),
+        _userPosition!.latitude,
+        _userPosition!.longitude,
         radiusKm: settings.checkinRadiusKm,
         limit: 10,
-        status: SiteStatus.open,
-        visited: settings.includeVisitedNearby ? null : false,
       );
 
       final siteIds = sites.map((s) => s.site.siteId).toList();
-      final lastVisits = await DatabaseService.getLastVisitDates(siteIds);
+      final lastVisits = await DatabaseService.db.getLastVisitDates(siteIds);
       final states = await firstStates([
         for (final s in sites) s.site,
       ], DateTime.now());
@@ -1422,15 +1401,15 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         await LocationService.instance.getCurrentPosition() ?? _userPosition;
     if (!mounted) return;
     if (position != null) _userPosition = position;
-    final distanceKm = position == null
+    final km = position == null
         ? 0.0
-        : TimezoneService.instance.calculateDistanceKm(
+        : distanceKm(
             position.latitude,
             position.longitude,
             site.latitude,
             site.longitude,
           );
-    await _handleCheckin(SiteWithDistance(site: site, distanceKm: distanceKm));
+    await _handleCheckin((site: site, distanceKm: km));
   }
 
   Future<void> _handleCheckin(SiteWithDistance siteWithDist) async {
@@ -1525,10 +1504,11 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   Future<List<SiteWithDistance>> _operationalNearYou() async {
     final position = _userPosition ?? LocationService.instance.cachedPosition;
     if (position == null) return const [];
-    final settings = await DatabaseService.getUserSettings();
-    final nearby = await DatabaseService.getNearbySites(
-      latitude: position.latitude,
-      longitude: position.longitude,
+    final settings = await DatabaseService.db.getUserSettings();
+    final nearby = nearbySites(
+      await DatabaseService.db.getSites(),
+      position.latitude,
+      position.longitude,
       radiusKm: settings.checkinRadiusKm,
       limit: 20,
     );
@@ -1541,9 +1521,9 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     Site site,
     SiteConfirmation confirmation,
   ) async {
-    final settings = await DatabaseService.getUserSettings();
+    final settings = await DatabaseService.db.getUserSettings();
     if (!mounted) return null;
-    final here = SiteWithDistance(site: site, distanceKm: 0);
+    final here = (site: site, distanceKm: 0);
     return showDialog<SiteWithDistance>(
       context: context,
       builder: (context) => AlertDialog(

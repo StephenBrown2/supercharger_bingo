@@ -166,7 +166,7 @@ void main() {
     await DatabaseService.initialize(database: db);
 
     expect(
-      await DatabaseService.claimNotification(
+      await DatabaseService.db.claimNotification(
         siteId: 1,
         channel: 'first_eligible',
         dedupeKey: '2026-11-10',
@@ -174,7 +174,7 @@ void main() {
       isTrue,
     );
     expect(
-      await DatabaseService.claimNotification(
+      await DatabaseService.db.claimNotification(
         siteId: 1,
         channel: 'first_eligible',
         dedupeKey: '2026-11-10',
@@ -182,7 +182,7 @@ void main() {
       isFalse,
     );
     expect(
-      await DatabaseService.claimNotification(
+      await DatabaseService.db.claimNotification(
         siteId: 1,
         channel: 'first_eligible',
         dedupeKey: '2026-11-11',

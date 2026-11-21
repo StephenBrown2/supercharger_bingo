@@ -26,7 +26,7 @@ void main() async {
   await NearestSiteService.instance.listenForTaps();
   SyncService.instance.initialize();
 
-  final settings = await DatabaseService.getUserSettings();
+  final settings = await DatabaseService.db.getUserSettings();
   CheckinLog.event('app.start', {
     'web': kIsWeb,
     'signedIn': await Session.instance.isSignedIn(),
@@ -67,7 +67,7 @@ class _SuperchargerBingoAppState extends State<SuperchargerBingoApp> {
   }
 
   Future<void> _checkAuthStatus() async {
-    final settings = await DatabaseService.getUserSettings();
+    final settings = await DatabaseService.db.getUserSettings();
     setState(() {
       // Consider setup complete if user has been through login screen
       _hasCompletedSetup = settings.lastLoginAt != null;

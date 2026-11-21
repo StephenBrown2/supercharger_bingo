@@ -20,9 +20,9 @@ Future<Delivery?> showCheckinDialog(
   Position? position,
   String? confirmMessage,
 }) async {
-  final vehicles = await DatabaseService.getVehicles();
+  final vehicles = await DatabaseService.db.getAllVehicles();
   final lastVisit = await DatabaseService.db.getLastVisitDate(site.siteId);
-  final settings = await DatabaseService.getUserSettings();
+  final settings = await DatabaseService.db.getUserSettings();
   final lastVehicleId = await DatabaseService.db.getLastUsedVehicleId();
   if (!context.mounted) return null;
 

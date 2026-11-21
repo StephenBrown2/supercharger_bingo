@@ -144,7 +144,7 @@ class AppearanceController extends ChangeNotifier {
     if (value == appearance) return;
     appearance = value;
     notifyListeners();
-    await DatabaseService.updateUserSettings(
+    await DatabaseService.db.updateUserSettings(
       UserSettingsTableCompanion(appAppearance: Value(value)),
     );
   }

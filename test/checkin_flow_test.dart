@@ -23,8 +23,6 @@ void main() {
     await DatabaseService.initialize(database: db);
   });
   setUp(() async {
-    DatabaseService.bootstrapUserSettings = null;
-    DatabaseService.bootstrapSites = null;
     await db.clearAll();
   });
   tearDownAll(() => db.close());
@@ -203,20 +201,21 @@ void main() {
         ),
       );
 
-      final hidden = await DatabaseService.getNearbySites(
-        latitude: 40,
-        longitude: -105,
+      final hidden = nearbySites(
+        await db.getSites(status: SiteStatus.open, visited: false),
+        40,
+        -105,
         radiusKm: 50,
-        status: SiteStatus.open,
-        visited: false,
+        limit: 20,
       );
       expect(hidden.map((s) => s.site.siteId), [2]);
 
-      final shown = await DatabaseService.getNearbySites(
-        latitude: 40,
-        longitude: -105,
+      final shown = nearbySites(
+        await db.getSites(status: SiteStatus.open),
+        40,
+        -105,
         radiusKm: 50,
-        status: SiteStatus.open,
+        limit: 20,
       );
       expect(shown.map((s) => s.site.siteId), containsAll([1, 2]));
       expect(await db.getLastVisitDate(1), DateTime(2026, 6, 2));

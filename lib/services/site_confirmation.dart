@@ -1,6 +1,5 @@
 import '../database/database.dart';
 import 'checkin_rules.dart';
-import 'database_service.dart' show SiteWithDistance;
 import 'first_state.dart' show isOperational;
 import 'life_time.dart';
 

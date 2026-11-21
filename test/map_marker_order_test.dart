@@ -104,8 +104,6 @@ void main() {
           ),
         ]);
       }
-      DatabaseService.bootstrapSites = await db.getAllSites();
-      DatabaseService.bootstrapUserSettings = null;
       await tester.pumpWidget(const MaterialApp(home: MapScreen()));
       // A GPS update stops the Linux IP-location polling timer.
       tester.binding.defaultBinaryMessenger.handlePlatformMessage(
@@ -123,6 +121,17 @@ void main() {
         (_) {},
       );
       // Allow the database reads to finish without waiting on map tile requests.
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      });
+      await tester.pump();
+      // Marker priority covers every kind of Site, so show them all.
+      final all = find.descendant(
+        of: find.byType(FilterChip),
+        matching: find.text('All'),
+      );
+      await tester.ensureVisible(all);
+      await tester.tap(all);
       await tester.runAsync(() async {
         await Future<void>.delayed(const Duration(milliseconds: 100));
       });
@@ -201,7 +210,6 @@ void main() {
       await tester.tap(find.text('Close'));
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
-      DatabaseService.bootstrapSites = null;
       tester.view.physicalSize = const Size(411, 923);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);

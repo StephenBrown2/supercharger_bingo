@@ -234,7 +234,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadSettings() async {
-    final settings = await DatabaseService.getUserSettings();
+    final settings = await DatabaseService.db.getUserSettings();
     setState(() {
       _settings = MutableSettings.from(settings);
       _isLoading = false;
@@ -242,7 +242,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadSiteCount() async {
-    final sites = await DatabaseService.getSites();
+    final sites = await DatabaseService.db.getSites();
     if (mounted) {
       setState(() => _siteCount = sites.length);
     }
@@ -250,9 +250,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _saveSettings() async {
     if (_settings != null) {
-      await DatabaseService.updateUserSettings(_settings!.toCompanion());
+      await DatabaseService.db.updateUserSettings(_settings!.toCompanion());
       await NearestSiteService.instance.sync(
-        await DatabaseService.getUserSettings(),
+        await DatabaseService.db.getUserSettings(),
       );
     }
   }
@@ -964,7 +964,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: () async {
               final messenger = ScaffoldMessenger.of(context);
               Navigator.pop(context);
-              await DatabaseService.clearAll();
+              await DatabaseService.db.clearAll();
               await _loadSettings();
               if (mounted) {
                 messenger.showSnackBar(
@@ -1087,7 +1087,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               try {
                 // Clear everything
-                await DatabaseService.clearAll();
+                await DatabaseService.db.clearAll();
 
                 // Re-sync sites first
                 await SyncService.instance.syncSites();

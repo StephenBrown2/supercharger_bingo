@@ -72,7 +72,7 @@ class _LoginScreenState extends State<LoginScreen> {
           found = false;
         }
       }
-      await DatabaseService.updateUserSettings(
+      await DatabaseService.db.updateUserSettings(
         UserSettingsTableCompanion(
           authProvider: Value(provider),
           lastLoginAt: Value(DateTime.now()),
@@ -104,7 +104,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _statusMessage = 'Saving on this device...';
     });
     try {
-      await DatabaseService.updateUserSettings(
+      await DatabaseService.db.updateUserSettings(
         UserSettingsTableCompanion(
           authProvider: Value(provider),
           lastLoginAt: Value(DateTime.now()),
@@ -137,12 +137,12 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!kIsWeb) {
         await SyncService.instance.syncSuperchargerCheckinCounts();
       }
-      await DatabaseService.updateUserSettings(
+      await DatabaseService.db.updateUserSettings(
         UserSettingsTableCompanion(lastLoginAt: Value(DateTime.now())),
       );
       _finish();
     } catch (e) {
-      await DatabaseService.updateUserSettings(
+      await DatabaseService.db.updateUserSettings(
         UserSettingsTableCompanion(lastLoginAt: Value(DateTime.now())),
       );
       _finish();

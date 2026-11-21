@@ -43,7 +43,7 @@ void main() {
     final help = find.byTooltip('Notification grouping help');
     await tester.scrollUntilVisible(help, 300);
     final before =
-        (await DatabaseService.getUserSettings()).notifyFirstEligible;
+        (await DatabaseService.db.getUserSettings()).notifyFirstEligible;
     await tester.tap(help);
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsOneWidget);
@@ -51,7 +51,7 @@ void main() {
     expect(find.textContaining('Don\'t include these apps'), findsOneWidget);
     expect(find.textContaining('Uncheck Supercharger Bingo'), findsOneWidget);
     expect(
-      (await DatabaseService.getUserSettings()).notifyFirstEligible,
+      (await DatabaseService.db.getUserSettings()).notifyFirstEligible,
       before,
     );
     await tester.tap(find.text('OK'));
@@ -68,7 +68,7 @@ void main() {
     addTearDown(tester.view.reset);
 
     // The longest variants: a username, a sync date, the longest theme name.
-    await DatabaseService.updateUserSettings(
+    await DatabaseService.db.updateUserSettings(
       UserSettingsTableCompanion(
         username: const Value('supercharger_enthusiast'),
         lastXlsxSyncAt: Value(DateTime(2026, 11, 14)),

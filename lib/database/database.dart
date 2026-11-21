@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:latlong2/latlong.dart' show Distance, Haversine, LatLng;
 
 part 'database.g.dart';
 
@@ -72,6 +73,45 @@ String formatDistance(double distanceKm, UnitSystem units) {
     return '${(distanceKm * 0.621371).toStringAsFixed(1)} mi';
   }
   return '${distanceKm.toStringAsFixed(1)} km';
+}
+
+const _vincenty = Distance(roundResult: false);
+const _haversine = Distance(roundResult: false, calculator: Haversine());
+
+/// Distance on the WGS84 ellipsoid (Vincenty). Nearly antipodal points, where
+/// Vincenty cannot converge, fall back to spherical haversine.
+double distanceKm(double lat1, double lon1, double lat2, double lon2) {
+  try {
+    return _vincenty(LatLng(lat1, lon1), LatLng(lat2, lon2)) / 1000;
+  } on StateError {
+    return _haversine(LatLng(lat1, lon1), LatLng(lat2, lon2)) / 1000;
+  }
+}
+
+typedef SiteWithDistance = ({Site site, double distanceKm});
+
+/// [sites] within [radiusKm] of a point, nearest first, at most [limit].
+List<SiteWithDistance> nearbySites(
+  List<Site> sites,
+  double latitude,
+  double longitude, {
+  required double radiusKm,
+  required int limit,
+}) {
+  final near = <SiteWithDistance>[
+    for (final site in sites)
+      (
+        site: site,
+        distanceKm: distanceKm(
+          latitude,
+          longitude,
+          site.latitude,
+          site.longitude,
+        ),
+      ),
+  ]..removeWhere((s) => s.distanceKm > radiusKm);
+  near.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+  return near.take(limit).toList();
 }
 
 /// Settings > Appearance > Theme. [materialYou] uses the device wallpaper
@@ -730,28 +770,12 @@ class AppDatabase extends _$AppDatabase {
   // Sites
   // -------------------------------------------------------------------------
 
-  Future<List<Site>> getAllSites() => select(sites).get();
-
-  Future<List<Site>> getSitesByStatus(SiteStatus status) {
-    return (select(sites)..where((t) => t.status.equals(status.name))).get();
-  }
-
-  Future<List<Site>> getSitesByStatusAndVisited(
-    SiteStatus status,
-    bool visited,
-  ) {
-    return (select(sites)..where(
-          (t) => t.status.equals(status.name) & t.visited.equals(visited),
-        ))
-        .get();
-  }
-
-  Future<List<Site>> getUnvisitedSites() {
-    return (select(sites)..where((t) => t.visited.equals(false))).get();
-  }
-
-  Future<List<Site>> getVisitedSites() {
-    return (select(sites)..where((t) => t.visited.equals(true))).get();
+  /// Sites, narrowed by [status] and [visited] when given.
+  Future<List<Site>> getSites({SiteStatus? status, bool? visited}) {
+    final query = select(sites);
+    if (status != null) query.where((t) => t.status.equals(status.name));
+    if (visited != null) query.where((t) => t.visited.equals(visited));
+    return query.get();
   }
 
   /// Unvisited OPEN sites, plus CONSTRUCTION when asked.
@@ -942,6 +966,24 @@ class AppDatabase extends _$AppDatabase {
     return visit?.checkinDate;
   }
 
+  /// The user's most recent Visit date per Site, for those of [siteIds] with
+  /// one. One grouped query; no IN list, so thousands of ids are fine.
+  Future<Map<int, DateTime>> getLastVisitDates(List<int> siteIds) async {
+    if (siteIds.isEmpty) return {};
+    final wanted = siteIds.toSet();
+    final last = visits.checkinDate.max();
+    final rows =
+        await (selectOnly(visits)
+              ..addColumns([visits.siteId, last])
+              ..groupBy([visits.siteId]))
+            .get();
+    return {
+      for (final row in rows)
+        if (wanted.contains(row.read(visits.siteId)))
+          row.read(visits.siteId)!: row.read(last)!,
+    };
+  }
+
   /// Record the id supercharging.life gave a Visit's Check-in, unless another
   /// Visit already holds it.
   Future<void> attachCheckinId(int visitId, int checkinId) =>
@@ -1010,7 +1052,8 @@ class AppDatabase extends _$AppDatabase {
     },
   );
 
-  Future<void> addVisit(VisitsCompanion visit) async {
+  /// Store a Visit and mark its Site visited, together.
+  Future<void> addVisit(VisitsCompanion visit) => transaction(() async {
     // Upsert on the supercharging.life check-in id so re-importing the XLSX
     // (or rows already present) refreshes instead of violating the unique
     // constraint on visits.checkin_id.
@@ -1018,7 +1061,8 @@ class AppDatabase extends _$AppDatabase {
       visit,
       onConflict: DoUpdate((_) => visit, target: [visits.checkinId]),
     );
-  }
+    await markSiteVisited(visit.siteId.value, true);
+  });
 
   // -------------------------------------------------------------------------
   // Site Check-ins (others' check-ins)

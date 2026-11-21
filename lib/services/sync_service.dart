@@ -14,7 +14,6 @@ import 'database_service.dart';
 import 'life_time.dart';
 import 'location_service.dart';
 import 'supercharge_region.dart';
-import 'timezone_service.dart';
 
 typedef LocationFix = ({double latitude, double longitude});
 
@@ -92,7 +91,7 @@ class SyncService {
       if (fix == null) return;
       started = true;
 
-      await DatabaseService.updateUserSettings(
+      await DatabaseService.db.updateUserSettings(
         UserSettingsTableCompanion(
           lastLatitude: Value(fix.latitude),
           lastLongitude: Value(fix.longitude),
@@ -105,7 +104,7 @@ class SyncService {
       );
       await _syncRegion(regionId);
 
-      await DatabaseService.updateUserSettings(
+      await DatabaseService.db.updateUserSettings(
         UserSettingsTableCompanion(lastSitesSyncAt: Value(DateTime.now())),
       );
     } finally {
@@ -120,7 +119,7 @@ class SyncService {
     }
     final fresh = await _locate();
     if (fresh != null) return fresh;
-    final settings = await DatabaseService.getUserSettings();
+    final settings = await DatabaseService.db.getUserSettings();
     final storedLat = settings.lastLatitude;
     final storedLon = settings.lastLongitude;
     if (storedLat != null && storedLon != null) {
@@ -130,11 +129,11 @@ class SyncService {
   }
 
   Future<void> _syncRegion(int regionId) async {
-    final existing = await DatabaseService.getRegionSync(regionId);
+    final existing = await DatabaseService.db.getRegionSync(regionId);
     if (existing == null) {
       await _loadRegionSites(regionId);
       final maxApplied = await _applyNewerChanges(regionId, 0);
-      await DatabaseService.upsertRegionSync(regionId, maxApplied);
+      await DatabaseService.db.upsertRegionSync(regionId, maxApplied);
       return;
     }
 
@@ -142,7 +141,7 @@ class SyncService {
       regionId,
       existing.lastChangeId,
     );
-    await DatabaseService.upsertRegionSync(regionId, maxApplied);
+    await DatabaseService.db.upsertRegionSync(regionId, maxApplied);
   }
 
   Future<void> _loadRegionSites(int regionId) async {
@@ -154,7 +153,7 @@ class SyncService {
         length: ApiService.sitePageLength,
       );
       if (page.results.isEmpty) return;
-      await DatabaseService.upsertSites(page.results);
+      await DatabaseService.db.upsertSites(page.results);
       start += page.results.length;
       if (page.results.length < ApiService.sitePageLength) return;
       if (start >= page.recordCount) return;
@@ -201,7 +200,7 @@ class SyncService {
         }
       }
       if (batch.isNotEmpty) {
-        await DatabaseService.upsertSites(batch);
+        await DatabaseService.db.upsertSites(batch);
       }
       if (openings.isNotEmpty) {
         await DatabaseService.db.recordFirstOpeningDates(openings);
@@ -221,17 +220,17 @@ class SyncService {
 
     try {
       final checkins = await _apiService.fetchCheckinHistory();
-      await DatabaseService.upsertSiteCheckins(checkins);
+      await DatabaseService.db.upsertSiteCheckins(checkins);
 
       // Mark sites that have check-ins (not first eligible)
       final siteIdsWithCheckins = checkins
           .map((c) => c.siteId.value)
           .toSet()
           .toList();
-      await DatabaseService.markSitesHaveCheckins(siteIdsWithCheckins);
+      await DatabaseService.db.markSitesHaveCheckins(siteIdsWithCheckins);
 
       // Update last sync time
-      await DatabaseService.updateUserSettings(
+      await DatabaseService.db.updateUserSettings(
         UserSettingsTableCompanion(
           lastCheckinHistorySyncAt: Value(DateTime.now()),
         ),
@@ -294,12 +293,12 @@ class SyncService {
         );
       }
 
-      await DatabaseService.markSitesHaveCheckins(siteIdsWithCheckins);
+      await DatabaseService.db.markSitesHaveCheckins(siteIdsWithCheckins);
       // A newly opened site's premature First can be absent from the recent
       // feed. Check it directly throughout its possible site-local First day.
       final now = DateTime.now().toUtc();
       final yesterday = DateTime.utc(now.year, now.month, now.day - 1);
-      for (final site in await DatabaseService.db.getAllSites()) {
+      for (final site in await DatabaseService.db.getSites()) {
         final opened = site.firstOpeningDay?.toUtc();
         if (site.status != SiteStatus.open ||
             (checkinCounts[site.siteId] ?? 0) == 0 ||
@@ -308,7 +307,7 @@ class SyncService {
           continue;
         }
         try {
-          await DatabaseService.upsertSiteCheckins(
+          await DatabaseService.db.upsertSiteCheckins(
             await _apiService.fetchCheckinHistory(siteId: site.siteId),
           );
         } catch (e) {
@@ -352,7 +351,7 @@ class SyncService {
       debugPrint('syncUserByUsername: Found user: $username (ID: $userId)');
 
       // Save the imported profile.
-      await DatabaseService.updateUserSettings(
+      await DatabaseService.db.updateUserSettings(
         UserSettingsTableCompanion(
           odUserId: Value(userId),
           username: Value(username),
@@ -369,17 +368,16 @@ class SyncService {
       debugPrint('syncUserByUsername: Parsed ${visits.length} visits');
       await CheckinOutbox.instance.settleFromImport(visits);
 
-      // Mark sites as visited by user
+      // addVisit marks each Site visited.
       for (final visit in visits) {
-        await DatabaseService.addVisit(visit);
-        await DatabaseService.markSiteVisited(visit.siteId.value, true);
+        await DatabaseService.db.addVisit(visit);
       }
       debugPrint(
         'syncUserByUsername: Marked ${visits.length} sites as visited',
       );
 
       // Update last sync time
-      await DatabaseService.updateUserSettings(
+      await DatabaseService.db.updateUserSettings(
         UserSettingsTableCompanion(lastXlsxSyncAt: Value(DateTime.now())),
       );
 
@@ -541,7 +539,7 @@ class SyncService {
 
     for (final change in page.results) {
       if (!isOpeningChange(change)) continue;
-      final distance = TimezoneService.instance.calculateDistanceKm(
+      final distance = distanceKm(
         userLat,
         userLng,
         change.site.gps.latitude,

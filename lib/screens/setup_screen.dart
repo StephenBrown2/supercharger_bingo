@@ -93,7 +93,7 @@ class _SetupScreenState extends State<SetupScreen> {
   }
 
   Future<void> _load() async {
-    final settings = await DatabaseService.getUserSettings();
+    final settings = await DatabaseService.db.getUserSettings();
     final location = _isPhone || kIsWeb
         ? await Geolocator.checkPermission()
         : null;
@@ -170,7 +170,7 @@ class _SetupScreenState extends State<SetupScreen> {
       }
       return;
     }
-    await DatabaseService.updateUserSettings(
+    await DatabaseService.db.updateUserSettings(
       UserSettingsTableCompanion(
         unitSystem: Value(_units),
         notificationRadiusKm: Value(_notificationRadiusKm),

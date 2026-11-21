@@ -24,12 +24,12 @@ void main() {
     );
   }
 
-  test('getVisitedSites returns only visited sites', () async {
+  test('getSites(visited: true) returns only visited sites', () async {
     await seedSite(1, visited: true);
     await seedSite(2, visited: false);
     await seedSite(3, visited: true);
 
-    final visited = await db.getVisitedSites();
+    final visited = await db.getSites(visited: true);
     expect(visited.map((s) => s.siteId).toSet(), {1, 3});
   });
 

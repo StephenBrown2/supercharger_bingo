@@ -37,13 +37,13 @@ class _VisitsScreenState extends State<VisitsScreen> {
   }
 
   Future<void> _load() async {
-    final visits = await DatabaseService.getVisits();
+    final visits = await DatabaseService.db.getAllVisits();
     visits.sort((a, b) => b.checkinDate.compareTo(a.checkinDate));
     final names = <int, String>{};
     final pending = await CheckinOutbox.instance.pending();
     for (final visit in visits) {
       if (!names.containsKey(visit.siteId)) {
-        final site = await DatabaseService.getSiteBySiteId(visit.siteId);
+        final site = await DatabaseService.db.getSiteBySiteId(visit.siteId);
         names[visit.siteId] = site?.name ?? 'Site ${visit.siteId}';
       }
     }
@@ -90,13 +90,13 @@ class _VisitsScreenState extends State<VisitsScreen> {
     try {
       if (synced) {
         if (visit.checkinId == null) {
-          final settings = await DatabaseService.getUserSettings();
+          final settings = await DatabaseService.db.getUserSettings();
           final username = settings.username;
           if (username != null && username.isNotEmpty) {
             await SyncService(
               apiService: widget.api,
             ).syncUserByUsername(username);
-            final refreshed = await DatabaseService.getVisits();
+            final refreshed = await DatabaseService.db.getAllVisits();
             visit = refreshed.firstWhere(
               (v) => v.id == visit.id,
               orElse: () => visit,
@@ -142,7 +142,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
         await _load();
         return;
       }
-      await DatabaseService.deleteVisit(visit);
+      await DatabaseService.db.deleteVisit(visit);
       await _load();
     } catch (_) {
       if (mounted) {

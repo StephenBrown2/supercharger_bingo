@@ -67,8 +67,6 @@ void main() {
   });
 
   setUp(() async {
-    DatabaseService.bootstrapUserSettings = null;
-    DatabaseService.bootstrapSites = null;
     await db.clearAll();
     await db.upsertSite(
       SitesCompanion.insert(siteId: 7, name: 'Upper Sandusky'),
@@ -80,7 +78,7 @@ void main() {
   testWidgets('a sent check-in resolves its ID before deletion', (
     tester,
   ) async {
-    await DatabaseService.updateUserSettings(
+    await DatabaseService.db.updateUserSettings(
       const UserSettingsTableCompanion(username: Value('test')),
     );
     final outbox = installTestOutbox(

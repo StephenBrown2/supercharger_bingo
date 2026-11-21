@@ -76,8 +76,6 @@ void main() {
   });
 
   setUp(() async {
-    DatabaseService.bootstrapUserSettings = null;
-    DatabaseService.bootstrapSites = null;
     await db.clearAll();
   });
 
@@ -267,19 +265,21 @@ void main() {
         locate: () async => null,
       );
 
-      DatabaseService.bootstrapSites = [];
       await sync.syncSites();
       expect(requests, isEmpty);
-      expect(await db.getAllSites(), isEmpty);
+      expect(await db.getSites(), isEmpty);
       expect(sync.sitesVersion.value, 0);
       expect(
-        await DatabaseService.getSites(status: SiteStatus.open, visited: false),
+        await DatabaseService.db.getSites(
+          status: SiteStatus.open,
+          visited: false,
+        ),
         isEmpty,
       );
 
       await sync.syncSites(latitude: 39.7392, longitude: -104.9903);
       expect(sync.sitesVersion.value, 1);
-      final visible = await DatabaseService.getSites(
+      final visible = await DatabaseService.db.getSites(
         status: SiteStatus.open,
         visited: false,
       );

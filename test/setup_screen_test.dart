@@ -19,7 +19,6 @@ void main() {
   });
 
   setUp(() async {
-    DatabaseService.bootstrapUserSettings = null;
     await db.clearAll();
   });
 

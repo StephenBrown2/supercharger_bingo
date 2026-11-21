@@ -322,9 +322,9 @@ void main() {
         ),
       );
 
-      final temp = await db.getSitesByStatus(SiteStatus.closedTemp);
+      final temp = await db.getSites(status: SiteStatus.closedTemp);
       expect(temp.map((s) => s.siteId), [1]);
-      final perm = await db.getSitesByStatus(SiteStatus.closedPerm);
+      final perm = await db.getSites(status: SiteStatus.closedPerm);
       expect(perm.map((s) => s.siteId), [2]);
     });
   });

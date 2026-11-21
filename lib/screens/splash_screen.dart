@@ -1,7 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../services/location_service.dart';
-import '../services/database_service.dart';
 
 /// Simple splash screen shown while we fetch initial location
 class SplashScreen extends StatefulWidget {
@@ -28,21 +27,12 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _prepare() async {
-    // Race: either location resolves or 3s timeout, whichever first
-    // Start parallel tasks: location + bootstrap preload
+    // Wait for a location fix, at most 3s.
     Future<void> locate = LocationService.instance
         .getCurrentPosition()
         .then((_) {})
         .catchError((_) {});
-    Future<void> preload = DatabaseService.preloadBootstrapData().catchError(
-      (_) {},
-    );
-    Future<void> timeout = Future.delayed(const Duration(seconds: 3));
-    // Complete when either both tasks finish or timeout fires
-    await Future.any([
-      Future.wait([locate, preload]),
-      timeout,
-    ]);
+    await Future.any([locate, Future.delayed(const Duration(seconds: 3))]);
     if (mounted) widget.onReady();
   }
 

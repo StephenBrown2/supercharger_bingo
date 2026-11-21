@@ -18,8 +18,6 @@ void main() {
   });
 
   setUp(() async {
-    DatabaseService.bootstrapUserSettings = null;
-    DatabaseService.bootstrapSites = null;
     await db.clearAll();
   });
 
@@ -51,7 +49,7 @@ void main() {
       ]) {
         await db.upsertSite(site);
       }
-      final sites = await db.getAllSites();
+      final sites = await db.getSites();
       for (final entry in {
         MapSiteType.all: {1, 2, 3, 4, 5},
         MapSiteType.v2: {1},
@@ -102,7 +100,7 @@ void main() {
       ),
     );
 
-    final nacs = await DatabaseService.getUnvisitedNacsSites();
+    final nacs = await DatabaseService.db.getUnvisitedNacsSites();
     expect(nacs.map((site) => site.siteId), [1]);
   });
 }
