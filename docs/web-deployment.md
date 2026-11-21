@@ -37,7 +37,11 @@ to supercharger.bingo. Clearing browser data removes local visits and settings.
 ## Cloudflare
 
 `wrangler.jsonc` serves `build/web` as static assets with SPA route fallback.
-No Worker script or paid server is required for the frontend. `_headers` avoids
+`worker.js` runs only for `/life/*`: a read-only proxy for the two public
+supercharging.life reads behind the username import demo (user lookup and the
+XLSX export), because supercharging.life sends no CORS headers. Everything else
+is served as static assets without invoking the Worker. Remove the proxy, and
+`main` and `run_worker_first` in `wrangler.jsonc`, once real login lands. `_headers` avoids
 long caching of entry points so a reload can pick up a new app version.
 
 Validate the upload without publishing:

@@ -47,7 +47,10 @@ verifies layout. Report unavailable devices and flows explicitly.
 The current web release is local only. Real login and remote check-in submission
 are deferred. Verify that visits stay pending, survive reload and can be deleted
 locally. Explain that clearing browser data removes them. Do not present local
-continuation as GitHub or Google authentication.
+continuation or the username import demo as GitHub or Google authentication.
+Username import reads public history through the Worker's `/life/*` proxy
+(`worker.js`); exercise it with `npx wrangler dev`, since `flutter run` has no
+proxy.
 
 # Web deployment
 

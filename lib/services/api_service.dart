@@ -31,6 +31,12 @@ class ApiService {
   static const String superchargeInfoBaseUrl = 'https://supercharge.info';
   static const String superchargingLifeBaseUrl = 'https://supercharging.life';
 
+  /// Username import reads. The browser goes through the Worker's
+  /// same-origin `/life` proxy because supercharging.life sends no CORS
+  /// headers (see worker.js).
+  static String get _importBaseUrl =>
+      kIsWeb ? '${Uri.base.origin}/life' : superchargingLifeBaseUrl;
+
   /// Page size for the first pull of a region. North America is about 5,000
   /// sites, so a few pages cover a region without pulling the planet.
   static const int sitePageLength = 2000;
@@ -217,7 +223,7 @@ class ApiService {
   /// Fetch user list from supercharging.life to find user by username
   Future<Map<String, dynamic>?> fetchUserByUsername(String username) async {
     final response = await _dio.get(
-      '$superchargingLifeBaseUrl/supercharging/ajax.php',
+      '$_importBaseUrl/supercharging/ajax.php',
       queryParameters: {
         'content': 'user_list_for_datatables',
         'search[value]': username, // Use server-side search to filter results
@@ -406,7 +412,7 @@ class ApiService {
   /// Download user's XLSX export
   Future<List<int>> downloadUserXlsx(int userId) async {
     final response = await _dio.get(
-      '$superchargingLifeBaseUrl/supercharging/export.php',
+      '$_importBaseUrl/supercharging/export.php',
       queryParameters: {'action': 'user_xlsx', 'user_id': userId.toString()},
       options: Options(responseType: ResponseType.bytes),
     );

@@ -634,7 +634,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: Text(
                       _settings?.username != null
                           ? 'Download your visits again'
-                          : 'Needs a username',
+                          : 'Import visits by supercharging.life username',
                     ),
                     trailing: _isSyncingSites
                         ? const SizedBox(
@@ -643,13 +643,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.chevron_right),
-                    enabled: !kIsWeb,
-                    onTap:
-                        (kIsWeb ||
-                            _isSyncingSites ||
-                            _settings?.username == null)
-                        ? null
-                        : _handleResyncUserData,
+                    onTap: _isSyncingSites ? null : _handleResyncUserData,
                   ),
                   ListTile(
                     leading: const Icon(Icons.delete_sweep),
@@ -696,16 +690,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   String get _accountTitle {
-    if (kIsWeb) return 'Local browser storage';
     final username = _settings?.username;
     if (username != null && username.isNotEmpty) return username;
+    if (kIsWeb) return 'Local browser storage';
     if (_settings?.authProvider != null) return 'On this device';
     return 'Not logged in';
   }
 
   String get _accountSubtitle {
     if (kIsWeb) {
-      return 'Check-ins stay here as pending. Account sync is unavailable';
+      return 'In this browser. Check-ins stay pending until sign-in works';
     }
     final provider = _settings?.authProvider;
     final label = provider == null ? null : authProviderLabel(provider);
@@ -1035,8 +1029,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _handleResyncUserData() async {
-    final username = _settings?.username;
-    if (username == null) return;
+    final username = _settings?.username ?? await _askUsername();
+    if (username == null || !mounted) return;
 
     setState(() => _isSyncingSites = true);
     final messenger = ScaffoldMessenger.of(context);
@@ -1064,6 +1058,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() => _isSyncingSites = false);
       }
     }
+  }
+
+  Future<String?> _askUsername() {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Import visits'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'supercharging.life username',
+          ),
+          onSubmitted: (value) => Navigator.pop(context, value.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Import'),
+          ),
+        ],
+      ),
+    ).then((value) => value == null || value.isEmpty ? null : value);
   }
 
   void _handleResetDatabase() {
@@ -1112,9 +1134,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 }
 
                 // Re-sync user data if we had a username
-                if (!kIsWeb &&
-                    currentUsername != null &&
-                    currentUsername.isNotEmpty) {
+                if (currentUsername != null && currentUsername.isNotEmpty) {
                   await SyncService.instance.syncUserByUsername(
                     currentUsername,
                   );

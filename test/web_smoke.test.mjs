@@ -143,3 +143,13 @@ test('release assets include the local SQLite runtime', async () => {
     assert.ok(response.headers.get('content-type')?.includes(type), file);
   }
 });
+
+test('the import proxy only forwards the two public reads', async () => {
+  for (const path of [
+    '/life/supercharging/checkin.php',
+    '/life/supercharging/ajax.php?content=checkin_list_for_datatables',
+    '/life/supercharging/export.php?action=other',
+  ]) {
+    assert.equal((await fetch(`${baseURL}${path}`)).status, 404, path);
+  }
+});
