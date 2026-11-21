@@ -42,9 +42,8 @@ NearestSite? findNearestSite(List<Site> sites, double lat, double lon) {
   return (site: best.site, km: best.km, bearing: bearing);
 }
 
-/// Within this distance the Live Update offers Check In. Room for GPS drift
-/// and site coordinates a little off the stalls.
-const double checkInFromNotificationKm = 0.5;
+/// Under this distance (0.1 mi) the Live Update offers Check In.
+const double checkInFromNotificationKm = 0.1 * 1.609344;
 
 /// Eight-point compass direction for a bearing in degrees (-180 to 180).
 String compassPoint(double bearing) {
@@ -202,7 +201,7 @@ class _LiveUpdate {
       'metricLabel':
           '${_street(site) ?? directionPhrase(direction)}$construction',
       'siteId': site.siteId,
-      'checkIn': nearest.km <= checkInFromNotificationKm,
+      'checkIn': nearest.km < checkInFromNotificationKm,
       'latitude': site.latitude,
       'longitude': site.longitude,
     });
