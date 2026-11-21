@@ -208,18 +208,24 @@ class LocationService {
         return p;
       }
     }
-    try {
-      final fix = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 15),
-        ),
-      );
-      _remember(fix);
-      return fix;
-    } catch (_) {
-      return null;
+    // GPS first. If it can't get a fix in time, take a Wi-Fi or cell fix,
+    // which is what the site's form gets without enableHighAccuracy.
+    for (final (accuracy, seconds) in const [
+      (LocationAccuracy.high, 15),
+      (LocationAccuracy.medium, 10),
+    ]) {
+      try {
+        final fix = await Geolocator.getCurrentPosition(
+          locationSettings: LocationSettings(
+            accuracy: accuracy,
+            timeLimit: Duration(seconds: seconds),
+          ),
+        );
+        _remember(fix);
+        return fix;
+      } catch (_) {}
     }
+    return null;
   }
 
   /// Get position from IP-based geolocation service
