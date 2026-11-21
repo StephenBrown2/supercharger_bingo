@@ -31,10 +31,10 @@ class ApiService {
   static const String superchargeInfoBaseUrl = 'https://supercharge.info';
   static const String superchargingLifeBaseUrl = 'https://supercharging.life';
 
-  /// Username import reads. The browser goes through the Worker's
+  /// Public supercharging.life reads. The browser goes through the Worker's
   /// same-origin `/life` proxy because supercharging.life sends no CORS
   /// headers (see worker.js).
-  static String get _importBaseUrl =>
+  static String get _readBaseUrl =>
       kIsWeb ? '${Uri.base.origin}/life' : superchargingLifeBaseUrl;
 
   /// Page size for the first pull of a region. North America is about 5,000
@@ -193,7 +193,7 @@ class ApiService {
   /// Fetch check-in history from supercharging.life
   Future<List<SiteCheckinsCompanion>> fetchCheckinHistory({int? siteId}) async {
     final response = await _dio.get(
-      '$superchargingLifeBaseUrl/supercharging/ajax.php',
+      '$_readBaseUrl/supercharging/ajax.php',
       queryParameters: {
         'content': siteId == null
             ? 'first_checkin_history_list_for_datatables'
@@ -223,7 +223,7 @@ class ApiService {
   /// Fetch user list from supercharging.life to find user by username
   Future<Map<String, dynamic>?> fetchUserByUsername(String username) async {
     final response = await _dio.get(
-      '$_importBaseUrl/supercharging/ajax.php',
+      '$_readBaseUrl/supercharging/ajax.php',
       queryParameters: {
         'content': 'user_list_for_datatables',
         'search[value]': username, // Use server-side search to filter results
@@ -251,7 +251,7 @@ class ApiService {
   /// Returns a map of siteId -> total check-in count
   Future<Map<int, int>> fetchSuperchargerCheckinCounts() async {
     final response = await _dio.get(
-      '$superchargingLifeBaseUrl/supercharging/ajax.php',
+      '$_readBaseUrl/supercharging/ajax.php',
       queryParameters: {
         'content': 'supercharger_list_for_datatables',
         'address_region_id': '',
@@ -412,7 +412,7 @@ class ApiService {
   /// Download user's XLSX export
   Future<List<int>> downloadUserXlsx(int userId) async {
     final response = await _dio.get(
-      '$_importBaseUrl/supercharging/export.php',
+      '$_readBaseUrl/supercharging/export.php',
       queryParameters: {'action': 'user_xlsx', 'user_id': userId.toString()},
       options: Options(responseType: ResponseType.bytes),
     );

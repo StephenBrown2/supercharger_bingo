@@ -258,7 +258,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// phone while the app is closed. Without it they use the last spot the
   /// app saw.
   Future<void> _ensureAlertPermissions() async {
-    if (!_isPhone) return;
+    if (!_isPhone && !kIsWeb) return;
     final notificationsAllowed = await NotificationService.instance
         .requestPermissions();
     if (!mounted) return;
@@ -269,7 +269,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
     }
-    if (await Geolocator.checkPermission() == LocationPermission.always ||
+    if (kIsWeb ||
+        await Geolocator.checkPermission() == LocationPermission.always ||
         !mounted) {
       return;
     }
@@ -623,10 +624,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.chevron_right),
-                    enabled: !kIsWeb,
-                    onTap: kIsWeb || _isSyncingSites
-                        ? null
-                        : _handleSyncCheckinCounts,
+                    onTap: _isSyncingSites ? null : _handleSyncCheckinCounts,
                   ),
                   ListTile(
                     leading: const Icon(Icons.person_search),
@@ -1129,9 +1127,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 await _loadSiteCount();
 
                 // Sync check-in counts
-                if (!kIsWeb) {
-                  await SyncService.instance.syncSuperchargerCheckinCounts();
-                }
+                await SyncService.instance.syncSuperchargerCheckinCounts();
 
                 // Re-sync user data if we had a username
                 if (currentUsername != null && currentUsername.isNotEmpty) {

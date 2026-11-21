@@ -55,9 +55,12 @@ The current web release is local only. Real login and remote check-in submission
 are deferred. Verify that visits stay pending, survive reload and can be deleted
 locally. Explain that clearing browser data removes them. Do not present local
 continuation or the username import demo as GitHub or Google authentication.
-Username import reads public history through the Worker's `/life/*` proxy
-(`worker.js`); exercise it with `npx wrangler dev`, since `flutter run` has no
-proxy.
+Username import and the community data behind First pins and alerts read
+supercharging.life through the Worker's `/life/*` proxy (`worker.js`); exercise
+them with `npx wrangler dev`, since `flutter run` has no proxy. Browser alerts
+show only while the page is open. To test them in Playwright, launch with
+`channel: 'chromium'`: the default headless shell reports
+`Notification.permission` as denied even when granted.
 
 # Web deployment
 

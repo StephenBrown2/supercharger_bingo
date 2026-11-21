@@ -37,11 +37,17 @@ to supercharger.bingo. Clearing browser data removes local visits and settings.
 ## Cloudflare
 
 `wrangler.jsonc` serves `build/web` as static assets with SPA route fallback.
-`worker.js` runs only for `/life/*`: a read-only proxy for the two public
-supercharging.life reads behind the username import demo (user lookup and the
-XLSX export), because supercharging.life sends no CORS headers. Everything else
-is served as static assets without invoking the Worker. Remove the proxy, and
-`main` and `run_worker_first` in `wrangler.jsonc`, once real login lands. `_headers` avoids
+`worker.js` runs only for `/life/*`: a read-only proxy for the public
+supercharging.life reads the web app needs (username import's user lookup and
+XLSX export, plus the community history and counts behind First pins and
+alerts), because supercharging.life sends no CORS headers. Everything else is
+served as static assets without invoking the Worker. Remove the proxy, and
+`main` and `run_worker_first` in `wrangler.jsonc`, once supercharging.life sends
+CORS headers.
+
+Browser alerts use the Notification API through `flutter_local_notifications`
+and show only while the page is open; there is no Web Push. Safari on iOS offers
+notifications only to a Home Screen web app. `_headers` avoids
 long caching of entry points so a reload can pick up a new app version.
 
 Validate the upload without publishing:

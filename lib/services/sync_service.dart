@@ -245,8 +245,6 @@ class SyncService {
   /// Best-effort: the unofficial endpoints are fragile, so failures are logged
   /// and swallowed rather than blocking startup or the periodic sync.
   Future<void> syncCommunityData() async {
-    // These endpoints do not allow browser requests from another origin.
-    if (kIsWeb) return;
     try {
       await syncCheckinHistory();
     } catch (e) {

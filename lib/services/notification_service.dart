@@ -58,12 +58,6 @@ class NotificationService {
       () => NotificationService.instance.deliverBackgroundAlerts(),
     );
 
-    // Skip notification initialization on web
-    if (kIsWeb) {
-      _initialized = true;
-      return;
-    }
-
     // Initialize local notifications
     const androidSettings = AndroidInitializationSettings('ic_stat_bolt');
     const iosSettings = DarwinInitializationSettings(
@@ -79,6 +73,7 @@ class NotificationService {
       android: androidSettings,
       iOS: iosSettings,
       linux: linuxSettings,
+      web: WebInitializationSettings(),
     );
 
     await _notifications.initialize(
@@ -90,6 +85,13 @@ class NotificationService {
     if (launch?.didNotificationLaunchApp ?? false) {
       final response = launch!.notificationResponse;
       if (response != null) _onNotificationTapped(response);
+    }
+
+    // The browser shows alerts only while this page is open; the rest is
+    // native setup.
+    if (kIsWeb) {
+      _initialized = true;
+      return;
     }
 
     // Create notification channels (Android only)
@@ -158,9 +160,27 @@ class NotificationService {
     openSiteRequest.value = (siteId: siteId, checkIn: false);
   }
 
+  WebFlutterLocalNotificationsPlugin? get _web => _notifications
+      .resolvePlatformSpecificImplementation<
+        WebFlutterLocalNotificationsPlugin
+      >();
+
+  /// Whether alerts can show now. Only the browser can say no here: showing
+  /// without permission throws there, and the dedupe claim would eat the
+  /// alert.
+  bool get _canShow =>
+      !kIsWeb ||
+      (WebFlutterLocalNotificationsPlugin.isSupported &&
+          _web?.permissionStatus == WebNotificationPermission.granted);
+
   /// Request notification permissions (iOS)
   Future<bool> requestPermissions() async {
-    if (kIsWeb) return true;
+    // The browser shows its prompt only from a tap. A browser without the
+    // Notification API (Safari on iOS outside a Home Screen app) has none.
+    if (kIsWeb) {
+      if (!WebFlutterLocalNotificationsPlugin.isSupported) return false;
+      return await _web?.requestNotificationsPermission() ?? false;
+    }
 
     if (Platform.isIOS) {
       final iosPlugin = _notifications
@@ -250,7 +270,7 @@ class NotificationService {
   /// New-site and First alerts for the saved location. Does not post check-ins
   /// and does not require a supercharging.life session.
   Future<void> deliverBackgroundAlerts() async {
-    if (kIsWeb) return;
+    if (!_canShow) return;
     final settings = await DatabaseService.db.getUserSettings();
     final lat = settings.lastLatitude;
     final lng = settings.lastLongitude;
@@ -363,7 +383,7 @@ class NotificationService {
   /// (Android clears notifications on an app update or a reboot, and the
   /// daily dedupe would keep them gone), and remove ones no longer open.
   Future<void> checkFirstWindowsOnStartup() async {
-    if (kIsWeb) return;
+    if (!_canShow) return;
     final settings = await DatabaseService.db.getUserSettings();
     final lat = settings.lastLatitude;
     final lng = settings.lastLongitude;
@@ -535,7 +555,7 @@ class NotificationService {
     final body =
         '${site.name}\n'
         '${formatDistance(distanceKm, units)} away\n'
-        '${Platform.isAndroid ? 'Check in' : '${formatTimeLeft(left)} left to check in'} '
+        '${!kIsWeb && Platform.isAndroid ? 'Check in' : '${formatTimeLeft(left)} left to check in'} '
         'to share the First$shareWith';
     await _notifications.show(
       id: _firstNotificationId(site),

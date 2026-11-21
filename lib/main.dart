@@ -92,11 +92,10 @@ class _SuperchargerBingoAppState extends State<SuperchargerBingoApp> {
     // Site and First alerts come from supercharge.info, so a device-only
     // sign-in still schedules them. The check-in post itself still waits
     // for a session. Setup asks for permissions in its own order first.
-    if (!kIsWeb &&
-        settings.lastLoginAt != null &&
-        settings.setupCompletedAt != null) {
-      // Android 13+ and iOS drop alerts until the user allows them.
-      await NotificationService.instance.requestPermissions();
+    if (settings.lastLoginAt != null && settings.setupCompletedAt != null) {
+      // Android 13+ and iOS drop alerts until the user allows them. The
+      // browser asks only from a tap, in setup or Settings.
+      if (!kIsWeb) await NotificationService.instance.requestPermissions();
       await NotificationService.instance.scheduleBackgroundSync(settings);
       await NearestSiteService.instance.sync(settings);
       // The First check reads the history this sync writes.

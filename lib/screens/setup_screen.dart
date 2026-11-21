@@ -366,15 +366,17 @@ class _SetupScreenState extends State<SetupScreen> {
       theme,
       'Alerts',
       kIsWeb
-          ? 'Browser alerts cannot run after this page is closed.'
+          ? 'Alerts show only while this page is open.'
           : 'The app checks in the background for sites near you.',
     ),
-    if (_isPhone)
+    if (_isPhone || kIsWeb)
       ListTile(
         contentPadding: EdgeInsets.zero,
         leading: const Icon(Icons.notifications),
         title: Text(switch (_notificationsAllowed) {
           true => 'Notifications allowed',
+          false when kIsWeb =>
+            'Notifications are off. On iPhone, add this page to the Home Screen first',
           false => 'Notifications are off. Change it in Settings',
           null => 'Allow notifications',
         }),
