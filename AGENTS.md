@@ -49,6 +49,28 @@ are deferred. Verify that visits stay pending, survive reload and can be deleted
 locally. Explain that clearing browser data removes them. Do not present local
 continuation as GitHub or Google authentication.
 
+# Web deployment
+
+The web release runs on Cloudflare as the static-assets Worker `app`, at
+`https://app.supercharger-bingo.workers.dev`. The `supercharger.bingo` custom
+domain is not attached yet. Full steps are in `docs/web-deployment.md`.
+
+- Build with `flutter build web --release --no-web-resources-cdn`, then
+  `npx --yes wrangler@4.166.0 deploy --dry-run --outdir <scratch dir>` to check
+  the upload.
+- Deploy with `CLOUDFLARE_API_TOKEN` set from a token the user provides (the
+  "Edit Cloudflare Workers" template). Never commit or log the token. Deploying
+  publishes to users, so deploy only when asked.
+- Smoke-test locally with `npx wrangler dev` and `npm run test:web`, or the
+  live site with `BINGO_BASE_URL=https://app.supercharger-bingo.workers.dev
+  npm run test:web`. These cover the viewport matrix above in desktop
+  Chromium only.
+- A new workers.dev hostname fails TLS for about two minutes while its
+  certificate is issued. Wait for HTTP 200 before testing.
+- Renaming the Worker in `wrangler.jsonc` deploys a second Worker; the old one
+  stays live until deleted. The account workers.dev subdomain cannot be renamed
+  through the API, only released and claimed again.
+
 # Flutter and Dart upgrades
 
 You are authorized to upgrade the Flutter SDK, the Dart SDK, Kotlin, and this
