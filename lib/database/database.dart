@@ -991,17 +991,19 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Record the id supercharging.life gave a Visit's Check-in, unless another
-  /// Visit already holds it.
-  Future<void> attachCheckinId(int visitId, int checkinId) =>
-      transaction(() async {
-        final holder = await (select(
-          visits,
-        )..where((t) => t.checkinId.equals(checkinId))).getSingleOrNull();
-        if (holder != null) return;
-        await (update(visits)..where((t) => t.id.equals(visitId))).write(
-          VisitsCompanion(checkinId: Value(checkinId)),
-        );
-      });
+  /// Visit already holds it. Returns the Visit that holds the id afterwards,
+  /// or null if neither Visit exists.
+  Future<int?> attachCheckinId(int visitId, int checkinId) => transaction(
+    () async {
+      final holder = await (select(
+        visits,
+      )..where((t) => t.checkinId.equals(checkinId))).getSingleOrNull();
+      if (holder != null) return holder.id;
+      final written = await (update(visits)..where((t) => t.id.equals(visitId)))
+          .write(VisitsCompanion(checkinId: Value(checkinId)));
+      return written == 0 ? null : visitId;
+    },
+  );
 
   /// Attach IDs only for unique matches in both the local and server history.
   ///

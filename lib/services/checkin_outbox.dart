@@ -414,7 +414,14 @@ class CheckinOutbox {
       switch (result.outcome) {
         case WriteOutcome.accepted:
           final checkinId = result.checkinId;
-          if (checkinId != null) await _db.attachCheckinId(id, checkinId);
+          if (checkinId != null) {
+            final holder = await _db.attachCheckinId(id, checkinId);
+            CheckinLog.event('send.attached', {
+              'visit': id,
+              'checkinId': checkinId,
+              'heldBy': holder,
+            });
+          }
           await _delete(id);
         case WriteOutcome.needsSignIn:
           await _update(id, _waitForSignIn);

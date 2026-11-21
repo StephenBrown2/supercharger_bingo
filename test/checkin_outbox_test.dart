@@ -8,6 +8,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supercharger_bingo/database/database.dart';
 import 'package:supercharger_bingo/services/api_service.dart';
+import 'package:supercharger_bingo/services/checkin_log.dart';
 import 'package:supercharger_bingo/services/checkin_outbox.dart';
 import 'package:supercharger_bingo/services/checkin_writer.dart';
 import 'package:supercharger_bingo/services/checkin_form.dart';
@@ -438,7 +439,12 @@ void main() {
 
       final form = Map.fromEntries((requests.single.data as FormData).fields);
       expect(form['destination'], 'checkin_detail');
-      expect((await db.getAllVisits()).single.checkinId, 90210);
+      final visit = (await db.getAllVisits()).single;
+      expect(visit.checkinId, 90210);
+      final attached = (await CheckinLog.read())
+          .split('\n')
+          .where((l) => l.contains('"send.attached"'));
+      expect(attached.single, contains('"heldBy":${visit.id}'));
       expect(
         checkinIdFromRedirect('/supercharging/user_detail.php?id=5'),
         isNull,
