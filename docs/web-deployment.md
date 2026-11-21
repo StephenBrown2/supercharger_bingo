@@ -46,12 +46,14 @@ Validate the upload without publishing:
 npx wrangler deploy --dry-run --outdir /tmp/supercharger-bingo-worker
 ```
 
-After all release gates pass, authenticate with `npx wrangler login`, deploy with
-`npx wrangler deploy`, and add `supercharger.bingo` under the Worker's Domains &
-Routes settings. Keep the registrar and activate the DNS zone on Cloudflare;
-preserve existing email and other DNS records when changing nameservers.
-Cloudflare provisions HTTPS for the custom domain. Check the real HTTPS origin
-for location permissions, local check-in, deletion and reload persistence.
+After all release gates pass, deploy with `npx wrangler deploy` (log in with
+`npx wrangler login` or set `CLOUDFLARE_API_TOKEN`). The Worker is `app`, served
+at `https://supercharger.bingo`, `https://www.supercharger.bingo` and
+`https://app.supercharger-bingo.workers.dev`. Porkbun stays the registrar; the
+DNS zone moved to Cloudflare on 2026-11-21 with Porkbun's parking records
+removed. Both hostnames are Worker custom domains, so Cloudflare manages their
+DNS records and HTTPS. Check the real HTTPS origin for location permissions,
+local check-in, deletion and reload persistence.
 
 Static asset requests and storage are currently free. Any later authentication
 Worker or proxy has separate request limits. Check [Cloudflare's billing docs](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/)

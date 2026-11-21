@@ -52,8 +52,9 @@ continuation as GitHub or Google authentication.
 # Web deployment
 
 The web release runs on Cloudflare as the static-assets Worker `app`, at
-`https://app.supercharger-bingo.workers.dev`. The `supercharger.bingo` custom
-domain is not attached yet. Full steps are in `docs/web-deployment.md`.
+`https://supercharger.bingo` (also `www.` and
+`https://app.supercharger-bingo.workers.dev`). Porkbun is the registrar; DNS
+is on Cloudflare. Full steps are in `docs/web-deployment.md`.
 
 - Build with `flutter build web --release --no-web-resources-cdn`, then
   `npx --yes wrangler@4.166.0 deploy --dry-run --outdir <scratch dir>` to check
@@ -62,8 +63,7 @@ domain is not attached yet. Full steps are in `docs/web-deployment.md`.
   "Edit Cloudflare Workers" template). Never commit or log the token. Deploying
   publishes to users, so deploy only when asked.
 - Smoke-test locally with `npx wrangler dev` and `npm run test:web`, or the
-  live site with `BINGO_BASE_URL=https://app.supercharger-bingo.workers.dev
-  npm run test:web`. These cover the viewport matrix above in desktop
+  live site with `BINGO_BASE_URL=https://supercharger.bingo npm run test:web`. These cover the viewport matrix above in desktop
   Chromium only.
 - A new workers.dev hostname fails TLS for about two minutes while its
   certificate is issued. Wait for HTTP 200 before testing.
