@@ -75,10 +75,8 @@ class NearestSiteEngineService : Service() {
     }
 
     private fun build(update: Update): Notification {
-        val icon = resources.getIdentifier(update.icon, "drawable", packageName)
-            .takeIf { it != 0 } ?: R.drawable.ic_stat_bolt
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(icon)
+            .setSmallIcon(R.drawable.ic_stat_bolt)
             .setContentTitle(update.title)
             .setContentText(update.body)
             .setContentIntent(openApp(update.siteId, checkIn = false))
@@ -143,7 +141,6 @@ class NearestSiteEngineService : Service() {
         val title: String,
         val body: String,
         val chip: String? = null,
-        val icon: String = "ic_stat_bolt",
         val metric: String? = null,
         val metricLabel: String? = null,
         val siteId: Int? = null,
@@ -156,7 +153,6 @@ class NearestSiteEngineService : Service() {
                 title = call.argument<String>("title")!!,
                 body = call.argument<String>("body")!!,
                 chip = call.argument("chip"),
-                icon = call.argument<String>("icon") ?: "ic_stat_bolt",
                 metric = call.argument("metric"),
                 metricLabel = call.argument("metricLabel"),
                 siteId = call.argument("siteId"),

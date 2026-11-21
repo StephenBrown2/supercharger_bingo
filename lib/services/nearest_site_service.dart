@@ -56,10 +56,6 @@ String compassPoint(double bearing) {
 String directionPhrase(String point) =>
     '${const {'N': 'North', 'NE': 'Northeast', 'E': 'East', 'SE': 'Southeast', 'S': 'South', 'SW': 'Southwest', 'W': 'West', 'NW': 'Northwest'}[point]} of here';
 
-/// Drawable for the bolt-shaped compass needle pointing [direction].
-String compassIcon(String direction) =>
-    'ic_stat_compass_${direction.toLowerCase()}';
-
 /// Status bar chip text. Android shows about seven characters.
 String chipDistance(double km, UnitSystem units) {
   final value = displayFromKm(km, units);
@@ -194,9 +190,8 @@ class _LiveUpdate {
       'title': site.name,
       'body': '${formatDistance(nearest.km, units)} $direction$construction',
       'chip': distance,
-      'icon': compassIcon(direction),
       // Android 17 shows the distance large on the right, with this line
-      // under the name, such as "1.2 mi NE"; the chip's needle also points.
+      // under the name, such as "1.2 mi NE".
       'metric': '$distance $direction',
       'metricLabel':
           '${_street(site) ?? directionPhrase(direction)}$construction',
@@ -214,7 +209,7 @@ class _LiveUpdate {
 
   Future<void> _show(Map<String, Object?> update) async {
     // Only repost when the text changes, which is every 0.1 mi or km. The
-    // body holds the direction, so an icon change always reposts too.
+    // body holds the direction too.
     final key = '${update['title']}|${update['body']}|${update['checkIn']}';
     if (key == _lastShown) return;
     _lastShown = key;

@@ -43,7 +43,6 @@ void main() {
     expect(compassPoint(-170), 'S');
     expect(compassPoint(44), 'NE');
     expect(chipDistance(5, UnitSystem.metric), '5.0 km');
-    expect(compassIcon('NE'), 'ic_stat_compass_ne');
     expect(directionPhrase('NW'), 'Northwest of here');
     expect(directionPhrase('S'), 'South of here');
     expect(chipDistance(200, UnitSystem.imperial), '124 mi');
