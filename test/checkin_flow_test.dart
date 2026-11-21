@@ -485,10 +485,6 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
 
-    await tapTile('Sync Visit History');
-    await cancelDialog();
-    await tapTile('Clear Local Data');
-    await cancelDialog();
     await tapTile('Reset Database');
     await cancelDialog();
 

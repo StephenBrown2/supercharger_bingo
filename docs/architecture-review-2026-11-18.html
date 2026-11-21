@@ -108,7 +108,7 @@ flowchart TD
     <li>checkin_flow_test stops pumping widgets</li>
   </ul>
   <div class="rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 text-sm px-3 py-2 space-y-1">
-    <p><strong>Done.</strong> <code>lib/services/checkin_outbox.dart</code> owns the interface: record, send what's due, Pending state plus a change notifier, remove, settle from import. Injected: Backend writer, clock, <code>AppDatabase</code>, session check, online check, a flag that turns sending off on web.</p>
+    <p><strong>Done.</strong> <code>lib/services/checkin_outbox.dart</code> owns the interface: record, send what's due, Pending state plus a change notifier, discard (named <code>remove</code> until candidate 6), settle from import. Injected: Backend writer, clock, <code>AppDatabase</code>, session check, online check, a flag that turns sending off on web.</p>
     <p>Schema v20: Visits hold the Check-in; <code>outbox_entries</code> (keyed by Visit) hold Waiting to send / Sending / Waiting for sign-in. <code>pending_checkins</code>, <code>sync_status</code> and <code>pending_id</code> are gone.</p>
     <p>Changed from this card: the opening rule moved <em>out</em> of the outbox into a separate pure decision, <strong>Site confirmation</strong> (<code>site_confirmation.dart</code>). supercharging.life does not refuse check-ins, so the outbox has no Refused state.</p>
     <p>Tests: <code>checkin_outbox_test.dart</code> (fake writer, fake clock, in-memory database) and <code>site_confirmation_test.dart</code>. Checked on Pixel 9 and Pixel 8a (Android 17) and at all 9 Tesla web viewports.</p>
@@ -337,7 +337,7 @@ flowchart LR
 <article id="screens" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
   <div class="flex flex-wrap items-center gap-2">
     <h2 class="font-serif text-2xl mr-2">6. Pull Visit history and data maintenance out of screens</h2>
-    <span class="px-2 py-0.5 rounded-full text-xs bg-slate-200 text-slate-700">Speculative</span>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-slate-700 text-white">Rejected</span>
     <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700">in-process</span>
   </div>
   <ul class="font-mono text-sm text-slate-700 space-y-0.5">
@@ -371,14 +371,21 @@ flowchart LR
     <li>Per-visit query loop goes away</li>
   </ul>
   <div class="rounded-md bg-amber-50 border border-amber-200 text-amber-900 text-sm px-3 py-2"><strong>After candidate 5:</strong> screens now call <code>DatabaseService.db</code> (an <code>AppDatabase</code>) directly, for example <code>getAllVisits()</code>, <code>deleteVisit()</code> and <code>clearAll()</code>. There are no wrappers to move. <code>addVisit</code> now marks the Site visited itself, so re-sync no longer needs its own mark-visited loop. Seen on both emulators: after deleting a Visit, the open map keeps the old Site count until it reloads. This behaviour predates candidate 5 and belongs to the Visit history flow.</div>
+  <div class="rounded-md bg-slate-100 border border-slate-300 text-slate-900 text-sm px-3 py-2 space-y-2">
+    <p><strong>Rejected: no module. The bugs it hid were fixed in the screens.</strong> Both modules would have had one caller each. Delete already had five widget tests, and the name lookup is one cached query per Site. A deletion test found that the complexity would only move, not disappear. The grilling found real defects instead. Reset Database and Clear Local Data deleted Pending Visits, which on web is all the user's data. The open map never heard about Visit writes, so its count went stale after a delete, an import or a reset. And Sync Visit History was a TODO stub.</p>
+    <p>Changes. <code>AppDatabase.resetKeepingPending()</code> wipes everything that can be downloaded again but keeps Pending Visits, their outbox entries and their Sites, and returns how many it kept; Reset Database uses it and says the count. <code>CheckinOutbox.remove</code> became <code>discard</code>, which returns <code>Discard.discarded</code>, <code>confirmed</code>, <code>busy</code> or <code>notPending</code>. A Visit this engine is sending is discarded only if the send fails. If supercharging.life accepts it, it stays Confirmed and the user is told which one. The mark lives in memory, so killing the app cancels the discard. A new Settings tile, Discard Pending check-ins (N), uses the same rule. The map reloads on Drift table updates to <code>visits</code>, debounced by 300 ms. Clear Local Data (Android's Clear data covers it) and the Sync Visit History stub are gone. The Visits screen says Discard for Pending Visits and Delete for Confirmed ones.</p>
+    <p>Glossary: <strong>Confirmed</strong> (with the delete rule, using supercharging.life's own word, "Delete This Checkin") and <strong>Discard</strong>.</p>
+    <p>Flutter analysis was clean and 193 tests passed. New tests: discarding mid-send when the send fails and when it is accepted, a reset keeping Pending Visits and their Sites, and the open map updating after a delete (that test fails without the fix). The split-ABI release APK was checked on the Pixel 9 and Pixel 8a Android 17 emulators, signed out. On each: a check-in dropped the map to 3672, a discard from Visits brought it back to 3673 with no reload, Reset Database kept the Pending check-in ("1 Pending check-in is kept") while re-syncing 4847 Sites, the bulk discard reported "Discarded 1", and the two removed tiles were gone. The web release passed all nine Tesla viewports in headless Chromium, including the per-Visit discard at 773 x 601. Not checked: a discard that races a live send, because that needs a supercharging.life sign-in (the unit tests cover it); bulk discard and reset on web; physical Tesla browsers.</p>
+  </div>
 </article>
 
 </section>
 
 <section id="top-recommendation" class="rounded-2xl deep p-8 space-y-3">
-  <p class="lbl text-emerald-300">Top recommendation</p>
-  <h2 class="font-serif text-3xl"><a href="#screens" class="underline decoration-emerald-400">Pull Visit history and data maintenance out of screens</a></h2>
-  <p class="text-slate-300">The Check-in outbox (1), First module (2), Session module (4) and DatabaseService dissolution (5) are done. The Site query module (3) was rejected after site imports began reading EXPANDING as OPEN. Visit history and data maintenance (6) is the last open candidate.</p>
+  <p class="lbl text-emerald-300">Closing summary</p>
+  <h2 class="font-serif text-3xl">All six candidates are settled</h2>
+  <p class="text-slate-300">Done: the Check-in outbox (1), the First module (2), the Session module (4) and the DatabaseService dissolution (5). Rejected: the Site query module (3), because reading EXPANDING as OPEN removed its cause, and Visit history and data maintenance (6), because single-caller modules would only move code. Candidate 6's real bugs were fixed instead: Pending Visits now survive a reset, discard follows one rule, and the map follows Visit writes.</p>
+  <p class="text-slate-300">Still open: flattening the database migrations (schema v23), with an ADR, agreed under candidate 1. Also open: in-car checks on Intel and AMD Tesla browsers, live supercharging.life sign-in flows on device, and Visit writes made by the Live Update engine, which reach the main map only when it reloads.</p>
 </section>
 
 </main>

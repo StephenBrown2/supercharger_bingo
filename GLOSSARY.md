@@ -51,6 +51,14 @@ _Avoid_: trip, stop
 A Visit whose Check-in has not been sent yet: anything short of supercharging.life confirming it received it.
 _Avoid_: queued, unsynced, local, not synced
 
+**Discard**:
+Removing a Pending Visit from the app; supercharging.life never had it. A Visit being sent at that moment is discarded only if the send fails; if supercharging.life accepts it, it stays as a Confirmed Visit.
+_Avoid_: delete (for a Pending Visit), clear, cancel
+
+**Confirmed**:
+A Visit that supercharging.life holds, whether the app sent it or imported it. Deleting one (supercharging.life's word, as in its Delete This Checkin button) removes it from supercharging.life first and from the app only once supercharging.life accepts; if it cannot be matched to exactly one check-in there, nothing is deleted.
+_Avoid_: synced, sent
+
 **Check-in outbox**:
 The place where recorded Check-ins wait until supercharging.life accepts or refuses them.
 _Avoid_: queue, pending table, sync

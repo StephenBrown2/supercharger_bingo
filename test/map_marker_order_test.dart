@@ -284,4 +284,55 @@ void main() {
       await tester.pump();
     });
   }
+
+  testWidgets('deleting a Visit elsewhere updates the open map', (
+    tester,
+  ) async {
+    await db.clearAll();
+    for (final id in [1, 2, 3]) {
+      await db.upsertSite(
+        SitesCompanion.insert(
+          siteId: id,
+          name: 'Site $id',
+          status: const Value(SiteStatus.open),
+          latitude: const Value(40),
+          longitude: const Value(-100),
+          timezone: const Value('Etc/UTC'),
+        ),
+      );
+    }
+    final day = DateTime.utc(2026, 11, 1);
+    await db.addVisit(
+      VisitsCompanion.insert(
+        siteId: 1,
+        checkinId: const Value(9),
+        checkinDate: day,
+        checkinTime: day,
+        importedAt: day,
+      ),
+    );
+
+    Future<void> settle() async {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pump();
+    }
+
+    await tester.pumpWidget(const MaterialApp(home: MapScreen()));
+    await settle();
+    expect(find.text('2 sites'), findsOneWidget);
+
+    await tester.runAsync(
+      () async => db.deleteVisit((await db.getAllVisits()).single),
+    );
+    await settle();
+    expect(find.text('3 sites'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+  });
 }

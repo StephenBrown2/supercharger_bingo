@@ -107,16 +107,16 @@ for (const [width, height, deviceScaleFactor] of profiles) {
         await page.getByRole('button', { name: 'Close', exact: true }).waitFor({ state: 'hidden' });
         await page.waitForTimeout(450);
         await page.touchscreen.tap(width * 5 / 8, height - 35);
-        await page.getByRole('button', { name: 'Delete check-in', exact: true }).waitFor();
+        await page.getByRole('button', { name: 'Discard check-in', exact: true }).waitFor();
         assert.match(await accessibleText(), /Pending/);
         await page.reload();
         await page.locator('flt-semantics-placeholder').evaluate(el => el.click());
         await page.getByRole('button', { name: /Charger type/ }).waitFor();
         await page.touchscreen.tap(width * 5 / 8, height - 35);
-        await page.getByRole('button', { name: 'Delete check-in', exact: true }).waitFor();
+        await page.getByRole('button', { name: 'Discard check-in', exact: true }).waitFor();
         assert.match(await accessibleText(), /Pending/);
-        await click('Delete check-in');
-        await click('Delete');
+        await click('Discard check-in');
+        await click('Discard');
         await page.getByText('No visits yet', { exact: true }).waitFor();
       }
       console.log(`${width}x${height}: setup, visits, settings and reload passed`);

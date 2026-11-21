@@ -10,6 +10,8 @@ import 'package:geolocator/geolocator.dart';
 import '../database/database.dart';
 import '../services/session.dart';
 import '../services/checkin_log.dart';
+import '../services/checkin_outbox.dart';
+import '../services/life_time.dart' show formatCalendarDate;
 import '../services/database_service.dart';
 import '../services/life_auth.dart';
 import '../services/location_service.dart';
@@ -128,6 +130,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isSyncingSites = false;
   int? _siteCount;
   bool _signedIn = false;
+  Map<int, PendingVisit> _pending = {};
   late final AppLifecycleListener _sessionLifecycle;
 
   @override
@@ -136,6 +139,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     Session.instance.addListener(_refreshSession);
     _sessionLifecycle = AppLifecycleListener(onResume: _refreshSession);
     _refreshSession();
+    CheckinOutbox.instance.changes.addListener(_loadPending);
+    _loadPending();
     _loadSettings();
     _loadSiteCount();
     _loadLocationAccess();
@@ -145,7 +150,90 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     _sessionLifecycle.dispose();
     Session.instance.removeListener(_refreshSession);
+    CheckinOutbox.instance.changes.removeListener(_loadPending);
     super.dispose();
+  }
+
+  Future<void> _loadPending() async {
+    final pending = await CheckinOutbox.instance.pending();
+    if (mounted) setState(() => _pending = pending);
+  }
+
+  /// Discard every Pending Visit. One being sent is discarded if its send
+  /// fails; one supercharging.life accepts first stays, and is named.
+  Future<void> _handleDiscardPending() async {
+    final pending = await CheckinOutbox.instance.pending();
+    if (pending.isEmpty || !mounted) return;
+    final maybeSent = pending.values.where((p) => p.maybeSent).length;
+    final count = pending.length == 1
+        ? '1 check-in'
+        : '${pending.length} check-ins';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Discard Pending check-ins?'),
+        content: Text(
+          'This removes $count that supercharging.life has not confirmed '
+          'from the app only.'
+          '${maybeSent == 0 ? '' : '\n\n$maybeSent of these may already be on supercharging.life. Check there after discarding.'}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    void say(String text) =>
+        messenger.showSnackBar(SnackBar(content: Text(text)));
+
+    final outbox = CheckinOutbox.instance;
+    bool isSending(int id) => pending[id]!.state == OutboxState.sending;
+    final now = await Future.wait(
+      pending.keys.where((id) => !isSending(id)).map(outbox.discard),
+    );
+    final later = pending.keys.where(isSending).toList();
+    final discarded = now.where((r) => r == Discard.discarded).length;
+    say(
+      'Discarded $discarded.'
+      '${later.isEmpty ? '' : ' ${later.length} being sent: discarded if the send fails.'}',
+    );
+    if (later.isEmpty) return;
+
+    final results = await Future.wait(later.map(outbox.discard));
+    final kept = [
+      for (var i = 0; i < later.length; i++)
+        if (results[i] == Discard.confirmed) later[i],
+    ];
+    final busy = results.where((r) => r == Discard.busy).length;
+    final db = DatabaseService.db;
+    final names = <String>[];
+    for (final visit in await db.getAllVisits()) {
+      if (!kept.contains(visit.id)) continue;
+      final site = await db.getSiteBySiteId(visit.siteId);
+      names.add(
+        '${site?.name ?? 'Site ${visit.siteId}'} '
+        '(${formatCalendarDate(visit.checkinDate.toLocal())})',
+      );
+    }
+    if (names.isNotEmpty) {
+      say(
+        'Kept ${names.join(', ')}: supercharging.life accepted '
+        '${names.length == 1 ? 'it' : 'them'} first. Delete from Visits if '
+        'you meant to.',
+      );
+    }
+    if (busy > 0) say('$busy still being sent were kept. Try again shortly.');
   }
 
   Future<void> _refreshSession() async {
@@ -473,22 +561,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onTap: _showPollingIntervalPicker,
                   ),
                   ListTile(
-                    leading: const Icon(Icons.history),
-                    title: const Text('Sync Visit History'),
-                    subtitle: Text(
-                      _settings?.lastXlsxSyncAt != null
-                          ? 'Last imported ${_formatDate(_settings!.lastXlsxSyncAt!)}'
-                          : 'Import visits from supercharging.life',
+                    leading: const Icon(Icons.delete_outline),
+                    title: Text(
+                      'Discard Pending check-ins (${_pending.length})',
                     ),
-                    trailing: const Icon(Icons.chevron_right),
-                    enabled: !kIsWeb,
-                    onTap: kIsWeb ? null : _handleSyncHistory,
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.delete_forever),
-                    title: const Text('Clear Local Data'),
-                    subtitle: const Text('Remove cached sites and visits'),
-                    onTap: _handleClearData,
+                    subtitle: const Text(
+                      'Remove check-ins supercharging.life has not confirmed',
+                    ),
+                    enabled: _pending.isNotEmpty,
+                    onTap: _pending.isEmpty ? null : _handleDiscardPending,
                   ),
                   const Divider(),
 
@@ -612,10 +693,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
   String get _accountTitle {
@@ -912,73 +989,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _handleSyncHistory() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sync Visit History'),
-        content: const Text(
-          'This will download and import your visit history from supercharging.life. '
-          'This is normally done automatically on first login.\n\n'
-          'Use this option only for troubleshooting.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: Implement XLSX import
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Syncing history...')),
-              );
-            },
-            child: const Text('Sync Now'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _handleClearData() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Clear Local Data'),
-        content: const Text(
-          'This will remove all cached supercharger data and visit history. '
-          'You will need to sync again to restore the data.\n\n'
-          'Your account will remain logged in.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-            onPressed: () async {
-              final messenger = ScaffoldMessenger.of(context);
-              Navigator.pop(context);
-              await DatabaseService.db.clearAll();
-              await _loadSettings();
-              if (mounted) {
-                messenger.showSnackBar(
-                  const SnackBar(content: Text('Local data cleared')),
-                );
-              }
-            },
-            child: const Text('Clear Data'),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _handleForceSyncSites() async {
     setState(() => _isSyncingSites = true);
     final messenger = ScaffoldMessenger.of(context);
@@ -1059,6 +1069,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _handleResetDatabase() {
     // Remember current username before reset
     final currentUsername = _settings?.username;
+    final kept = _pending.length;
 
     showDialog(
       context: context,
@@ -1067,6 +1078,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         content: Text(
           'This will delete ALL data including your visit history and settings, '
           'then re-sync supercharger sites.\n\n'
+          '${kept == 0 ? '' : '${kept == 1 ? '1 Pending check-in is' : '$kept Pending check-ins are'} kept, since supercharging.life does not have ${kept == 1 ? 'it' : 'them'} yet.\n\n'}'
           '${currentUsername != null ? 'Your username ($currentUsername) will be preserved and re-synced.\n\n' : ''}'
           'This action cannot be undone.',
         ),
@@ -1086,8 +1098,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               setState(() => _isSyncingSites = true);
 
               try {
-                // Clear everything
-                await DatabaseService.db.clearAll();
+                // Clear everything supercharge.info or supercharging.life
+                // can send again.
+                await DatabaseService.db.resetKeepingPending();
 
                 // Re-sync sites first
                 await SyncService.instance.syncSites();

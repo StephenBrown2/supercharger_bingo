@@ -1194,4 +1194,26 @@ class AppDatabase extends _$AppDatabase {
     // Re-create default settings
     await into(userSettingsTable).insert(UserSettingsTableCompanion.insert());
   }
+
+  /// Wipe everything that can be downloaded again. Pending Visits, their
+  /// outbox entries and their Sites stay, since supercharging.life has no
+  /// copy. Returns how many Pending Visits were kept.
+  Future<int> resetKeepingPending() => transaction(() async {
+    await customUpdate(
+      'DELETE FROM visits WHERE id NOT IN (SELECT visit_id FROM outbox_entries)',
+      updates: {visits},
+      updateKind: UpdateKind.delete,
+    );
+    await customUpdate(
+      'DELETE FROM sites WHERE site_id NOT IN (SELECT site_id FROM visits)',
+      updates: {sites},
+      updateKind: UpdateKind.delete,
+    );
+    await delete(siteCheckins).go();
+    await delete(vehicles).go();
+    await delete(regionSyncs).go();
+    await delete(userSettingsTable).go();
+    await into(userSettingsTable).insert(UserSettingsTableCompanion.insert());
+    return (await select(outboxEntries).get()).length;
+  });
 }

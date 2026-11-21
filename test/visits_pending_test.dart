@@ -165,7 +165,7 @@ void main() {
   });
 
   for (final attempted in [false, true]) {
-    testWidgets('deleting a Pending check-in '
+    testWidgets('discarding a Pending check-in '
         '${attempted ? 'that may have gone out warns' : 'stays local'}', (
       tester,
     ) async {
@@ -181,7 +181,7 @@ void main() {
       if (attempted) {
         expect(find.textContaining('Network error'), findsOneWidget);
       }
-      await tester.tap(find.byTooltip('Delete check-in'));
+      await tester.tap(find.byTooltip('Discard check-in'));
       await tester.pumpAndSettle();
       expect(
         find.textContaining(
@@ -189,7 +189,7 @@ void main() {
         ),
         findsOneWidget,
       );
-      await tester.tap(find.text('Delete'));
+      await tester.tap(find.text('Discard'));
       await tester.pumpAndSettle();
 
       expect(await db.getAllVisits(), isEmpty);
@@ -199,7 +199,9 @@ void main() {
     });
   }
 
-  testWidgets('a check-in being sent is not deleted yet', (tester) async {
+  testWidgets('a check-in being sent elsewhere is not discarded yet', (
+    tester,
+  ) async {
     final now = DateTime.now();
     final outbox = installTestOutbox(db, clock: FakeClock(now));
     final visitId = await db
@@ -225,9 +227,9 @@ void main() {
 
     await tester.pumpWidget(const MaterialApp(home: VisitsScreen()));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Delete check-in'));
+    await tester.tap(find.byTooltip('Discard check-in'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Delete'));
+    await tester.tap(find.text('Discard'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('being sent'), findsOneWidget);

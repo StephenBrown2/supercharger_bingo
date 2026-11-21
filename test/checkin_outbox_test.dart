@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show Migrator, Value;
 import 'package:drift/native.dart';
@@ -211,7 +213,7 @@ void main() {
 
     await outbox.sendDue();
     expect(writer.drafts, isEmpty);
-    expect(await outbox.remove(visitId), isFalse);
+    expect(await outbox.discard(visitId), Discard.busy);
 
     clock.advance(const Duration(minutes: 1));
     await outbox.sendDue();
@@ -230,16 +232,61 @@ void main() {
     expect(writer.drafts, hasLength(1));
   });
 
-  test('removing a Pending Visit deletes it and unmarks the Site', () async {
+  test('discarding a Pending Visit deletes it and unmarks the Site', () async {
     final outbox = installTestOutbox(db, online: false);
     await outbox.record(siteId: 7);
     final visit = (await db.getAllVisits()).single;
 
-    expect(await outbox.remove(visit.id), isTrue);
+    expect(await outbox.discard(visit.id), Discard.discarded);
 
     expect(await db.getAllVisits(), isEmpty);
     expect(await entries(), isEmpty);
     expect((await db.getSiteBySiteId(7))!.visited, isFalse);
+  });
+
+  for (final accepted in [false, true]) {
+    test(
+      'discarding mid-send ${accepted ? 'keeps an accepted Visit' : 'waits for the send to fail'}',
+      () async {
+        final writer = _GatedWriter();
+        final outbox = installTestOutbox(db, writer: writer);
+        final recording = outbox.record(siteId: 7);
+        await writer.started.future;
+        final visitId = (await db.getAllVisits()).single.id;
+
+        final discard = outbox.discard(visitId);
+        writer.answer.complete(
+          accepted ? WriteResult.accepted : WriteResult.retry,
+        );
+        await recording;
+
+        expect(await discard, accepted ? Discard.confirmed : Discard.discarded);
+        expect(await db.getAllVisits(), hasLength(accepted ? 1 : 0));
+        expect(await entries(), isEmpty);
+      },
+    );
+  }
+
+  test('a reset keeps Pending Visits and their Sites', () async {
+    final outbox = installTestOutbox(db, online: false);
+    await outbox.record(siteId: 7);
+    await db.upsertSite(SitesCompanion.insert(siteId: 8, name: 'Findlay'));
+    await db.addVisit(
+      VisitsCompanion.insert(
+        siteId: 8,
+        checkinId: const Value(5),
+        checkinDate: start,
+        checkinTime: start,
+        importedAt: start,
+      ),
+    );
+
+    expect(await db.resetKeepingPending(), 1);
+
+    expect((await db.getAllVisits()).single.siteId, 7);
+    expect(await entries(), hasLength(1));
+    expect((await db.getSiteBySiteId(7))!.visited, isTrue);
+    expect(await db.getSiteBySiteId(8), isNull);
   });
 
   test('a Sending Visit found in an import is settled, not resent', () async {
@@ -541,4 +588,16 @@ Future<int> _pendingVisit(
         ),
       );
   return id;
+}
+
+/// Backend writer whose answer the test gives once the send has started.
+class _GatedWriter implements CheckinWriter {
+  final started = Completer<void>();
+  final answer = Completer<WriteResult>();
+
+  @override
+  Future<WriteResult> submit(CheckinDraft draft) {
+    started.complete();
+    return answer.future;
+  }
 }

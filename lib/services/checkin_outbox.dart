@@ -43,6 +43,21 @@ class PendingVisit {
   });
 }
 
+/// What [CheckinOutbox.discard] did with a Pending Visit.
+enum Discard {
+  /// The Visit is gone from the app.
+  discarded,
+
+  /// supercharging.life accepted the send under way, so it stays Confirmed.
+  confirmed,
+
+  /// Another engine is sending it right now. Nothing changed.
+  busy,
+
+  /// It was not Pending. Nothing changed.
+  notPending,
+}
+
 /// Check-in outbox: records Check-ins and sends them to supercharging.life.
 ///
 /// Every send in this isolate runs through one queue, so a Check-in is never
@@ -76,6 +91,9 @@ class CheckinOutbox {
   final ValueNotifier<int> changes = ValueNotifier(0);
 
   Future<void> _queue = Future.value();
+
+  /// Visits a send in this isolate is posting right now.
+  final Set<int> _sendingNow = {};
 
   CheckinOutbox({
     required AppDatabase db,
@@ -261,26 +279,40 @@ class CheckinOutbox {
     };
   }
 
-  /// Remove a Pending Visit. Returns false, removing nothing, while it may be
-  /// mid-send. A Visit supercharging.life has confirmed is not removed here.
-  Future<bool> remove(int visitId) async {
+  /// Discard a Pending Visit. One this isolate is sending right now is
+  /// discarded only if that send fails; if supercharging.life accepts it, it
+  /// stays as a Confirmed Visit. Nothing remembers a discard across an app
+  /// kill, so the Visit then stays Pending.
+  // ponytail: another engine's send (the Live Update) is not waited for; the
+  // caller gets [Discard.busy] and asks the user to try again.
+  Future<Discard> discard(int visitId) async {
+    if (!_sendingNow.contains(visitId)) return _discardNow(visitId);
+    CheckinLog.event('discard.afterSend', {'visit': visitId});
+    return _enqueue(() async {
+      final kept = await _visit(visitId);
+      if (await _entry(visitId) == null) {
+        return kept == null ? Discard.discarded : Discard.confirmed;
+      }
+      return _discardNow(visitId);
+    });
+  }
+
+  Future<Discard> _discardNow(int visitId) async {
     final entry = await _entry(visitId);
-    if (entry == null) return false;
+    if (entry == null) return Discard.notPending;
     if (entry.state == OutboxState.sending && !_interrupted(entry, _now())) {
-      CheckinLog.event('remove.refused', {'visit': visitId});
-      return false;
+      CheckinLog.event('discard.busy', {'visit': visitId});
+      return Discard.busy;
     }
-    CheckinLog.event('remove', {
+    CheckinLog.event('discard', {
       'visit': visitId,
       'state': entry.state.name,
       'attempts': entry.attempts,
     });
-    final visit = await (_db.select(
-      _db.visits,
-    )..where((t) => t.id.equals(visitId))).getSingleOrNull();
+    final visit = await _visit(visitId);
     if (visit != null) await _db.deleteVisit(visit);
     _changed();
-    return true;
+    return Discard.discarded;
   }
 
   /// Match the user's Visits from supercharging.life against local ones,
@@ -363,6 +395,7 @@ class CheckinOutbox {
           ) !=
           0;
       if (!claimed) return;
+      _sendingNow.add(id);
       _changed();
       final draft = await _draftFor(entry);
       if (draft == null) {
@@ -412,6 +445,8 @@ class CheckinOutbox {
         ),
       );
       if (!await _isSignedIn()) await _holdWaiting();
+    } finally {
+      _sendingNow.remove(id);
     }
   }
 
@@ -424,9 +459,7 @@ class CheckinOutbox {
   );
 
   Future<CheckinDraft?> _draftFor(OutboxEntry entry) async {
-    final visit = await (_db.select(
-      _db.visits,
-    )..where((t) => t.id.equals(entry.visitId))).getSingleOrNull();
+    final visit = await _visit(entry.visitId);
     if (visit == null) return null;
     final settings = await _db.getUserSettings();
     return CheckinDraft(
@@ -463,6 +496,10 @@ class CheckinOutbox {
   static String? _blankToNull(String? s) =>
       s == null || s.trim().isEmpty ? null : s;
 
+  Future<Visit?> _visit(int visitId) => (_db.select(
+    _db.visits,
+  )..where((t) => t.id.equals(visitId))).getSingleOrNull();
+
   Future<OutboxEntry?> _entry(int visitId) => (_db.select(
     _db.outboxEntries,
   )..where((t) => t.visitId.equals(visitId))).getSingleOrNull();
@@ -483,9 +520,9 @@ class CheckinOutbox {
 
   void _changed() => changes.value++;
 
-  Future<void> _enqueue(Future<void> Function() job) {
+  Future<T> _enqueue<T>(Future<T> Function() job) {
     final run = _queue.then((_) => job());
-    _queue = run.catchError((_) {});
+    _queue = run.then((_) {}, onError: (_) {});
     return run;
   }
 }

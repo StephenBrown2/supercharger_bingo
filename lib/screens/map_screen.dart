@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
 import 'dart:async';
+import 'package:drift/drift.dart' show TableUpdateQuery;
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -134,9 +135,22 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     SyncService.instance.sitesVersion.addListener(_onSitesSynced);
     CheckinOutbox.instance.changes.addListener(_refreshSignInBanner);
     _refreshSignInBanner();
+    // Any Visit write in this engine (a check-in, delete, import or reset)
+    // can change which Sites are visited. A burst such as an import reloads
+    // once.
+    final db = DatabaseService.db;
+    _visitWrites = db.tableUpdates(TableUpdateQuery.onTable(db.visits)).listen((
+      _,
+    ) {
+      _visitReload?.cancel();
+      _visitReload = Timer(const Duration(milliseconds: 300), _onSitesSynced);
+    });
 
     _fetchLocationForCheckin();
   }
+
+  StreamSubscription<void>? _visitWrites;
+  Timer? _visitReload;
 
   Future<void> _refreshSignInBanner() async {
     final pending = await CheckinOutbox.instance.pending();
@@ -172,6 +186,8 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     SyncService.instance.communityDataVersion.removeListener(_onCommunityData);
     SyncService.instance.sitesVersion.removeListener(_onSitesSynced);
     CheckinOutbox.instance.changes.removeListener(_refreshSignInBanner);
+    _visitWrites?.cancel();
+    _visitReload?.cancel();
     _siteSearchController.dispose();
     _locationAnimController.dispose();
     _drawerAnimController.dispose();
