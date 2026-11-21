@@ -68,8 +68,8 @@ class Session extends ChangeNotifier {
   // A write lock serializes secure storage mutations across Android engines.
   Future<T> _mutate<T>(Future<T> Function() action) {
     final db = DatabaseService.db;
+    // The connection's busy_timeout (connection/native.dart) makes this wait.
     return db.transaction(() async {
-      await db.customStatement('PRAGMA busy_timeout = 5000');
       await db.customStatement('UPDATE user_settings SET id = id WHERE 0');
       return action();
     });
