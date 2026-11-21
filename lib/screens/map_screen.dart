@@ -1411,33 +1411,40 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _checkInFromSheet(Site site) async {
-    // The map only follows fixes while the check-in drawer is open, so take
-    // a current one. The check-in records it.
-    final position =
-        await LocationService.instance.getCurrentPosition() ?? _userPosition;
-    if (!mounted) return;
-    if (position != null) _userPosition = position;
-    final km = position == null
-        ? 0.0
-        : distanceKm(
-            position.latitude,
-            position.longitude,
-            site.latitude,
-            site.longitude,
-          );
-    await _handleCheckin((site: site, distanceKm: km));
+    // _handleCheckin takes a current fix and measures the distance.
+    await _handleCheckin((site: site, distanceKm: 0));
   }
 
   Future<void> _handleCheckin(SiteWithDistance siteWithDist) async {
-    var target = siteWithDist;
     final messenger = ScaffoldMessenger.of(context);
+    // The check-in records this fix, so it must be current, not the map's.
+    final waiting = messenger.showSnackBar(
+      const SnackBar(content: Text('Getting your location...')),
+    );
+    final fix = await LocationService.instance.checkinFix(
+      recent: _userPosition,
+    );
+    waiting.close();
+    if (!mounted) return;
+    if (fix != null) _userPosition = fix;
+    var target = (
+      site: siteWithDist.site,
+      distanceKm: fix == null
+          ? siteWithDist.distanceKm
+          : distanceKm(
+              fix.latitude,
+              fix.longitude,
+              siteWithDist.site.latitude,
+              siteWithDist.site.longitude,
+            ),
+    );
     final confirmation = confirmSite(
       target.site,
       DateTime.now(),
       await _operationalNearYou(),
     );
     String? confirmMessage = confirmation?.message;
-    final position = _userPosition;
+    final position = fix;
     final cached = LocationService.instance.cachedPosition;
     CheckinLog.event('checkin.start', {
       'site': target.site.siteId,
@@ -1481,7 +1488,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       context,
       site: site,
       distanceKm: target.distanceKm,
-      position: _userPosition,
+      position: fix,
       confirmMessage: confirmMessage,
     );
     if (delivery == null) {

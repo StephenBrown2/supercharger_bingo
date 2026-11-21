@@ -192,7 +192,34 @@ class LocationService {
 
   void _remember(Position position) {
     _cachedPosition = position;
-    _cacheTimestamp = DateTime.now();
+    // The fix's own time: a last known position hours old is not fresh.
+    _cacheTimestamp = position.timestamp;
+  }
+
+  /// A fix for a check-in, taken now like the supercharging.life form's
+  /// browser geolocation. Reuses one under a minute old. Never a last known
+  /// or IP position: those were hours or hundreds of km off, so no fix means
+  /// a manual check-in instead of wrong coordinates.
+  Future<Position?> checkinFix({Position? recent}) async {
+    for (final p in [recent, _cachedPosition]) {
+      if (p != null &&
+          p.accuracy < 5000 &&
+          DateTime.now().difference(p.timestamp) < const Duration(minutes: 1)) {
+        return p;
+      }
+    }
+    try {
+      final fix = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
+      );
+      _remember(fix);
+      return fix;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Get position from IP-based geolocation service
