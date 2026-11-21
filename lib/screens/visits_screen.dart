@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../database/database.dart';
 import '../services/database_service.dart';
@@ -196,7 +197,17 @@ class _VisitsScreenState extends State<VisitsScreen> {
                       'Waiting for supercharging.life sign-in',
                     OutboxState.waiting => pending!.lastError,
                   };
+                  final checkinId = visit.checkinId;
                   return ListTile(
+                    // A Pending Visit has no supercharging.life page yet.
+                    onTap: checkinId == null
+                        ? null
+                        : () => launchUrl(
+                            Uri.parse(
+                              '${ApiService.superchargingLifeBaseUrl}/supercharging/checkin_detail.php?id=$checkinId',
+                            ),
+                            mode: LaunchMode.externalApplication,
+                          ),
                     title: Text(
                       _siteNames[visit.siteId] ?? 'Site ${visit.siteId}',
                     ),
