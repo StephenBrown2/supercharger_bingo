@@ -196,8 +196,8 @@ class _LiveUpdate {
       'chip': distance,
       'icon': compassIcon(direction),
       // Android 17 shows the distance large on the right, with this line
-      // under the name. The status bar chip's needle gives the direction.
-      'metric': distance,
+      // under the name, such as "1.2 mi NE"; the chip's needle also points.
+      'metric': '$distance $direction',
       'metricLabel':
           '${_street(site) ?? directionPhrase(direction)}$construction',
       'siteId': site.siteId,
