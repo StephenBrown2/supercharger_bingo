@@ -134,8 +134,8 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  /// Web demo until real login: import a supercharging.life user's public
-  /// visits by display name. This is not authentication.
+  /// Web demo until real login: import public visits from supercharging.life
+  /// using a Tesla Motors Club username. This is not authentication.
   Future<void> _importUsername() async {
     final username = _username.text.trim();
     if (username.isEmpty) return;
@@ -147,7 +147,11 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       if (!await SyncService.instance.syncUserByUsername(username)) {
         messenger.showSnackBar(
-          SnackBar(content: Text('No supercharging.life user "$username"')),
+          SnackBar(
+            content: Text(
+              'No user found on supercharging.life for TMC username "$username"',
+            ),
+          ),
         );
         return;
       }
@@ -240,7 +244,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       padding: const EdgeInsets.all(16),
                       child: Text(
                         kIsWeb
-                            ? 'Check-ins stay in this browser and show as pending. Sign-in is not available yet. As a demo, you can import a supercharging.life user\'s public visits by username. Clearing browser data removes your saved visits.'
+                            ? 'Check-ins stay in this browser and show as pending. Sign-in is not available yet. As a demo, enter your Tesla Motors Club (TMC) username to import your public visits from supercharging.life. Clearing browser data removes your saved visits.'
                             : live
                             ? 'Sign in with GitHub or Google through supercharging.life. If that page cannot finish, the same choice stays on this device and check-ins show as pending.'
                             : 'GitHub and Google stay on this device. Check-ins show as pending until a supercharging.life session is available.',
@@ -264,7 +268,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       controller: _username,
                       enabled: !_isLoading,
                       decoration: const InputDecoration(
-                        labelText: 'supercharging.life username',
+                        labelText: 'Tesla Motors Club (TMC) username',
                         prefixIcon: Icon(Icons.person_outline),
                         border: OutlineInputBorder(),
                       ),

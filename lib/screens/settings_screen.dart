@@ -632,7 +632,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: Text(
                       _settings?.username != null
                           ? 'Download your visits again'
-                          : 'Import visits by supercharging.life username',
+                          : 'Import visits by Tesla Motors Club (TMC) username',
                     ),
                     trailing: _isSyncingSites
                         ? const SizedBox(
@@ -1068,7 +1068,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           controller: controller,
           autofocus: true,
           decoration: const InputDecoration(
-            labelText: 'supercharging.life username',
+            labelText: 'Tesla Motors Club (TMC) username',
           ),
           onSubmitted: (value) => Navigator.pop(context, value.trim()),
         ),
