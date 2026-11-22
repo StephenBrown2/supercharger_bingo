@@ -173,6 +173,17 @@ class NotificationService {
       (WebFlutterLocalNotificationsPlugin.isSupported &&
           _web?.permissionStatus == WebNotificationPermission.granted);
 
+  /// Current browser grant, or null when it has not been requested.
+  bool? get browserNotificationsAllowed {
+    if (!kIsWeb) return null;
+    if (!WebFlutterLocalNotificationsPlugin.isSupported) return false;
+    return switch (_web?.permissionStatus) {
+      WebNotificationPermission.granted => true,
+      WebNotificationPermission.denied => false,
+      _ => null,
+    };
+  }
+
   /// Request notification permissions (iOS)
   Future<bool> requestPermissions() async {
     // The browser shows its prompt only from a tap. A browser without the

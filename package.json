@@ -2,7 +2,7 @@
   "name": "supercharger-bingo-web-checks",
   "private": true,
   "scripts": {
-    "test:web": "node --test test/web_smoke.test.mjs"
+    "test:web": "node --test test/web_*.test.mjs"
   },
   "devDependencies": {
     "playwright": "1.65.1"

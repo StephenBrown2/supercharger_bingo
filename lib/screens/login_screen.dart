@@ -145,22 +145,27 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     final messenger = ScaffoldMessenger.of(context);
     try {
-      if (!await SyncService.instance.syncUserByUsername(username)) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              'No user found on supercharging.life for TMC username "$username"',
-            ),
-          ),
-        );
-        return;
-      }
       await DatabaseService.db.updateUserSettings(
         UserSettingsTableCompanion(lastLoginAt: Value(DateTime.now())),
       );
+      // shortcut: the import runs in this tab; add resume support if it must survive closing or reloading.
+      final importing = SyncService.instance.syncUserByUsername(username);
       _finish();
+      if (!await importing && messenger.mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              'No user found on supercharging.life for TMC username "$username". You can try again in Settings.',
+            ),
+          ),
+        );
+      }
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Import failed: $e')));
+      if (messenger.mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Import failed: $e. Try again in Settings.')),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -244,7 +249,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       padding: const EdgeInsets.all(16),
                       child: Text(
                         kIsWeb
-                            ? 'Check-ins stay in this browser and show as pending. Sign-in is not available yet. As a demo, enter your Tesla Motors Club (TMC) username to import your public visits from supercharging.life. Clearing browser data removes your saved visits.'
+                            ? 'Check-ins stay in this browser and show as pending. Sign-in is not available yet. As a demo, enter your Tesla Motors Club username to import your public visits from supercharging.life. Clearing browser data removes your saved visits.'
                             : live
                             ? 'Sign in with GitHub or Google through supercharging.life. If that page cannot finish, the same choice stays on this device and check-ins show as pending.'
                             : 'GitHub and Google stay on this device. Check-ins show as pending until a supercharging.life session is available.',
@@ -268,7 +273,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       controller: _username,
                       enabled: !_isLoading,
                       decoration: const InputDecoration(
-                        labelText: 'Tesla Motors Club (TMC) username',
+                        labelText: 'TMC username',
                         prefixIcon: Icon(Icons.person_outline),
                         border: OutlineInputBorder(),
                       ),

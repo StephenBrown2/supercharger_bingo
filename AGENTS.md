@@ -6,7 +6,7 @@ device's ABI. For a physical Pixel 9, use `app-arm64-v8a-release.apk`.
 
 # Android verification
 
-Always verify changes on both a Pixel 9 Android emulator and a Pixel 8a Android
+Verify native Android app changes on both a Pixel 9 and a Pixel 8a Android
 emulator, each running the latest publicly released Android version, before
 declaring the work complete. Install the updated app on each emulator and
 exercise the affected flows. Report the results for both devices and any
@@ -18,6 +18,35 @@ check and don't take over or close that session. Find the holder with
 `notify_when_idle: true`. Then resume when it replies. When you finish, close
 your device sessions and tell it the emulators are free and which build you
 left installed.
+
+# Android browser verification
+
+For web changes, test the release build in the actual Chrome and Firefox apps
+on one Android emulator, either Pixel 9 or Pixel 8a. Use the latest publicly
+released Android version and stable browser releases, and record their versions.
+Desktop Playwright, including mobile viewport or user-agent emulation, does not
+satisfy these checks.
+
+Exercise the web flows listed below in both browsers. Normal mode is sufficient
+when the test site's data is cleared for fresh-session checks; private mode is
+optional. Include these regression cases:
+
+- Start with fresh browser storage and import a TMC username. Setup must remain
+  usable during a slow import, with progress visible until it finishes.
+- Delay site and history responses. Markers must appear as site pages arrive,
+  without a reload, and reflect imported visits when the import finishes.
+- Grant, deny, and revoke/regrant location; leave and return to the page; then
+  open Settings, load the map, and refresh. Distinguish Android's browser-app
+  permission from the site's permission. Passive loads must not repeat prompts
+  after a grant or automatically request a missing grant. An explicit Allow
+  location or recenter action may request access again.
+- Check notification permission labels after granting access and returning
+  from browser settings. Check reload persistence and unavailable network.
+
+Report results for both browsers, the emulator and versions used, the tab mode,
+and any unavailable checks. Clear site data only in a test profile so existing
+user visits are preserved. If optional private mode blocks screenshots, record
+observed steps and results; screenshots are not a prerequisite for testing.
 
 # Tesla browser verification
 
@@ -76,8 +105,9 @@ is on Cloudflare. Full steps are in `docs/web-deployment.md`.
   "Edit Cloudflare Workers" template). Never commit or log the token. Deploying
   publishes to users, so deploy only when asked.
 - Smoke-test locally with `npx wrangler dev` and `npm run test:web`, or the
-  live site with `BINGO_BASE_URL=https://supercharger.bingo npm run test:web`. These cover the viewport matrix above in desktop
-  Chromium only.
+  live site with `BINGO_BASE_URL=https://supercharger.bingo npm run test:web`.
+  These cover the viewport matrix in desktop Chromium and startup regressions
+  in desktop Chromium and Firefox. Run the Android browser checks separately.
 - A new workers.dev hostname fails TLS for about two minutes while its
   certificate is issued. Wait for HTTP 200 before testing.
 - Renaming the Worker in `wrangler.jsonc` deploys a second Worker; the old one

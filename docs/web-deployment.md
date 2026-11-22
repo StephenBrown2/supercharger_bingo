@@ -17,7 +17,7 @@ flutter analyze
 flutter test
 flutter build web --release --no-web-resources-cdn
 npm ci
-npx playwright install chromium --only-shell
+npx playwright install chromium firefox
 npx wrangler dev
 ```
 
@@ -25,6 +25,7 @@ In a second terminal, run `npm run test:web`. The default URL is
 `http://localhost:8787`; `BINGO_BASE_URL` can select a deployed staging URL.
 The checks exercise the actual release build and SQLite assets. The viewport
 matrix and manual verification requirements are in [AGENTS.md](../AGENTS.md).
+Firefox also runs the private-tab location and background-import regressions.
 Headless Chromium does not prove compatibility with Tesla hardware or firmware.
 
 Use the JavaScript build with rendering resources bundled locally. Both `web/sqlite3.wasm` and

@@ -862,15 +862,7 @@ class AppDatabase extends _$AppDatabase {
     )..where((t) => t.siteId.equals(siteId))).getSingleOrNull();
   }
 
-  Future<void> upsertSite(SitesCompanion site) async {
-    await into(sites).insert(
-      site,
-      onConflict: DoUpdate(
-        ($SitesTable old) => _siteUpdate(site, old),
-        target: [sites.siteId],
-      ),
-    );
-  }
+  Future<void> upsertSite(SitesCompanion site) => upsertSites([site]);
 
   Insertable<Site> _siteUpdate(SitesCompanion site, $SitesTable old) {
     return RawValuesInsertable({
@@ -890,20 +882,27 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
-  Future<void> upsertSites(List<SitesCompanion> siteList) async {
-    await batch((batch) {
-      for (final site in siteList) {
-        batch.insert(
-          sites,
-          site,
-          onConflict: DoUpdate(
-            ($SitesTable old) => _siteUpdate(site, old),
-            target: [sites.siteId],
-          ),
+  Future<void> upsertSites(List<SitesCompanion> siteList) =>
+      transaction(() async {
+        await batch((batch) {
+          for (final site in siteList) {
+            batch.insert(
+              sites,
+              site,
+              onConflict: DoUpdate(
+                ($SitesTable old) => _siteUpdate(site, old),
+                target: [sites.siteId],
+              ),
+            );
+          }
+        });
+        // First-run import can save Visits before their Sites are downloaded.
+        await customUpdate(
+          'UPDATE sites SET visited = 1 WHERE visited = 0 '
+          'AND site_id IN (SELECT site_id FROM visits)',
+          updates: {sites},
         );
-      }
-    });
-  }
+      });
 
   Future<void> markSiteVisited(int siteId, bool visited) async {
     await (update(sites)..where((t) => t.siteId.equals(siteId))).write(

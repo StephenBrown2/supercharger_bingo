@@ -32,10 +32,10 @@ class SyncService {
 
   final Connectivity _connectivity = Connectivity();
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
-  bool _isSyncingSites = false;
+  final ValueNotifier<bool> sitesLoading = ValueNotifier(false);
   bool _isSyncingCheckinHistory = false;
   bool _isSyncingCheckinCounts = false;
-  bool _isSyncingUser = false;
+  final ValueNotifier<bool> userImporting = ValueNotifier(false);
 
   final ApiService _apiService;
   final Future<LocationFix?> Function() _locate;
@@ -46,7 +46,14 @@ class SyncService {
 
   static Future<LocationFix?> deviceLocation() async {
     try {
-      final position = await LocationService.instance.getCurrentPosition();
+      final location = LocationService.instance;
+      // The map's fast fix can time out before GPS is ready on first launch.
+      var position = await location.getCurrentPosition();
+      if (position == null && !kIsWeb) {
+        position = await location.unifiedPositionStream().first.timeout(
+          const Duration(seconds: 20),
+        );
+      }
       if (position == null) return null;
       return (latitude: position.latitude, longitude: position.longitude);
     } catch (_) {
@@ -82,8 +89,8 @@ class SyncService {
   /// Later pulls apply only newer `/changes` rows. With no fix and
   /// no stored location, this does not download the full site list.
   Future<void> syncSites({double? latitude, double? longitude}) async {
-    if (_isSyncingSites) return;
-    _isSyncingSites = true;
+    if (sitesLoading.value) return;
+    sitesLoading.value = true;
     var started = false;
 
     try {
@@ -108,7 +115,7 @@ class SyncService {
         UserSettingsTableCompanion(lastSitesSyncAt: Value(DateTime.now())),
       );
     } finally {
-      _isSyncingSites = false;
+      sitesLoading.value = false;
       if (started) sitesVersion.value++;
     }
   }
@@ -325,11 +332,11 @@ class SyncService {
 
   /// Look up user by username and sync their check-in history
   Future<bool> syncUserByUsername(String username) async {
-    if (_isSyncingUser) {
+    if (userImporting.value) {
       debugPrint('syncUserByUsername: Already syncing, skipping');
       return false;
     }
-    _isSyncingUser = true;
+    userImporting.value = true;
     debugPrint('syncUserByUsername: Starting for $username');
 
     try {
@@ -382,7 +389,7 @@ class SyncService {
       debugPrint('syncUserByUsername: Completed successfully');
       return true;
     } finally {
-      _isSyncingUser = false;
+      userImporting.value = false;
     }
   }
 

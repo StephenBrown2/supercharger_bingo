@@ -28,12 +28,14 @@ class _VisitsScreenState extends State<VisitsScreen> {
   void initState() {
     super.initState();
     CheckinOutbox.instance.changes.addListener(_load);
+    SyncService.instance.userImporting.addListener(_load);
     _load();
   }
 
   @override
   void dispose() {
     CheckinOutbox.instance.changes.removeListener(_load);
+    SyncService.instance.userImporting.removeListener(_load);
     super.dispose();
   }
 

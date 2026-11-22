@@ -24,6 +24,22 @@ void main() {
     );
   }
 
+  for (final batch in [false, true]) {
+    test(
+      'a site loaded after its imported visit stays visited (batch: $batch)',
+      () async {
+        await db.addVisit(visit(checkinId: 90105, isFirst: false));
+        final site = SitesCompanion.insert(siteId: 9409, name: 'Imported site');
+        if (batch) {
+          await db.upsertSites([site]);
+        } else {
+          await db.upsertSite(site);
+        }
+        expect((await db.getSiteBySiteId(9409))!.visited, isTrue);
+      },
+    );
+  }
+
   test(
     're-importing a visit upserts instead of failing on checkin_id',
     () async {

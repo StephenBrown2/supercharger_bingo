@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../services/notification_service.dart';
+import '../services/sync_service.dart';
 import 'map_screen.dart';
 import 'settings_screen.dart';
 import 'visits_screen.dart';
@@ -75,16 +76,34 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _selectedIndex,
+      body: Column(
         children: [
-          MapScreen(
-            key: _mapKey,
-            showCheckinDrawer: _showCheckinDrawer,
-            onDrawerClosed: _onDrawerClosed,
+          ValueListenableBuilder<bool>(
+            valueListenable: SyncService.instance.userImporting,
+            builder: (context, importing, child) => importing
+                ? const SafeArea(
+                    bottom: false,
+                    child: Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Text('Importing visits in the background'),
+                    ),
+                  )
+                : const SizedBox.shrink(),
           ),
-          VisitsScreen(key: ValueKey(_visitsOpens)),
-          const SettingsScreen(),
+          Expanded(
+            child: IndexedStack(
+              index: _selectedIndex,
+              children: [
+                MapScreen(
+                  key: _mapKey,
+                  showCheckinDrawer: _showCheckinDrawer,
+                  onDrawerClosed: _onDrawerClosed,
+                ),
+                VisitsScreen(key: ValueKey(_visitsOpens)),
+                const SettingsScreen(),
+              ],
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: NavigationBar(

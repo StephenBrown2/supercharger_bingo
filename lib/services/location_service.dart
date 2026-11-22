@@ -22,6 +22,9 @@ class LocationService {
   Position? _cachedPosition;
   DateTime? _cacheTimestamp;
   static const _cacheValidDuration = Duration(minutes: 5);
+  bool _webLocationGranted = false;
+  Stream<Position>? _webPositions;
+  Completer<void> _webGrant = Completer<void>();
 
   /// MainActivity asks for background location on its own. See there.
   static const _androidLocation = MethodChannel('supercharger_bingo/location');
@@ -31,8 +34,10 @@ class LocationService {
   /// Check if we're on Linux desktop
   bool get isLinuxDesktop => !kIsWeb && Platform.isLinux;
 
-  /// Get cached position if available and not expired
+  /// Latest granted browser-watch position, or a fresh native cached fix.
   Position? get cachedPosition {
+    // A quiet, granted browser watch still holds its latest position.
+    if (kIsWeb) return _webLocationGranted ? _cachedPosition : null;
     if (_cachedPosition != null && _cacheTimestamp != null) {
       final age = DateTime.now().difference(_cacheTimestamp!);
       if (age < _cacheValidDuration) {
@@ -46,6 +51,65 @@ class LocationService {
   void clearCache() {
     _cachedPosition = null;
     _cacheTimestamp = null;
+  }
+
+  /// Only a user action may ask for a new browser location grant.
+  Future<LocationPermission> requestForegroundAccess() async {
+    if (!kIsWeb) return Geolocator.requestPermission();
+    if (_webLocationGranted && cachedPosition != null) {
+      return LocationPermission.whileInUse;
+    }
+    try {
+      await _browserPositions().first.timeout(const Duration(seconds: 20));
+      return LocationPermission.whileInUse;
+    } on PermissionDeniedException {
+      return LocationPermission.denied;
+    } catch (_) {
+      return LocationPermission.unableToDetermine;
+    }
+  }
+
+  /// A browser may report "prompt" after granting access for this page.
+  Future<LocationPermission> locationAccess() async {
+    final permission = await Geolocator.checkPermission();
+    if (!kIsWeb) return permission;
+    if (permission == LocationPermission.deniedForever) {
+      _webLocationGranted = false;
+    }
+    return _webLocationGranted ? LocationPermission.whileInUse : permission;
+  }
+
+  // Keep one browser watch for the page, including between listeners.
+  Stream<Position> _browserPositions() =>
+      _webPositions ??= _watchBrowser().asBroadcastStream();
+
+  Stream<Position> _watchBrowser() async* {
+    try {
+      final positions =
+          Geolocator.getPositionStream(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 50,
+            ),
+          ).handleError((Object error, StackTrace stack) {
+            if (error is PermissionDeniedException) {
+              Error.throwWithStackTrace(error, stack);
+            }
+            debugPrint('Browser location temporarily unavailable: $error');
+          });
+      await for (final position in positions) {
+        _webLocationGranted = true;
+        _remember(position);
+        if (!_webGrant.isCompleted) _webGrant.complete();
+        yield position;
+      }
+    } on PermissionDeniedException {
+      // await-for cancels the denied watch before another can be started.
+      _webLocationGranted = false;
+      _webPositions = null;
+      if (_webGrant.isCompleted) _webGrant = Completer<void>();
+      rethrow;
+    }
   }
 
   /// Background alerts need location "all the time". Android 11+ sends the
@@ -88,6 +152,11 @@ class LocationService {
   Future<bool> checkPermission() async {
     // On Linux, skip permission checks - they don't work reliably
     if (isLinuxDesktop) return true;
+    if (kIsWeb) {
+      final permission = await locationAccess();
+      return permission == LocationPermission.whileInUse ||
+          permission == LocationPermission.always;
+    }
 
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
@@ -118,6 +187,17 @@ class LocationService {
     if (!forceRefresh && cachedPosition != null) {
       debugPrint('LocationService: Using cached position');
       return cachedPosition;
+    }
+
+    if (kIsWeb) {
+      if (!await checkPermission()) return null;
+      try {
+        return await _browserPositions().first.timeout(
+          const Duration(seconds: 20),
+        );
+      } catch (_) {
+        return null;
+      }
     }
 
     Position? position;
@@ -196,11 +276,19 @@ class LocationService {
     _cacheTimestamp = position.timestamp;
   }
 
-  /// A fix for a check-in, taken now like the supercharging.life form's
-  /// browser geolocation. Reuses one under a minute old. Never a last known
-  /// or IP position: those were hours or hundreds of km off, so no fix means
-  /// a manual check-in instead of wrong coordinates.
+  /// Browser check-ins use the granted watch, which can be quiet when still.
+  /// Native check-ins reuse fixes under a minute old, never last-known or IP
+  /// positions. No suitable fix means a manual check-in.
   Future<Position?> checkinFix({Position? recent}) async {
+    if (kIsWeb) {
+      final permission = await requestForegroundAccess();
+      if (permission != LocationPermission.whileInUse &&
+          permission != LocationPermission.always) {
+        return null;
+      }
+      final fix = cachedPosition;
+      return fix != null && fix.accuracy < 5000 ? fix : null;
+    }
     for (final p in [recent, _cachedPosition]) {
       if (p != null &&
           p.accuracy < 5000 &&
@@ -223,6 +311,8 @@ class LocationService {
         );
         _remember(fix);
         return fix;
+      } on PermissionDeniedException {
+        return null;
       } catch (_) {}
     }
     return null;
@@ -275,6 +365,20 @@ class LocationService {
   /// The platform stream only reports after moving distanceFilter, so a
   /// listener standing still would otherwise never hear anything.
   Stream<Position> getPositionStream() async* {
+    if (kIsWeb) {
+      while (true) {
+        if (!await checkPermission()) await _webGrant.future;
+        final cached = cachedPosition;
+        if (cached != null) yield cached;
+        try {
+          await for (final position in _browserPositions()) {
+            yield position;
+          }
+        } on PermissionDeniedException {
+          // Stay subscribed while waiting for an explicit re-grant.
+        }
+      }
+    }
     final now = await _gpsFix();
     if (now != null) yield now;
     yield* Geolocator.getPositionStream(

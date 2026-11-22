@@ -4,6 +4,7 @@ import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
 import 'dart:async';
 import 'package:drift/drift.dart' show TableUpdateQuery;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -56,6 +57,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   bool _isLoading = true;
   bool _clusterMarkers = true;
   bool _isLocating = false;
+  bool _receivedLiveFix = false;
   late AnimationController _locationAnimController;
   late AnimationController _drawerAnimController;
   late Animation<double> _drawerAnimation;
@@ -135,16 +137,18 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     SyncService.instance.sitesVersion.addListener(_onSitesSynced);
     CheckinOutbox.instance.changes.addListener(_refreshSignInBanner);
     _refreshSignInBanner();
-    // Any Visit write in this engine (a check-in, delete, import or reset)
-    // can change which Sites are visited. A burst such as an import reloads
-    // once.
+    // Site pages and Visit writes refresh the map as they arrive. Coalesce
+    // bursts such as an import into one reload.
     final db = DatabaseService.db;
-    _visitWrites = db.tableUpdates(TableUpdateQuery.onTable(db.visits)).listen((
-      _,
-    ) {
-      _visitReload?.cancel();
-      _visitReload = Timer(const Duration(milliseconds: 300), _onSitesSynced);
-    });
+    _visitWrites = db
+        .tableUpdates(TableUpdateQuery.onAllTables([db.visits, db.sites]))
+        .listen((_) {
+          _visitReload?.cancel();
+          _visitReload = Timer(
+            const Duration(milliseconds: 300),
+            _onSitesSynced,
+          );
+        });
 
     _fetchLocationForCheckin();
   }
@@ -419,7 +423,14 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                       horizontal: 12,
                       vertical: 6,
                     ),
-                    child: Text('${_sites.length} sites'),
+                    child: ValueListenableBuilder<bool>(
+                      valueListenable: SyncService.instance.sitesLoading,
+                      builder: (context, loading, child) => Text(
+                        loading && _sites.isEmpty
+                            ? 'Loading sites...'
+                            : '${_sites.length} sites',
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -822,6 +833,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     _locationAnimController.repeat();
 
     try {
+      if (kIsWeb) await LocationService.instance.requestForegroundAccess();
       final position = await LocationService.instance.getCurrentPosition();
 
       if (position == null) {
@@ -840,6 +852,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       debugPrint(
         'Got position: ${position.latitude}, ${position.longitude} (accuracy: ${position.accuracy}m)',
       );
+      if (kIsWeb) _syncLocatedSites(position);
 
       if (mounted) {
         _mapController.move(
@@ -1015,9 +1028,14 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                       ),
                     ),
                     TextButton(
-                      onPressed: () {
-                        LocationService.instance.clearCache();
-                        _fetchLocationForCheckin();
+                      onPressed: () async {
+                        if (kIsWeb) {
+                          await LocationService.instance
+                              .requestForegroundAccess();
+                        } else {
+                          LocationService.instance.clearCache();
+                        }
+                        if (mounted) _fetchLocationForCheckin();
                       },
                       child: const Text('Retry'),
                     ),
@@ -1184,7 +1202,12 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   // ponytail: a 200 m move reselects the closest Site; keep the user's pick
   // if that ever interrupts a check-in.
   void _onLiveFix(Position pos) {
-    if (!mounted || !_showCheckinDrawer || _siteFocused || _isLoadingLocation) {
+    if (!mounted) return;
+    if (kIsWeb && !_receivedLiveFix) {
+      _receivedLiveFix = true;
+      _syncLocatedSites(pos);
+    }
+    if (!_showCheckinDrawer || _siteFocused || _isLoadingLocation) {
       return;
     }
     final at = _userPosition;
@@ -1200,6 +1223,17 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       _locationError = null;
     });
     _loadNearbySites();
+  }
+
+  Future<void> _syncLocatedSites(Position position) async {
+    try {
+      await SyncService.instance.syncSites(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+    } catch (e) {
+      debugPrint('Location site sync failed: $e');
+    }
   }
 
   Future<void> _fetchLocationForCheckin() async {

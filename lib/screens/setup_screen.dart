@@ -10,6 +10,7 @@ import '../database/database.dart';
 import '../services/database_service.dart';
 import '../services/location_service.dart';
 import '../services/notification_service.dart';
+import '../services/sync_service.dart';
 import '../services/timezone_service.dart';
 import '../theme/app_theme.dart';
 
@@ -67,7 +68,7 @@ class SetupScreen extends StatefulWidget {
   State<SetupScreen> createState() => _SetupScreenState();
 }
 
-class _SetupScreenState extends State<SetupScreen> {
+class _SetupScreenState extends State<SetupScreen> with WidgetsBindingObserver {
   static const _stepCount = 5;
   int _step = 0;
   bool _loaded = false;
@@ -89,32 +90,78 @@ class _SetupScreenState extends State<SetupScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refreshPermissions();
+  }
+
+  Future<void> _refreshPermissions() async {
+    final location = _isPhone || kIsWeb
+        ? await LocationService.instance.locationAccess()
+        : null;
+    if (!mounted) return;
+    setState(() {
+      _location = location;
+      if (kIsWeb) {
+        _notificationsAllowed =
+            NotificationService.instance.browserNotificationsAllowed;
+      }
+    });
+    if (kIsWeb &&
+        (location == LocationPermission.whileInUse ||
+            location == LocationPermission.always)) {
+      _startSiteSync();
+    }
   }
 
   Future<void> _load() async {
     final settings = await DatabaseService.db.getUserSettings();
     final location = _isPhone || kIsWeb
-        ? await Geolocator.checkPermission()
+        ? await LocationService.instance.locationAccess()
         : null;
     if (!mounted) return;
     setState(() {
       _location = location;
+      _notificationsAllowed =
+          NotificationService.instance.browserNotificationsAllowed;
       _applyUnits(settings.unitSystem);
       _notifyNewSites = settings.notifyNewSites;
       _notifyFirstEligible = settings.notifyFirstEligible;
       _polling = settings.pollingInterval;
       _loaded = true;
     });
+    if (kIsWeb &&
+        (location == LocationPermission.whileInUse ||
+            location == LocationPermission.always)) {
+      _startSiteSync();
+    }
+  }
+
+  Future<void> _startSiteSync() async {
+    try {
+      await SyncService.instance.syncSites();
+    } catch (e) {
+      debugPrint('Setup site sync failed: $e');
+    }
   }
 
   /// Foreground first. Android 11+ only grants background as a second ask.
   Future<void> _askLocation() async {
-    if (kIsWeb || _location == LocationPermission.denied) {
-      await Geolocator.requestPermission();
-    } else {
-      await LocationService.instance.requestBackgroundAccess();
-    }
+    final location = kIsWeb || _location == LocationPermission.denied
+        ? await LocationService.instance.requestForegroundAccess()
+        : await LocationService.instance.requestBackgroundAccess();
+    if (mounted) setState(() => _location = location);
+    if (kIsWeb) _startSiteSync();
   }
 
   /// Location if allowed, then the phone's region.
@@ -195,6 +242,15 @@ class _SetupScreenState extends State<SetupScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   LinearProgressIndicator(value: (_step + 1) / _stepCount),
+                  ValueListenableBuilder<bool>(
+                    valueListenable: SyncService.instance.userImporting,
+                    builder: (context, importing, child) => importing
+                        ? const Padding(
+                            padding: EdgeInsets.all(8),
+                            child: Text('Importing visits in the background'),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
                   Expanded(
                     child: ListView(
                       padding: const EdgeInsets.all(24),
@@ -244,11 +300,13 @@ class _SetupScreenState extends State<SetupScreen> {
       LocationPermission.always => 'Allowed all the time',
       LocationPermission.whileInUse => 'Allowed while the app is open',
       LocationPermission.deniedForever => 'Blocked. Change it in Settings',
+      LocationPermission.unableToDetermine => 'Location not available yet',
       null => 'Not needed on this device',
       _ => 'Not allowed yet',
     };
     final action = switch (_location) {
       LocationPermission.denied => ('Allow location', _askLocation),
+      LocationPermission.unableToDetermine => ('Allow location', _askLocation),
       LocationPermission.whileInUse when !kIsWeb => (
         'Allow all the time',
         _askLocation,
@@ -280,8 +338,6 @@ class _SetupScreenState extends State<SetupScreen> {
         FilledButton.tonal(
           onPressed: () async {
             await action.$2();
-            final now = await Geolocator.checkPermission();
-            if (mounted) setState(() => _location = now);
           },
           child: Text(action.$1),
         ),
