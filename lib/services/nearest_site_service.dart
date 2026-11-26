@@ -51,6 +51,32 @@ String compassPoint(double bearing) {
   return points[((bearing % 360) / 45).round() % 8];
 }
 
+/// Arrow toward a site [relative] degrees clockwise from straight ahead.
+String directionArrow(double relative) => const [
+  '↑',
+  '↗',
+  '→',
+  '↘',
+  '↓',
+  '↙',
+  '←',
+  '↖',
+][((relative % 360) / 45).round() % 8];
+
+/// Below this speed (2 m/s, about 4.5 mph) the GPS course is too noisy.
+const double movingMetersPerSecond = 2;
+
+/// Way to a site at [bearing]: an arrow relative to the direction of
+/// [travel] while moving, else relative to the [compass] heading while the
+/// phone lies flat, else compass letters. Headings are degrees from true
+/// north.
+String directionTo(double bearing, {double? travel, double? compass}) {
+  final facing = travel ?? compass;
+  return facing == null
+      ? compassPoint(bearing)
+      : directionArrow(bearing - facing);
+}
+
 /// Where a site lies from the user, such as "Northwest of here", for a
 /// [compassPoint]. Stands in for a missing street.
 String directionPhrase(String point) =>
@@ -131,6 +157,7 @@ class NearestSiteService {
       'id': _notificationId,
       'key':
           '${settings.nearestSiteIncludeConstruction}|'
+          '${settings.nearestSiteShowDirection}|'
           '${settings.unitSystem.name}',
     });
   }
@@ -152,8 +179,21 @@ class _LiveUpdate {
   final UserSettingsTableData _settings;
   static const _native = MethodChannel('supercharger_bingo/live_update');
   String? _lastShown;
+  Position? _position;
+  NearestSite? _nearest;
+
+  /// True-north heading of the phone's top edge while it lies flat, from the
+  /// service's rotation sensor; null when tilted or without a sensor.
+  double? _compass;
 
   Future<void> start() async {
+    if (_settings.nearestSiteShowDirection) {
+      _native.setMethodCallHandler((call) async {
+        if (call.method != 'heading') return;
+        _compass = (call.arguments as num?)?.toDouble();
+        await _render();
+      });
+    }
     LocationService.instance.getPositionStream().listen(
       _update,
       onError: (Object e) => debugPrint('NearestSiteService: $e'),
@@ -167,34 +207,59 @@ class _LiveUpdate {
     final sites = await DatabaseService.db.unvisitedSites(
       includeConstruction: _settings.nearestSiteIncludeConstruction,
     );
-    final units = _settings.unitSystem;
-    final nearest = findNearestSite(
-      sites,
-      position.latitude,
-      position.longitude,
-    );
-    if (nearest == null) {
+    _position = position;
+    _nearest = findNearestSite(sites, position.latitude, position.longitude);
+    if (_settings.nearestSiteShowDirection) {
+      // Starts the compass once; later fixes keep its declination current.
+      await _native.invokeMethod<void>('watchHeading', {
+        'latitude': position.latitude,
+        'longitude': position.longitude,
+      });
+    }
+    if (_nearest == null) {
       await _show({
         'title': 'No unvisited sites',
         'body': 'Every site in the filter is visited',
       });
       return;
     }
+    await _render();
+  }
+
+  /// Course over ground while moving. Fixes come every 50 m, so a fix older
+  /// than 30 s means the car stopped and the compass may take over.
+  /// ponytail: a stop without a later compass event keeps the last arrow;
+  /// add a timer if that shows up in use.
+  double? _travel(Position p) =>
+      p.speed >= movingMetersPerSecond &&
+          DateTime.now().difference(p.timestamp) < const Duration(seconds: 30)
+      ? p.heading
+      : null;
+
+  Future<void> _render() async {
+    final nearest = _nearest;
+    final position = _position;
+    if (nearest == null || position == null) return;
     final site = nearest.site;
+    final units = _settings.unitSystem;
     final distance = chipDistance(nearest.km, units);
-    final direction = compassPoint(nearest.bearing);
+    final show = _settings.nearestSiteShowDirection;
+    final direction = show
+        ? ' ${directionTo(nearest.bearing, travel: _travel(position), compass: _compass)}'
+        : '';
     final construction = site.status == SiteStatus.construction
         ? ' · Under construction'
         : '';
     await _show({
       'title': site.name,
-      'body': '${formatDistance(nearest.km, units)} $direction$construction',
+      'body': '${formatDistance(nearest.km, units)}$direction$construction',
       'chip': distance,
       // Android 17 shows the distance large on the right, with this line
       // under the name, such as "1.2 mi NE".
-      'metric': '$distance $direction',
+      'metric': '$distance$direction',
       'metricLabel':
-          '${_street(site) ?? directionPhrase(direction)}$construction',
+          '${_street(site) ?? (show ? directionPhrase(compassPoint(nearest.bearing)) : '')}'
+          '$construction',
       'siteId': site.siteId,
       'checkIn': nearest.km < checkInFromNotificationKm,
       'latitude': site.latitude,

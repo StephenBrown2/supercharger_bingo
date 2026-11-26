@@ -6,6 +6,11 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.hardware.GeomagneticField
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
@@ -15,6 +20,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import kotlin.math.abs
 
 /**
  * Location foreground service for the nearest site Live Update. It runs
@@ -39,15 +45,24 @@ class NearestSiteEngineService : Service() {
             startForeground(notificationId, notification)
         }
         runningKey = intent?.getStringExtra(EXTRA_KEY)
+        // The new engine starts the compass again if its settings want it.
+        stopHeading()
         engine?.destroy()
         val loader = FlutterInjector.instance().flutterLoader()
         engine = FlutterEngine(applicationContext).also {
-            MethodChannel(it.dartExecutor.binaryMessenger, "supercharger_bingo/live_update")
-                .setMethodCallHandler { call, result ->
-                    if (call.method != "show") return@setMethodCallHandler result.notImplemented()
-                    show(Update.from(call))
+            channel = MethodChannel(it.dartExecutor.binaryMessenger, "supercharger_bingo/live_update").apply {
+                setMethodCallHandler { call, result ->
+                    when (call.method) {
+                        "show" -> show(Update.from(call))
+                        "watchHeading" -> watchHeading(
+                            call.argument<Double>("latitude")!!,
+                            call.argument<Double>("longitude")!!,
+                        )
+                        else -> return@setMethodCallHandler result.notImplemented()
+                    }
                     result.success(null)
                 }
+            }
             it.dartExecutor.executeDartEntrypoint(
                 DartExecutor.DartEntrypoint(
                     loader.findAppBundlePath(),
@@ -60,7 +75,64 @@ class NearestSiteEngineService : Service() {
         return START_NOT_STICKY
     }
 
+    /** Starts the compass on the first call. Each call updates the magnetic
+     *  declination for the user's position, so headings are from true north
+     *  like GPS bearings. */
+    private fun watchHeading(latitude: Double, longitude: Double) {
+        declination = GeomagneticField(
+            latitude.toFloat(), longitude.toFloat(), 0f, System.currentTimeMillis(),
+        ).declination
+        if (watchingHeading) return
+        val sensors = getSystemService(SensorManager::class.java)
+        val sensor = sensors.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR) ?: return
+        watchingHeading = sensors.registerListener(compass, sensor, SensorManager.SENSOR_DELAY_UI)
+    }
+
+    private var channel: MethodChannel? = null
+    private var watchingHeading = false
+    private var declination = 0f
+    private var sentHeading: Float? = null
+
+    /** Sends the heading of the phone's top edge while it lies within 35
+     *  degrees of flat, and null when tilted. Small turns are skipped, since
+     *  the arrow only has eight directions. */
+    private val compass = object : SensorEventListener {
+        private val rotation = FloatArray(9)
+        private val orientation = FloatArray(3)
+
+        override fun onSensorChanged(event: SensorEvent) {
+            SensorManager.getRotationMatrixFromVector(rotation, event.values)
+            SensorManager.getOrientation(rotation, orientation)
+            val pitch = Math.toDegrees(orientation[1].toDouble())
+            val roll = Math.toDegrees(orientation[2].toDouble())
+            val flat = abs(pitch) < FLAT_DEGREES && abs(roll) < FLAT_DEGREES
+            val heading = if (flat) {
+                ((Math.toDegrees(orientation[0].toDouble()) + declination + 360) % 360).toFloat()
+            } else {
+                null
+            }
+            val last = sentHeading
+            if (heading == null && last == null) return
+            if (heading != null && last != null) {
+                val turn = abs(((heading - last + 540) % 360) - 180)
+                if (turn < MIN_TURN_DEGREES) return
+            }
+            sentHeading = heading
+            channel?.invokeMethod("heading", heading?.toDouble())
+        }
+
+        override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {}
+    }
+
+    private fun stopHeading() {
+        if (watchingHeading) getSystemService(SensorManager::class.java).unregisterListener(compass)
+        watchingHeading = false
+        sentHeading = null
+    }
+
     override fun onDestroy() {
+        stopHeading()
+        channel = null
         runningKey = null
         engine?.destroy()
         engine = null
@@ -167,6 +239,8 @@ class NearestSiteEngineService : Service() {
         private const val CHANNEL_ID = "nearest_unvisited"
         private const val EXTRA_ID = "id"
         private const val EXTRA_KEY = "key"
+        private const val FLAT_DEGREES = 35.0
+        private const val MIN_TURN_DEGREES = 5f
 
         /** Settings the running engine started with, or null when stopped. */
         private var runningKey: String? = null

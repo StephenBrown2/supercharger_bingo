@@ -343,6 +343,11 @@ class UserSettingsTable extends Table {
   BoolColumn get nearestSiteIncludeConstruction =>
       boolean().withDefault(const Constant(false))();
 
+  /// Which way the nearest site lies: an arrow while moving or with the phone
+  /// flat, else compass letters. On, as it was before this setting existed.
+  BoolColumn get nearestSiteShowDirection =>
+      boolean().withDefault(const Constant(true))();
+
   /// Highest allChanges id already considered for a new-site alert.
   /// Null until the first poll, which records the cursor and does not alert.
   IntColumn get lastNotifiedChangeId => integer().nullable()();
@@ -396,7 +401,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 24;
+  int get schemaVersion => 25;
 
   @override
   MigrationStrategy get migration {
@@ -727,6 +732,17 @@ class AppDatabase extends _$AppDatabase {
               await m.addColumn(userSettingsTable, column);
             }
           }
+        }
+        if (from < 25 &&
+            to >= 25 &&
+            !await _columnExists(
+              'user_settings',
+              'nearest_site_show_direction',
+            )) {
+          await m.addColumn(
+            userSettingsTable,
+            userSettingsTable.nearestSiteShowDirection,
+          );
         }
       },
     );

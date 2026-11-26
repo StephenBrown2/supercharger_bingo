@@ -3644,6 +3644,21 @@ class $UserSettingsTableTable extends UserSettingsTable
         ),
         defaultValue: const Constant(false),
       );
+  static const VerificationMeta _nearestSiteShowDirectionMeta =
+      const VerificationMeta('nearestSiteShowDirection');
+  @override
+  late final GeneratedColumn<bool> nearestSiteShowDirection =
+      GeneratedColumn<bool>(
+        'nearest_site_show_direction',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("nearest_site_show_direction" IN (0, 1))',
+        ),
+        defaultValue: const Constant(true),
+      );
   static const VerificationMeta _lastNotifiedChangeIdMeta =
       const VerificationMeta('lastNotifiedChangeId');
   @override
@@ -3757,6 +3772,7 @@ class $UserSettingsTableTable extends UserSettingsTable
     notifyFirstEligible,
     nearestSiteLiveUpdate,
     nearestSiteIncludeConstruction,
+    nearestSiteShowDirection,
     lastNotifiedChangeId,
     lastLatitude,
     lastLongitude,
@@ -3925,6 +3941,15 @@ class $UserSettingsTableTable extends UserSettingsTable
         nearestSiteIncludeConstruction.isAcceptableOrUnknown(
           data['nearest_site_include_construction']!,
           _nearestSiteIncludeConstructionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('nearest_site_show_direction')) {
+      context.handle(
+        _nearestSiteShowDirectionMeta,
+        nearestSiteShowDirection.isAcceptableOrUnknown(
+          data['nearest_site_show_direction']!,
+          _nearestSiteShowDirectionMeta,
         ),
       );
     }
@@ -4109,6 +4134,10 @@ class $UserSettingsTableTable extends UserSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}nearest_site_include_construction'],
       )!,
+      nearestSiteShowDirection: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}nearest_site_show_direction'],
+      )!,
       lastNotifiedChangeId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}last_notified_change_id'],
@@ -4212,6 +4241,10 @@ class UserSettingsTableData extends DataClass
   final bool nearestSiteLiveUpdate;
   final bool nearestSiteIncludeConstruction;
 
+  /// Which way the nearest site lies: an arrow while moving or with the phone
+  /// flat, else compass letters. On, as it was before this setting existed.
+  final bool nearestSiteShowDirection;
+
   /// Highest allChanges id already considered for a new-site alert.
   /// Null until the first poll, which records the cursor and does not alert.
   final int? lastNotifiedChangeId;
@@ -4249,6 +4282,7 @@ class UserSettingsTableData extends DataClass
     required this.notifyFirstEligible,
     required this.nearestSiteLiveUpdate,
     required this.nearestSiteIncludeConstruction,
+    required this.nearestSiteShowDirection,
     this.lastNotifiedChangeId,
     this.lastLatitude,
     this.lastLongitude,
@@ -4324,6 +4358,9 @@ class UserSettingsTableData extends DataClass
     map['nearest_site_include_construction'] = Variable<bool>(
       nearestSiteIncludeConstruction,
     );
+    map['nearest_site_show_direction'] = Variable<bool>(
+      nearestSiteShowDirection,
+    );
     if (!nullToAbsent || lastNotifiedChangeId != null) {
       map['last_notified_change_id'] = Variable<int>(lastNotifiedChangeId);
     }
@@ -4394,6 +4431,7 @@ class UserSettingsTableData extends DataClass
       notifyFirstEligible: Value(notifyFirstEligible),
       nearestSiteLiveUpdate: Value(nearestSiteLiveUpdate),
       nearestSiteIncludeConstruction: Value(nearestSiteIncludeConstruction),
+      nearestSiteShowDirection: Value(nearestSiteShowDirection),
       lastNotifiedChangeId: lastNotifiedChangeId == null && nullToAbsent
           ? const Value.absent()
           : Value(lastNotifiedChangeId),
@@ -4473,6 +4511,9 @@ class UserSettingsTableData extends DataClass
       nearestSiteIncludeConstruction: serializer.fromJson<bool>(
         json['nearestSiteIncludeConstruction'],
       ),
+      nearestSiteShowDirection: serializer.fromJson<bool>(
+        json['nearestSiteShowDirection'],
+      ),
       lastNotifiedChangeId: serializer.fromJson<int?>(
         json['lastNotifiedChangeId'],
       ),
@@ -4530,6 +4571,9 @@ class UserSettingsTableData extends DataClass
       'nearestSiteIncludeConstruction': serializer.toJson<bool>(
         nearestSiteIncludeConstruction,
       ),
+      'nearestSiteShowDirection': serializer.toJson<bool>(
+        nearestSiteShowDirection,
+      ),
       'lastNotifiedChangeId': serializer.toJson<int?>(lastNotifiedChangeId),
       'lastLatitude': serializer.toJson<double?>(lastLatitude),
       'lastLongitude': serializer.toJson<double?>(lastLongitude),
@@ -4567,6 +4611,7 @@ class UserSettingsTableData extends DataClass
     bool? notifyFirstEligible,
     bool? nearestSiteLiveUpdate,
     bool? nearestSiteIncludeConstruction,
+    bool? nearestSiteShowDirection,
     Value<int?> lastNotifiedChangeId = const Value.absent(),
     Value<double?> lastLatitude = const Value.absent(),
     Value<double?> lastLongitude = const Value.absent(),
@@ -4605,6 +4650,8 @@ class UserSettingsTableData extends DataClass
     nearestSiteLiveUpdate: nearestSiteLiveUpdate ?? this.nearestSiteLiveUpdate,
     nearestSiteIncludeConstruction:
         nearestSiteIncludeConstruction ?? this.nearestSiteIncludeConstruction,
+    nearestSiteShowDirection:
+        nearestSiteShowDirection ?? this.nearestSiteShowDirection,
     lastNotifiedChangeId: lastNotifiedChangeId.present
         ? lastNotifiedChangeId.value
         : this.lastNotifiedChangeId,
@@ -4686,6 +4733,9 @@ class UserSettingsTableData extends DataClass
           data.nearestSiteIncludeConstruction.present
           ? data.nearestSiteIncludeConstruction.value
           : this.nearestSiteIncludeConstruction,
+      nearestSiteShowDirection: data.nearestSiteShowDirection.present
+          ? data.nearestSiteShowDirection.value
+          : this.nearestSiteShowDirection,
       lastNotifiedChangeId: data.lastNotifiedChangeId.present
           ? data.lastNotifiedChangeId.value
           : this.lastNotifiedChangeId,
@@ -4739,6 +4789,7 @@ class UserSettingsTableData extends DataClass
           ..write(
             'nearestSiteIncludeConstruction: $nearestSiteIncludeConstruction, ',
           )
+          ..write('nearestSiteShowDirection: $nearestSiteShowDirection, ')
           ..write('lastNotifiedChangeId: $lastNotifiedChangeId, ')
           ..write('lastLatitude: $lastLatitude, ')
           ..write('lastLongitude: $lastLongitude, ')
@@ -4776,6 +4827,7 @@ class UserSettingsTableData extends DataClass
     notifyFirstEligible,
     nearestSiteLiveUpdate,
     nearestSiteIncludeConstruction,
+    nearestSiteShowDirection,
     lastNotifiedChangeId,
     lastLatitude,
     lastLongitude,
@@ -4814,6 +4866,7 @@ class UserSettingsTableData extends DataClass
           other.nearestSiteLiveUpdate == this.nearestSiteLiveUpdate &&
           other.nearestSiteIncludeConstruction ==
               this.nearestSiteIncludeConstruction &&
+          other.nearestSiteShowDirection == this.nearestSiteShowDirection &&
           other.lastNotifiedChangeId == this.lastNotifiedChangeId &&
           other.lastLatitude == this.lastLatitude &&
           other.lastLongitude == this.lastLongitude &&
@@ -4849,6 +4902,7 @@ class UserSettingsTableCompanion
   final Value<bool> notifyFirstEligible;
   final Value<bool> nearestSiteLiveUpdate;
   final Value<bool> nearestSiteIncludeConstruction;
+  final Value<bool> nearestSiteShowDirection;
   final Value<int?> lastNotifiedChangeId;
   final Value<double?> lastLatitude;
   final Value<double?> lastLongitude;
@@ -4881,6 +4935,7 @@ class UserSettingsTableCompanion
     this.notifyFirstEligible = const Value.absent(),
     this.nearestSiteLiveUpdate = const Value.absent(),
     this.nearestSiteIncludeConstruction = const Value.absent(),
+    this.nearestSiteShowDirection = const Value.absent(),
     this.lastNotifiedChangeId = const Value.absent(),
     this.lastLatitude = const Value.absent(),
     this.lastLongitude = const Value.absent(),
@@ -4914,6 +4969,7 @@ class UserSettingsTableCompanion
     this.notifyFirstEligible = const Value.absent(),
     this.nearestSiteLiveUpdate = const Value.absent(),
     this.nearestSiteIncludeConstruction = const Value.absent(),
+    this.nearestSiteShowDirection = const Value.absent(),
     this.lastNotifiedChangeId = const Value.absent(),
     this.lastLatitude = const Value.absent(),
     this.lastLongitude = const Value.absent(),
@@ -4947,6 +5003,7 @@ class UserSettingsTableCompanion
     Expression<bool>? notifyFirstEligible,
     Expression<bool>? nearestSiteLiveUpdate,
     Expression<bool>? nearestSiteIncludeConstruction,
+    Expression<bool>? nearestSiteShowDirection,
     Expression<int>? lastNotifiedChangeId,
     Expression<double>? lastLatitude,
     Expression<double>? lastLongitude,
@@ -4986,6 +5043,8 @@ class UserSettingsTableCompanion
         'nearest_site_live_update': nearestSiteLiveUpdate,
       if (nearestSiteIncludeConstruction != null)
         'nearest_site_include_construction': nearestSiteIncludeConstruction,
+      if (nearestSiteShowDirection != null)
+        'nearest_site_show_direction': nearestSiteShowDirection,
       if (lastNotifiedChangeId != null)
         'last_notified_change_id': lastNotifiedChangeId,
       if (lastLatitude != null) 'last_latitude': lastLatitude,
@@ -5023,6 +5082,7 @@ class UserSettingsTableCompanion
     Value<bool>? notifyFirstEligible,
     Value<bool>? nearestSiteLiveUpdate,
     Value<bool>? nearestSiteIncludeConstruction,
+    Value<bool>? nearestSiteShowDirection,
     Value<int?>? lastNotifiedChangeId,
     Value<double?>? lastLatitude,
     Value<double?>? lastLongitude,
@@ -5059,6 +5119,8 @@ class UserSettingsTableCompanion
           nearestSiteLiveUpdate ?? this.nearestSiteLiveUpdate,
       nearestSiteIncludeConstruction:
           nearestSiteIncludeConstruction ?? this.nearestSiteIncludeConstruction,
+      nearestSiteShowDirection:
+          nearestSiteShowDirection ?? this.nearestSiteShowDirection,
       lastNotifiedChangeId: lastNotifiedChangeId ?? this.lastNotifiedChangeId,
       lastLatitude: lastLatitude ?? this.lastLatitude,
       lastLongitude: lastLongitude ?? this.lastLongitude,
@@ -5169,6 +5231,11 @@ class UserSettingsTableCompanion
         nearestSiteIncludeConstruction.value,
       );
     }
+    if (nearestSiteShowDirection.present) {
+      map['nearest_site_show_direction'] = Variable<bool>(
+        nearestSiteShowDirection.value,
+      );
+    }
     if (lastNotifiedChangeId.present) {
       map['last_notified_change_id'] = Variable<int>(
         lastNotifiedChangeId.value,
@@ -5228,6 +5295,7 @@ class UserSettingsTableCompanion
           ..write(
             'nearestSiteIncludeConstruction: $nearestSiteIncludeConstruction, ',
           )
+          ..write('nearestSiteShowDirection: $nearestSiteShowDirection, ')
           ..write('lastNotifiedChangeId: $lastNotifiedChangeId, ')
           ..write('lastLatitude: $lastLatitude, ')
           ..write('lastLongitude: $lastLongitude, ')
@@ -7948,6 +8016,7 @@ typedef $$UserSettingsTableTableCreateCompanionBuilder =
       Value<bool> notifyFirstEligible,
       Value<bool> nearestSiteLiveUpdate,
       Value<bool> nearestSiteIncludeConstruction,
+      Value<bool> nearestSiteShowDirection,
       Value<int?> lastNotifiedChangeId,
       Value<double?> lastLatitude,
       Value<double?> lastLongitude,
@@ -7982,6 +8051,7 @@ typedef $$UserSettingsTableTableUpdateCompanionBuilder =
       Value<bool> notifyFirstEligible,
       Value<bool> nearestSiteLiveUpdate,
       Value<bool> nearestSiteIncludeConstruction,
+      Value<bool> nearestSiteShowDirection,
       Value<int?> lastNotifiedChangeId,
       Value<double?> lastLatitude,
       Value<double?> lastLongitude,
@@ -8118,6 +8188,11 @@ class $$UserSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get nearestSiteIncludeConstruction => $composableBuilder(
     column: $table.nearestSiteIncludeConstruction,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get nearestSiteShowDirection => $composableBuilder(
+    column: $table.nearestSiteShowDirection,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8287,6 +8362,11 @@ class $$UserSettingsTableTableOrderingComposer
         builder: (column) => ColumnOrderings(column),
       );
 
+  ColumnOrderings<bool> get nearestSiteShowDirection => $composableBuilder(
+    column: $table.nearestSiteShowDirection,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get lastNotifiedChangeId => $composableBuilder(
     column: $table.lastNotifiedChangeId,
     builder: (column) => ColumnOrderings(column),
@@ -8449,6 +8529,11 @@ class $$UserSettingsTableTableAnnotationComposer
         builder: (column) => column,
       );
 
+  GeneratedColumn<bool> get nearestSiteShowDirection => $composableBuilder(
+    column: $table.nearestSiteShowDirection,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get lastNotifiedChangeId => $composableBuilder(
     column: $table.lastNotifiedChangeId,
     builder: (column) => column,
@@ -8552,6 +8637,7 @@ class $$UserSettingsTableTableTableManager
                 Value<bool> nearestSiteLiveUpdate = const Value.absent(),
                 Value<bool> nearestSiteIncludeConstruction =
                     const Value.absent(),
+                Value<bool> nearestSiteShowDirection = const Value.absent(),
                 Value<int?> lastNotifiedChangeId = const Value.absent(),
                 Value<double?> lastLatitude = const Value.absent(),
                 Value<double?> lastLongitude = const Value.absent(),
@@ -8585,6 +8671,7 @@ class $$UserSettingsTableTableTableManager
                 notifyFirstEligible: notifyFirstEligible,
                 nearestSiteLiveUpdate: nearestSiteLiveUpdate,
                 nearestSiteIncludeConstruction: nearestSiteIncludeConstruction,
+                nearestSiteShowDirection: nearestSiteShowDirection,
                 lastNotifiedChangeId: lastNotifiedChangeId,
                 lastLatitude: lastLatitude,
                 lastLongitude: lastLongitude,
@@ -8620,6 +8707,7 @@ class $$UserSettingsTableTableTableManager
                 Value<bool> nearestSiteLiveUpdate = const Value.absent(),
                 Value<bool> nearestSiteIncludeConstruction =
                     const Value.absent(),
+                Value<bool> nearestSiteShowDirection = const Value.absent(),
                 Value<int?> lastNotifiedChangeId = const Value.absent(),
                 Value<double?> lastLatitude = const Value.absent(),
                 Value<double?> lastLongitude = const Value.absent(),
@@ -8653,6 +8741,7 @@ class $$UserSettingsTableTableTableManager
                 notifyFirstEligible: notifyFirstEligible,
                 nearestSiteLiveUpdate: nearestSiteLiveUpdate,
                 nearestSiteIncludeConstruction: nearestSiteIncludeConstruction,
+                nearestSiteShowDirection: nearestSiteShowDirection,
                 lastNotifiedChangeId: lastNotifiedChangeId,
                 lastLatitude: lastLatitude,
                 lastLongitude: lastLongitude,

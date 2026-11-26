@@ -40,6 +40,7 @@ class MutableSettings {
   bool notifyFirstEligible;
   bool nearestSiteLiveUpdate;
   bool nearestSiteIncludeConstruction;
+  bool nearestSiteShowDirection;
   AuthProvider? authProvider;
   DateTime? lastSitesSyncAt;
   DateTime? lastCheckinHistorySyncAt;
@@ -62,6 +63,7 @@ class MutableSettings {
     this.notifyFirstEligible = true,
     this.nearestSiteLiveUpdate = false,
     this.nearestSiteIncludeConstruction = false,
+    this.nearestSiteShowDirection = true,
     this.authProvider,
     this.lastSitesSyncAt,
     this.lastCheckinHistorySyncAt,
@@ -86,6 +88,7 @@ class MutableSettings {
       notifyFirstEligible: data.notifyFirstEligible,
       nearestSiteLiveUpdate: data.nearestSiteLiveUpdate,
       nearestSiteIncludeConstruction: data.nearestSiteIncludeConstruction,
+      nearestSiteShowDirection: data.nearestSiteShowDirection,
       authProvider: data.authProvider,
       lastSitesSyncAt: data.lastSitesSyncAt,
       lastCheckinHistorySyncAt: data.lastCheckinHistorySyncAt,
@@ -111,6 +114,7 @@ class MutableSettings {
       notifyFirstEligible: Value(notifyFirstEligible),
       nearestSiteLiveUpdate: Value(nearestSiteLiveUpdate),
       nearestSiteIncludeConstruction: Value(nearestSiteIncludeConstruction),
+      nearestSiteShowDirection: Value(nearestSiteShowDirection),
       authProvider: Value(authProvider),
     );
   }
@@ -489,6 +493,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 () =>
                                     _settings?.nearestSiteIncludeConstruction =
                                         value,
+                              );
+                              _saveSettings();
+                            }
+                          : null,
+                    ),
+                    SwitchListTile(
+                      secondary: const Icon(Icons.explore),
+                      title: const Text('Show Direction'),
+                      subtitle: const Text(
+                        'Arrow while driving or with the phone flat, '
+                        'otherwise compass letters',
+                      ),
+                      value: _settings?.nearestSiteShowDirection ?? true,
+                      onChanged: _settings?.nearestSiteLiveUpdate == true
+                          ? (value) {
+                              setState(
+                                () =>
+                                    _settings?.nearestSiteShowDirection = value,
                               );
                               _saveSettings();
                             }

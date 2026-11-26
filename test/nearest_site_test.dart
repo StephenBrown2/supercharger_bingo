@@ -48,6 +48,29 @@ void main() {
     expect(chipDistance(200, UnitSystem.imperial), '124 mi');
   });
 
+  test('directionTo prefers travel, then compass, then letters', () {
+    // Site to the northeast.
+    expect(directionTo(45), 'NE');
+    expect(directionTo(45, compass: 45), '↑');
+    expect(directionTo(45, compass: 135), '←');
+    // Heading east while moving: northeast is ahead and to the left.
+    expect(directionTo(45, travel: 90, compass: 45), '↖');
+    expect(directionTo(-170, travel: 10), '↓');
+    expect(directionArrow(-90), '←');
+    expect(directionArrow(350), '↑');
+  });
+
+  test('v24 upgrade adds the direction setting, on', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.getUserSettings();
+    await db.customStatement(
+      'ALTER TABLE user_settings DROP COLUMN nearest_site_show_direction',
+    );
+    await db.migration.onUpgrade(Migrator(db), 24, 25);
+    expect((await db.getUserSettings()).nearestSiteShowDirection, isTrue);
+  });
+
   test('unvisitedSites filters open and optional construction', () async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
