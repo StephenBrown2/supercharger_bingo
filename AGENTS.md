@@ -4,6 +4,27 @@ Build Android release APKs with `flutter build apk --release --split-per-abi`.
 Install the APK from `build/app/outputs/flutter-apk/` that matches the target
 device's ABI. For a physical Pixel 9, use `app-arm64-v8a-release.apk`.
 
+# Memory guards
+
+Builds share this machine's 62 GB RAM and 11 GB swap with the user's desktop
+apps, the emulators and lingering Gradle daemons (each Gradle JVM may grow to
+the 8 GB heap set in `~/.gradle/gradle.properties`). On 2026-11-25 the kernel
+OOM killer ended a release build's Gradle JVM (exit 137) with swap full.
+
+- Before any `flutter build`, Gradle task or emulator boot, run `free -g` and
+  start only with at least 8 GB available.
+- Free memory from what this session started: stop its local servers
+  (`wrangler dev`, node proxies), shut down emulators it no longer needs, and
+  run `android/gradlew --stop` and `pkill -f '[K]otlinCompileDaemon'` (the
+  brackets keep `pkill` from matching its own shell). Leave the
+  user's own apps running; if that is still not enough, tell the user.
+- Run one build or test suite at a time, and set
+  `CMAKE_BUILD_PARALLEL_LEVEL=4` so native-asset builds compile on 4 cores.
+- After a build, run `android/gradlew --stop` so idle daemons release memory.
+- Treat exit 137 or a silently killed build as OOM: confirm with
+  `journalctl -k | grep "Killed process"`, free memory as above, and retry
+  once.
+
 # Android verification
 
 Verify native Android app changes on both a Pixel 9 and a Pixel 8a Android
