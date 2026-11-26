@@ -351,6 +351,12 @@ class UserSettingsTable extends Table {
   DateTimeColumn get lastSitesSyncAt => dateTime().nullable()();
   DateTimeColumn get lastCheckinHistorySyncAt => dateTime().nullable()();
 
+  /// Where the map was last left, so a cold start opens there while it waits
+  /// for a location fix.
+  RealColumn get mapLatitude => real().nullable()();
+  RealColumn get mapLongitude => real().nullable()();
+  RealColumn get mapZoom => real().nullable()();
+
   @override
   String get tableName => 'user_settings';
 }
@@ -390,7 +396,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 23;
+  int get schemaVersion => 24;
 
   @override
   MigrationStrategy get migration {
@@ -710,6 +716,17 @@ class AppDatabase extends _$AppDatabase {
           await customStatement(
             'ALTER TABLE user_settings DROP COLUMN is_authenticated',
           );
+        }
+        if (from < 24 && to >= 24) {
+          for (final column in [
+            userSettingsTable.mapLatitude,
+            userSettingsTable.mapLongitude,
+            userSettingsTable.mapZoom,
+          ]) {
+            if (!await _columnExists('user_settings', column.name)) {
+              await m.addColumn(userSettingsTable, column);
+            }
+          }
         }
       },
     );

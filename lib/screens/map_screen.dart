@@ -3,7 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
 import 'dart:async';
-import 'package:drift/drift.dart' show TableUpdateQuery;
+import 'package:drift/drift.dart' show TableUpdateQuery, Value;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -22,6 +22,7 @@ import '../services/site_navigation.dart';
 import '../services/site_confirmation.dart';
 import '../services/sync_service.dart';
 import '../services/write_result.dart';
+import 'base_map_layer.dart';
 import 'checkin_dialog.dart';
 import 'login_screen.dart';
 import 'map_marker_style.dart';
@@ -155,6 +156,37 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
 
   StreamSubscription<void>? _visitWrites;
   Timer? _visitReload;
+  Timer? _cameraSave;
+
+  /// A cold start has no location yet, so open where the map was last left
+  /// instead of on the whole US.
+  Future<void> _restoreCamera() async {
+    if (widget.initialLat != null ||
+        LocationService.instance.cachedPosition != null) {
+      return;
+    }
+    final settings = await DatabaseService.db.getUserSettings();
+    final lat = settings.mapLatitude;
+    final lng = settings.mapLongitude;
+    final zoom = settings.mapZoom;
+    // A location fix that arrived meanwhile wins.
+    if (!mounted || _userPosition != null) return;
+    if (lat == null || lng == null || zoom == null) return;
+    _mapController.move(LatLng(lat, lng), zoom);
+  }
+
+  void _saveCamera(MapCamera camera) {
+    _cameraSave?.cancel();
+    _cameraSave = Timer(const Duration(seconds: 1), () {
+      DatabaseService.db.updateUserSettings(
+        UserSettingsTableCompanion(
+          mapLatitude: Value(camera.center.latitude),
+          mapLongitude: Value(camera.center.longitude),
+          mapZoom: Value(camera.zoom),
+        ),
+      );
+    });
+  }
 
   Future<void> _refreshSignInBanner() async {
     final pending = await CheckinOutbox.instance.pending();
@@ -192,14 +224,17 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     CheckinOutbox.instance.changes.removeListener(_refreshSignInBanner);
     _visitWrites?.cancel();
     _visitReload?.cancel();
+    _cameraSave?.cancel();
     _siteSearchController.dispose();
     _locationAnimController.dispose();
     _drawerAnimController.dispose();
     super.dispose();
   }
 
+  /// Reloads keep the current markers until the new list is ready, so sync
+  /// and import updates don't blink them away. [_isLoading] is only the first
+  /// load.
   Future<void> _loadSites() async {
-    setState(() => _isLoading = true);
     try {
       List<Site> sites;
       switch (_currentFilter) {
@@ -330,83 +365,57 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               options: MapOptions(
                 initialCenter: _getInitialCenter(),
                 initialZoom: _getInitialZoom(),
+                onMapReady: _restoreCamera,
+                onPositionChanged: (camera, _) => _saveCamera(camera),
                 // North stays up: no two-finger rotate.
                 interactionOptions: const InteractionOptions(
                   flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
                 ),
               ),
               children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'bingo.supercharger.checkin',
-                ),
-                // Site markers with clustering
-                if (!_isLoading && !_clusterMarkers)
-                  MarkerLayer(markers: _buildMarkers(null)),
-                if (!_isLoading && _clusterMarkers)
-                  MarkerClusterLayerWidget(
-                    options: MarkerClusterLayerOptions(
-                      maxClusterRadius: 80,
-                      size: const Size.square(30),
-                      disableClusteringAtZoom: 10,
-                      markers: _buildMarkers(null),
-                      builder: (context, markers) {
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: Colors.blue,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: Center(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                markers.length.toString(),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
+                BaseMapLayer(
+                  children: [
+                    if (!_isLoading) _siteLayer(_buildMarkers(null)),
+                    // Live user location marker with custom unified stream
+                    CurrentLocationLayer(
+                      style: const LocationMarkerStyle(
+                        markerSize: Size.square(12),
+                      ),
+                      positionStream: _locationMarkerStream,
+                      headingStream: _headingStream,
                     ),
-                  ),
-                // Live user location marker with custom unified stream
-                CurrentLocationLayer(
-                  style: const LocationMarkerStyle(markerSize: Size.square(12)),
-                  positionStream: _locationMarkerStream,
-                  headingStream: _headingStream,
+                    // Nearby sites markers when drawer is open
+                    if (_showCheckinDrawer && _userPosition != null)
+                      MarkerLayer(
+                        markers: [
+                          // Nearest 3 sites
+                          ..._nearbySites.take(3).map((siteWithDist) {
+                            final site = siteWithDist.site;
+                            return Marker(
+                              point: LatLng(site.latitude, site.longitude),
+                              width: 24,
+                              height: 24,
+                              child: _MapMarker(
+                                site: site,
+                                firstState:
+                                    _firstStates[site.siteId] ??
+                                    _nearbyFirstStates[site.siteId],
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    // Draw in reverse legend order so higher priorities stay on top.
+                    if (!_isLoading)
+                      _siteLayer(_buildMarkers(FirstState.passed)),
+                    if (!_isLoading)
+                      MarkerLayer(
+                        markers: _buildMarkers(FirstState.upForGrabs),
+                      ),
+                    if (!_isLoading)
+                      MarkerLayer(markers: _buildMarkers(FirstState.today)),
+                  ],
                 ),
-                // Nearby sites markers when drawer is open
-                if (_showCheckinDrawer && _userPosition != null)
-                  MarkerLayer(
-                    markers: [
-                      // Nearest 3 sites
-                      ..._nearbySites.take(3).map((siteWithDist) {
-                        final site = siteWithDist.site;
-                        return Marker(
-                          point: LatLng(site.latitude, site.longitude),
-                          width: 24,
-                          height: 24,
-                          child: _MapMarker(
-                            site: site,
-                            firstState:
-                                _firstStates[site.siteId] ??
-                                _nearbyFirstStates[site.siteId],
-                          ),
-                        );
-                      }),
-                    ],
-                  ),
-                // Draw in reverse legend order so higher priorities stay on top.
-                if (!_isLoading)
-                  MarkerLayer(markers: _buildMarkers(FirstState.passed)),
-                if (!_isLoading)
-                  MarkerLayer(markers: _buildMarkers(FirstState.upForGrabs)),
-                if (!_isLoading)
-                  MarkerLayer(markers: _buildMarkers(FirstState.today)),
               ],
             ),
 
@@ -443,7 +452,7 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               child: _buildFilterChips(theme),
             ),
 
-            // OpenStreetMap's tile policy requires a visible credit.
+            // OpenStreetMap's vector tile policy requires a visible credit.
             Positioned(
               top: 60,
               left: 8,
@@ -685,6 +694,41 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         const SizedBox(width: 6),
         Text(label, style: const TextStyle(fontSize: 12)),
       ],
+    );
+  }
+
+  /// Ordinary and Open markers cluster when the setting is on. First today
+  /// and up for grabs stay unclustered on top, so they always stand out.
+  Widget _siteLayer(List<Marker> markers) {
+    if (!_clusterMarkers) return MarkerLayer(markers: markers);
+    return MarkerClusterLayerWidget(
+      options: MarkerClusterLayerOptions(
+        maxClusterRadius: 80,
+        size: const Size.square(30),
+        disableClusteringAtZoom: 10,
+        markers: markers,
+        builder: (context, markers) {
+          return Container(
+            decoration: BoxDecoration(
+              color: Colors.blue,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+            ),
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  markers.length.toString(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 

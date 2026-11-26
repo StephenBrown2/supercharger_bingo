@@ -13,9 +13,9 @@ dependencies:
   cupertino_icons: ^2.0.0
 
   # Map display
-  flutter_map: ^8.2.2
+  flutter_map: ^8.3.2
   flutter_map_marker_cluster: ^8.2.2
-  latlong2: ^0.9.1
+  latlong2: ^0.10.1
   flutter_map_location_marker: ^10.1.0
 
   # Local database (Drift with SQLite)
@@ -59,6 +59,8 @@ dependencies:
   lat_lng_to_timezone: ^0.2.0
   web: ^1.1.2
   url_launcher: ^6.3.3
+  flutter_map_vector_tiles: ^2.12.0
+  flutter_mapigrade: 0.0.4
 
 dev_dependencies:
   flutter_test:
@@ -79,6 +81,7 @@ flutter:
 
   assets:
     - assets/tz/
+    - assets/map/
   #   - family: Trajan Pro
   #     fonts:
   #       - asset: fonts/TrajanPro.ttf
@@ -87,3 +90,8 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+dependency_overrides:
+  # flutter_map_marker_cluster 8.2.2 still pins latlong2 ^0.9.1; 0.10 has no
+  # API breaks and flutter_mapigrade needs it. Drop when the cluster updates.
+  latlong2: ^0.10.1

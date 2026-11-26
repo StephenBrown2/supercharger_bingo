@@ -3699,6 +3699,39 @@ class $UserSettingsTableTable extends UserSettingsTable
         type: DriftSqlType.dateTime,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _mapLatitudeMeta = const VerificationMeta(
+    'mapLatitude',
+  );
+  @override
+  late final GeneratedColumn<double> mapLatitude = GeneratedColumn<double>(
+    'map_latitude',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _mapLongitudeMeta = const VerificationMeta(
+    'mapLongitude',
+  );
+  @override
+  late final GeneratedColumn<double> mapLongitude = GeneratedColumn<double>(
+    'map_longitude',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _mapZoomMeta = const VerificationMeta(
+    'mapZoom',
+  );
+  @override
+  late final GeneratedColumn<double> mapZoom = GeneratedColumn<double>(
+    'map_zoom',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3729,6 +3762,9 @@ class $UserSettingsTableTable extends UserSettingsTable
     lastLongitude,
     lastSitesSyncAt,
     lastCheckinHistorySyncAt,
+    mapLatitude,
+    mapLongitude,
+    mapZoom,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3937,6 +3973,30 @@ class $UserSettingsTableTable extends UserSettingsTable
         ),
       );
     }
+    if (data.containsKey('map_latitude')) {
+      context.handle(
+        _mapLatitudeMeta,
+        mapLatitude.isAcceptableOrUnknown(
+          data['map_latitude']!,
+          _mapLatitudeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('map_longitude')) {
+      context.handle(
+        _mapLongitudeMeta,
+        mapLongitude.isAcceptableOrUnknown(
+          data['map_longitude']!,
+          _mapLongitudeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('map_zoom')) {
+      context.handle(
+        _mapZoomMeta,
+        mapZoom.isAcceptableOrUnknown(data['map_zoom']!, _mapZoomMeta),
+      );
+    }
     return context;
   }
 
@@ -4069,6 +4129,18 @@ class $UserSettingsTableTable extends UserSettingsTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_checkin_history_sync_at'],
       ),
+      mapLatitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}map_latitude'],
+      ),
+      mapLongitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}map_longitude'],
+      ),
+      mapZoom: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}map_zoom'],
+      ),
     );
   }
 
@@ -4147,6 +4219,12 @@ class UserSettingsTableData extends DataClass
   final double? lastLongitude;
   final DateTime? lastSitesSyncAt;
   final DateTime? lastCheckinHistorySyncAt;
+
+  /// Where the map was last left, so a cold start opens there while it waits
+  /// for a location fix.
+  final double? mapLatitude;
+  final double? mapLongitude;
+  final double? mapZoom;
   const UserSettingsTableData({
     required this.id,
     this.odUserId,
@@ -4176,6 +4254,9 @@ class UserSettingsTableData extends DataClass
     this.lastLongitude,
     this.lastSitesSyncAt,
     this.lastCheckinHistorySyncAt,
+    this.mapLatitude,
+    this.mapLongitude,
+    this.mapZoom,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4260,6 +4341,15 @@ class UserSettingsTableData extends DataClass
         lastCheckinHistorySyncAt,
       );
     }
+    if (!nullToAbsent || mapLatitude != null) {
+      map['map_latitude'] = Variable<double>(mapLatitude);
+    }
+    if (!nullToAbsent || mapLongitude != null) {
+      map['map_longitude'] = Variable<double>(mapLongitude);
+    }
+    if (!nullToAbsent || mapZoom != null) {
+      map['map_zoom'] = Variable<double>(mapZoom);
+    }
     return map;
   }
 
@@ -4319,6 +4409,15 @@ class UserSettingsTableData extends DataClass
       lastCheckinHistorySyncAt: lastCheckinHistorySyncAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastCheckinHistorySyncAt),
+      mapLatitude: mapLatitude == null && nullToAbsent
+          ? const Value.absent()
+          : Value(mapLatitude),
+      mapLongitude: mapLongitude == null && nullToAbsent
+          ? const Value.absent()
+          : Value(mapLongitude),
+      mapZoom: mapZoom == null && nullToAbsent
+          ? const Value.absent()
+          : Value(mapZoom),
     );
   }
 
@@ -4383,6 +4482,9 @@ class UserSettingsTableData extends DataClass
       lastCheckinHistorySyncAt: serializer.fromJson<DateTime?>(
         json['lastCheckinHistorySyncAt'],
       ),
+      mapLatitude: serializer.fromJson<double?>(json['mapLatitude']),
+      mapLongitude: serializer.fromJson<double?>(json['mapLongitude']),
+      mapZoom: serializer.fromJson<double?>(json['mapZoom']),
     );
   }
   @override
@@ -4435,6 +4537,9 @@ class UserSettingsTableData extends DataClass
       'lastCheckinHistorySyncAt': serializer.toJson<DateTime?>(
         lastCheckinHistorySyncAt,
       ),
+      'mapLatitude': serializer.toJson<double?>(mapLatitude),
+      'mapLongitude': serializer.toJson<double?>(mapLongitude),
+      'mapZoom': serializer.toJson<double?>(mapZoom),
     };
   }
 
@@ -4467,6 +4572,9 @@ class UserSettingsTableData extends DataClass
     Value<double?> lastLongitude = const Value.absent(),
     Value<DateTime?> lastSitesSyncAt = const Value.absent(),
     Value<DateTime?> lastCheckinHistorySyncAt = const Value.absent(),
+    Value<double?> mapLatitude = const Value.absent(),
+    Value<double?> mapLongitude = const Value.absent(),
+    Value<double?> mapZoom = const Value.absent(),
   }) => UserSettingsTableData(
     id: id ?? this.id,
     odUserId: odUserId.present ? odUserId.value : this.odUserId,
@@ -4510,6 +4618,9 @@ class UserSettingsTableData extends DataClass
     lastCheckinHistorySyncAt: lastCheckinHistorySyncAt.present
         ? lastCheckinHistorySyncAt.value
         : this.lastCheckinHistorySyncAt,
+    mapLatitude: mapLatitude.present ? mapLatitude.value : this.mapLatitude,
+    mapLongitude: mapLongitude.present ? mapLongitude.value : this.mapLongitude,
+    mapZoom: mapZoom.present ? mapZoom.value : this.mapZoom,
   );
   UserSettingsTableData copyWithCompanion(UserSettingsTableCompanion data) {
     return UserSettingsTableData(
@@ -4590,6 +4701,13 @@ class UserSettingsTableData extends DataClass
       lastCheckinHistorySyncAt: data.lastCheckinHistorySyncAt.present
           ? data.lastCheckinHistorySyncAt.value
           : this.lastCheckinHistorySyncAt,
+      mapLatitude: data.mapLatitude.present
+          ? data.mapLatitude.value
+          : this.mapLatitude,
+      mapLongitude: data.mapLongitude.present
+          ? data.mapLongitude.value
+          : this.mapLongitude,
+      mapZoom: data.mapZoom.present ? data.mapZoom.value : this.mapZoom,
     );
   }
 
@@ -4625,7 +4743,10 @@ class UserSettingsTableData extends DataClass
           ..write('lastLatitude: $lastLatitude, ')
           ..write('lastLongitude: $lastLongitude, ')
           ..write('lastSitesSyncAt: $lastSitesSyncAt, ')
-          ..write('lastCheckinHistorySyncAt: $lastCheckinHistorySyncAt')
+          ..write('lastCheckinHistorySyncAt: $lastCheckinHistorySyncAt, ')
+          ..write('mapLatitude: $mapLatitude, ')
+          ..write('mapLongitude: $mapLongitude, ')
+          ..write('mapZoom: $mapZoom')
           ..write(')'))
         .toString();
   }
@@ -4660,6 +4781,9 @@ class UserSettingsTableData extends DataClass
     lastLongitude,
     lastSitesSyncAt,
     lastCheckinHistorySyncAt,
+    mapLatitude,
+    mapLongitude,
+    mapZoom,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -4694,7 +4818,10 @@ class UserSettingsTableData extends DataClass
           other.lastLatitude == this.lastLatitude &&
           other.lastLongitude == this.lastLongitude &&
           other.lastSitesSyncAt == this.lastSitesSyncAt &&
-          other.lastCheckinHistorySyncAt == this.lastCheckinHistorySyncAt);
+          other.lastCheckinHistorySyncAt == this.lastCheckinHistorySyncAt &&
+          other.mapLatitude == this.mapLatitude &&
+          other.mapLongitude == this.mapLongitude &&
+          other.mapZoom == this.mapZoom);
 }
 
 class UserSettingsTableCompanion
@@ -4727,6 +4854,9 @@ class UserSettingsTableCompanion
   final Value<double?> lastLongitude;
   final Value<DateTime?> lastSitesSyncAt;
   final Value<DateTime?> lastCheckinHistorySyncAt;
+  final Value<double?> mapLatitude;
+  final Value<double?> mapLongitude;
+  final Value<double?> mapZoom;
   const UserSettingsTableCompanion({
     this.id = const Value.absent(),
     this.odUserId = const Value.absent(),
@@ -4756,6 +4886,9 @@ class UserSettingsTableCompanion
     this.lastLongitude = const Value.absent(),
     this.lastSitesSyncAt = const Value.absent(),
     this.lastCheckinHistorySyncAt = const Value.absent(),
+    this.mapLatitude = const Value.absent(),
+    this.mapLongitude = const Value.absent(),
+    this.mapZoom = const Value.absent(),
   });
   UserSettingsTableCompanion.insert({
     this.id = const Value.absent(),
@@ -4786,6 +4919,9 @@ class UserSettingsTableCompanion
     this.lastLongitude = const Value.absent(),
     this.lastSitesSyncAt = const Value.absent(),
     this.lastCheckinHistorySyncAt = const Value.absent(),
+    this.mapLatitude = const Value.absent(),
+    this.mapLongitude = const Value.absent(),
+    this.mapZoom = const Value.absent(),
   });
   static Insertable<UserSettingsTableData> custom({
     Expression<int>? id,
@@ -4816,6 +4952,9 @@ class UserSettingsTableCompanion
     Expression<double>? lastLongitude,
     Expression<DateTime>? lastSitesSyncAt,
     Expression<DateTime>? lastCheckinHistorySyncAt,
+    Expression<double>? mapLatitude,
+    Expression<double>? mapLongitude,
+    Expression<double>? mapZoom,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -4854,6 +4993,9 @@ class UserSettingsTableCompanion
       if (lastSitesSyncAt != null) 'last_sites_sync_at': lastSitesSyncAt,
       if (lastCheckinHistorySyncAt != null)
         'last_checkin_history_sync_at': lastCheckinHistorySyncAt,
+      if (mapLatitude != null) 'map_latitude': mapLatitude,
+      if (mapLongitude != null) 'map_longitude': mapLongitude,
+      if (mapZoom != null) 'map_zoom': mapZoom,
     });
   }
 
@@ -4886,6 +5028,9 @@ class UserSettingsTableCompanion
     Value<double?>? lastLongitude,
     Value<DateTime?>? lastSitesSyncAt,
     Value<DateTime?>? lastCheckinHistorySyncAt,
+    Value<double?>? mapLatitude,
+    Value<double?>? mapLongitude,
+    Value<double?>? mapZoom,
   }) {
     return UserSettingsTableCompanion(
       id: id ?? this.id,
@@ -4920,6 +5065,9 @@ class UserSettingsTableCompanion
       lastSitesSyncAt: lastSitesSyncAt ?? this.lastSitesSyncAt,
       lastCheckinHistorySyncAt:
           lastCheckinHistorySyncAt ?? this.lastCheckinHistorySyncAt,
+      mapLatitude: mapLatitude ?? this.mapLatitude,
+      mapLongitude: mapLongitude ?? this.mapLongitude,
+      mapZoom: mapZoom ?? this.mapZoom,
     );
   }
 
@@ -5040,6 +5188,15 @@ class UserSettingsTableCompanion
         lastCheckinHistorySyncAt.value,
       );
     }
+    if (mapLatitude.present) {
+      map['map_latitude'] = Variable<double>(mapLatitude.value);
+    }
+    if (mapLongitude.present) {
+      map['map_longitude'] = Variable<double>(mapLongitude.value);
+    }
+    if (mapZoom.present) {
+      map['map_zoom'] = Variable<double>(mapZoom.value);
+    }
     return map;
   }
 
@@ -5075,7 +5232,10 @@ class UserSettingsTableCompanion
           ..write('lastLatitude: $lastLatitude, ')
           ..write('lastLongitude: $lastLongitude, ')
           ..write('lastSitesSyncAt: $lastSitesSyncAt, ')
-          ..write('lastCheckinHistorySyncAt: $lastCheckinHistorySyncAt')
+          ..write('lastCheckinHistorySyncAt: $lastCheckinHistorySyncAt, ')
+          ..write('mapLatitude: $mapLatitude, ')
+          ..write('mapLongitude: $mapLongitude, ')
+          ..write('mapZoom: $mapZoom')
           ..write(')'))
         .toString();
   }
@@ -7793,6 +7953,9 @@ typedef $$UserSettingsTableTableCreateCompanionBuilder =
       Value<double?> lastLongitude,
       Value<DateTime?> lastSitesSyncAt,
       Value<DateTime?> lastCheckinHistorySyncAt,
+      Value<double?> mapLatitude,
+      Value<double?> mapLongitude,
+      Value<double?> mapZoom,
     });
 typedef $$UserSettingsTableTableUpdateCompanionBuilder =
     UserSettingsTableCompanion Function({
@@ -7824,6 +7987,9 @@ typedef $$UserSettingsTableTableUpdateCompanionBuilder =
       Value<double?> lastLongitude,
       Value<DateTime?> lastSitesSyncAt,
       Value<DateTime?> lastCheckinHistorySyncAt,
+      Value<double?> mapLatitude,
+      Value<double?> mapLongitude,
+      Value<double?> mapZoom,
     });
 
 class $$UserSettingsTableTableFilterComposer
@@ -7979,6 +8145,21 @@ class $$UserSettingsTableTableFilterComposer
     column: $table.lastCheckinHistorySyncAt,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnFilters<double> get mapLatitude => $composableBuilder(
+    column: $table.mapLatitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get mapLongitude => $composableBuilder(
+    column: $table.mapLongitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get mapZoom => $composableBuilder(
+    column: $table.mapZoom,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$UserSettingsTableTableOrderingComposer
@@ -8130,6 +8311,21 @@ class $$UserSettingsTableTableOrderingComposer
     column: $table.lastCheckinHistorySyncAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<double> get mapLatitude => $composableBuilder(
+    column: $table.mapLatitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get mapLongitude => $composableBuilder(
+    column: $table.mapLongitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get mapZoom => $composableBuilder(
+    column: $table.mapZoom,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$UserSettingsTableTableAnnotationComposer
@@ -8277,6 +8473,19 @@ class $$UserSettingsTableTableAnnotationComposer
     column: $table.lastCheckinHistorySyncAt,
     builder: (column) => column,
   );
+
+  GeneratedColumn<double> get mapLatitude => $composableBuilder(
+    column: $table.mapLatitude,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get mapLongitude => $composableBuilder(
+    column: $table.mapLongitude,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get mapZoom =>
+      $composableBuilder(column: $table.mapZoom, builder: (column) => column);
 }
 
 class $$UserSettingsTableTableTableManager
@@ -8349,6 +8558,9 @@ class $$UserSettingsTableTableTableManager
                 Value<DateTime?> lastSitesSyncAt = const Value.absent(),
                 Value<DateTime?> lastCheckinHistorySyncAt =
                     const Value.absent(),
+                Value<double?> mapLatitude = const Value.absent(),
+                Value<double?> mapLongitude = const Value.absent(),
+                Value<double?> mapZoom = const Value.absent(),
               }) => UserSettingsTableCompanion(
                 id: id,
                 odUserId: odUserId,
@@ -8378,6 +8590,9 @@ class $$UserSettingsTableTableTableManager
                 lastLongitude: lastLongitude,
                 lastSitesSyncAt: lastSitesSyncAt,
                 lastCheckinHistorySyncAt: lastCheckinHistorySyncAt,
+                mapLatitude: mapLatitude,
+                mapLongitude: mapLongitude,
+                mapZoom: mapZoom,
               ),
           createCompanionCallback:
               ({
@@ -8411,6 +8626,9 @@ class $$UserSettingsTableTableTableManager
                 Value<DateTime?> lastSitesSyncAt = const Value.absent(),
                 Value<DateTime?> lastCheckinHistorySyncAt =
                     const Value.absent(),
+                Value<double?> mapLatitude = const Value.absent(),
+                Value<double?> mapLongitude = const Value.absent(),
+                Value<double?> mapZoom = const Value.absent(),
               }) => UserSettingsTableCompanion.insert(
                 id: id,
                 odUserId: odUserId,
@@ -8440,6 +8658,9 @@ class $$UserSettingsTableTableTableManager
                 lastLongitude: lastLongitude,
                 lastSitesSyncAt: lastSitesSyncAt,
                 lastCheckinHistorySyncAt: lastCheckinHistorySyncAt,
+                mapLatitude: mapLatitude,
+                mapLongitude: mapLongitude,
+                mapZoom: mapZoom,
               ),
           withReferenceMapper: (p0) => p0
               .map(

@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:supercharger_bingo/database/database.dart';
+import 'package:supercharger_bingo/screens/base_map_layer.dart';
 import 'package:supercharger_bingo/screens/map_screen.dart';
 import 'package:supercharger_bingo/services/database_service.dart';
 import 'package:supercharger_bingo/services/timezone_service.dart';
@@ -148,31 +149,28 @@ void main() {
           lessThan(tester.getTopLeft(find.text(legendLabels[i])).dy),
         );
       }
-      final map = tester.widget<FlutterMap>(find.byType(FlutterMap));
-      expect(map.children.last, isA<MarkerLayer>());
-      final top = map.children.last as MarkerLayer;
-      expect(top.markers.map((marker) => marker.key), [const ValueKey(5)]);
-      final layers = map.children.whereType<MarkerLayer>().toList();
-      expect(layers[layers.length - 2].markers.map((marker) => marker.key), [
-        const ValueKey(1),
-        const ValueKey(4),
+      final map = tester.widget<BaseMapLayer>(find.byType(BaseMapLayer));
+      // Bottom to top: ordinary, Open, up for grabs, First today. The first
+      // two cluster when the setting is on; First-eligible sites never do.
+      final layers = map.children
+          .where((w) => w is MarkerLayer || w is MarkerClusterLayerWidget)
+          .toList();
+      expect(layers.map((w) => w is MarkerClusterLayerWidget), [
+        clustered,
+        clustered,
+        false,
+        false,
       ]);
-      expect(layers[layers.length - 3].markers.map((marker) => marker.key), [
-        const ValueKey(2),
-        const ValueKey(6),
+      List<Marker> markersOf(Widget layer) => layer is MarkerLayer
+          ? layer.markers
+          : (layer as MarkerClusterLayerWidget).options.markers;
+      expect(layers.map((l) => markersOf(l).map((m) => m.key).toList()), [
+        [const ValueKey(3), const ValueKey(7)],
+        [const ValueKey(2), const ValueKey(6)],
+        [const ValueKey(1), const ValueKey(4)],
+        [const ValueKey(5)],
       ]);
-      final ordinary = clustered
-          ? tester
-                .widget<MarkerClusterLayerWidget>(
-                  find.byType(MarkerClusterLayerWidget),
-                )
-                .options
-                .markers
-          : (map.children.whereType<MarkerLayer>().first).markers;
-      expect(ordinary.map((marker) => marker.key), [
-        const ValueKey(3),
-        const ValueKey(7),
-      ]);
+      final top = layers.last as MarkerLayer;
 
       // A notification must replace a sheet opened from a map marker.
       (top.markers.single.child as GestureDetector).onTap!();
@@ -233,21 +231,14 @@ void main() {
       }
 
       Set<int> markerIds() {
-        final map = tester.widget<FlutterMap>(find.byType(FlutterMap));
-        final markers = map.children
-            .whereType<MarkerLayer>()
-            .expand((layer) => layer.markers)
-            .toList();
-        if (clustered) {
-          markers.addAll(
-            tester
-                .widget<MarkerClusterLayerWidget>(
-                  find.byType(MarkerClusterLayerWidget),
-                )
-                .options
-                .markers,
-          );
-        }
+        final map = tester.widget<BaseMapLayer>(find.byType(BaseMapLayer));
+        final markers = [
+          for (final layer in map.children)
+            if (layer is MarkerLayer)
+              ...layer.markers
+            else if (layer is MarkerClusterLayerWidget)
+              ...layer.options.markers,
+        ];
         return markers
             .map((marker) => (marker.key as ValueKey<int>).value)
             .toSet();
