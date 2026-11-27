@@ -360,63 +360,79 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         child: Stack(
           children: [
             // Map
-            FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: _getInitialCenter(),
-                initialZoom: _getInitialZoom(),
-                onMapReady: _restoreCamera,
-                onPositionChanged: (camera, _) => _saveCamera(camera),
-                // North stays up: no two-finger rotate.
-                interactionOptions: const InteractionOptions(
-                  flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-                ),
-              ),
-              children: [
-                BaseMapLayer(
-                  children: [
-                    if (!_isLoading) _siteLayer(_buildMarkers(null)),
-                    // Live user location marker with custom unified stream
-                    CurrentLocationLayer(
-                      style: const LocationMarkerStyle(
-                        markerSize: Size.square(12),
-                      ),
-                      positionStream: _locationMarkerStream,
-                      headingStream: _headingStream,
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final size = constraints.biggest;
+                // Keep the fitted pins in the middle, above the bottom controls.
+                final clusterPadding = EdgeInsets.fromLTRB(
+                  size.width * 0.25,
+                  size.height * 0.20,
+                  size.width * 0.25,
+                  size.height * 0.40,
+                );
+                return FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: _getInitialCenter(),
+                    initialZoom: _getInitialZoom(),
+                    onMapReady: _restoreCamera,
+                    onPositionChanged: (camera, _) => _saveCamera(camera),
+                    // North stays up: no two-finger rotate.
+                    interactionOptions: const InteractionOptions(
+                      flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
                     ),
-                    // Nearby sites markers when drawer is open
-                    if (_showCheckinDrawer && _userPosition != null)
-                      MarkerLayer(
-                        markers: [
-                          // Nearest 3 sites
-                          ..._nearbySites.take(3).map((siteWithDist) {
-                            final site = siteWithDist.site;
-                            return Marker(
-                              point: LatLng(site.latitude, site.longitude),
-                              width: 24,
-                              height: 24,
-                              child: _MapMarker(
-                                site: site,
-                                firstState:
-                                    _firstStates[site.siteId] ??
-                                    _nearbyFirstStates[site.siteId],
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
-                    // Draw in reverse legend order so higher priorities stay on top.
-                    if (!_isLoading)
-                      _siteLayer(_buildMarkers(FirstState.passed)),
-                    if (!_isLoading)
-                      MarkerLayer(
-                        markers: _buildMarkers(FirstState.upForGrabs),
-                      ),
-                    if (!_isLoading)
-                      MarkerLayer(markers: _buildMarkers(FirstState.today)),
+                  ),
+                  children: [
+                    BaseMapLayer(
+                      children: [
+                        if (!_isLoading)
+                          _siteLayer(_buildMarkers(null), clusterPadding),
+                        // Live user location marker with custom unified stream
+                        CurrentLocationLayer(
+                          style: const LocationMarkerStyle(
+                            markerSize: Size.square(12),
+                          ),
+                          positionStream: _locationMarkerStream,
+                          headingStream: _headingStream,
+                        ),
+                        // Nearby sites markers when drawer is open
+                        if (_showCheckinDrawer && _userPosition != null)
+                          MarkerLayer(
+                            markers: [
+                              // Nearest 3 sites
+                              ..._nearbySites.take(3).map((siteWithDist) {
+                                final site = siteWithDist.site;
+                                return Marker(
+                                  point: LatLng(site.latitude, site.longitude),
+                                  width: 24,
+                                  height: 24,
+                                  child: _MapMarker(
+                                    site: site,
+                                    firstState:
+                                        _firstStates[site.siteId] ??
+                                        _nearbyFirstStates[site.siteId],
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                        // Draw in reverse legend order so higher priorities stay on top.
+                        if (!_isLoading)
+                          _siteLayer(
+                            _buildMarkers(FirstState.passed),
+                            clusterPadding,
+                          ),
+                        if (!_isLoading)
+                          MarkerLayer(
+                            markers: _buildMarkers(FirstState.upForGrabs),
+                          ),
+                        if (!_isLoading)
+                          MarkerLayer(markers: _buildMarkers(FirstState.today)),
+                      ],
+                    ),
                   ],
-                ),
-              ],
+                );
+              },
             ),
 
             // Removed full-screen loading overlay; map renders while sites load.
@@ -699,13 +715,14 @@ class MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
 
   /// Ordinary and Open markers cluster when the setting is on. First today
   /// and up for grabs stay unclustered on top, so they always stand out.
-  Widget _siteLayer(List<Marker> markers) {
+  Widget _siteLayer(List<Marker> markers, EdgeInsets clusterPadding) {
     if (!_clusterMarkers) return MarkerLayer(markers: markers);
     return MarkerClusterLayerWidget(
       options: MarkerClusterLayerOptions(
         maxClusterRadius: 80,
         size: const Size.square(30),
         disableClusteringAtZoom: 10,
+        padding: clusterPadding,
         markers: markers,
         builder: (context, markers) {
           return Container(

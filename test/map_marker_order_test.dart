@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:supercharger_bingo/database/database.dart';
 import 'package:supercharger_bingo/screens/base_map_layer.dart';
@@ -67,7 +68,11 @@ void main() {
               _ => SiteStatus.open,
             }),
             latitude: const Value(40),
-            longitude: const Value(-100),
+            longitude: Value(switch (id) {
+              2 => -99.8,
+              6 => -99.5,
+              _ => -100,
+            }),
             hasCheckins: Value(id == 2 || id >= 5),
             visited: Value(id == 7),
             otherEvs: Value(id == 1 || id == 7),
@@ -171,6 +176,35 @@ void main() {
         [const ValueKey(5)],
       ]);
       final top = layers.last as MarkerLayer;
+
+      if (clustered) {
+        tester.view.physicalSize = const Size(411, 750);
+        tester.view.devicePixelRatio = 1;
+        final controller = tester
+            .widget<FlutterMap>(find.byType(FlutterMap))
+            .mapController!;
+        controller.move(const LatLng(40, -99.65), 8);
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+        final cluster = find.descendant(
+          of: find.byType(MarkerClusterLayerWidget).last,
+          matching: find.text('2'),
+        );
+        await tester.tap(cluster);
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+        await tester.pump(const Duration(seconds: 1));
+        expect(cluster, findsNothing);
+        final camera = controller.camera;
+        expect(camera.zoom, greaterThan(8));
+        for (final marker in markersOf(layers[1])) {
+          final offset = camera.latLngToScreenOffset(marker.point);
+          expect(offset.dx, inInclusiveRange(100, 311));
+          expect(offset.dy, inInclusiveRange(200, 350));
+        }
+        tester.view.reset();
+        await tester.pump();
+      }
 
       // A notification must replace a sheet opened from a map marker.
       (top.markers.single.child as GestureDetector).onTap!();
