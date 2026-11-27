@@ -10,6 +10,7 @@ import 'checkin_form.dart';
 import 'checkin_log.dart';
 import 'checkin_writer.dart';
 import 'database_service.dart';
+import 'nearest_site_service.dart';
 import 'session.dart';
 import 'write_result.dart';
 
@@ -327,6 +328,7 @@ class CheckinOutbox {
       'settled': settled,
       'stillPending': after.length,
     });
+    if (settled.isNotEmpty) NearestSiteService.checkinConfirmed();
     _changed();
   }
 
@@ -423,6 +425,7 @@ class CheckinOutbox {
             });
           }
           await _delete(id);
+          NearestSiteService.checkinConfirmed();
         case WriteOutcome.needsSignIn:
           await _update(id, _waitForSignIn);
           CheckinLog.event('session.expired', {'visit': id});

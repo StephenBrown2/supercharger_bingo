@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io' show Platform;
-
-import 'dart:ui' show DartPluginRegistrant;
+import 'dart:isolate';
+import 'dart:ui' show DartPluginRegistrant, IsolateNameServer;
 
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/services.dart';
@@ -19,6 +19,7 @@ const String nearestSiteChannelId = 'nearest_unvisited';
 /// Notification action that opens the site in a navigation app.
 const String navigateActionId = 'navigate';
 const int _notificationId = 7302;
+const _refreshPortName = 'supercharger_bingo/live_update/refresh';
 
 typedef NearestSite = ({Site site, double km, double bearing});
 
@@ -106,6 +107,13 @@ class NearestSiteService {
 
   bool get _supported => !kIsWeb && Platform.isAndroid;
 
+  /// Signal the running engine after the outbox commits a confirmation.
+  /// The foreground app and background worker both send through this port.
+  static void checkinConfirmed() {
+    if (kIsWeb) return;
+    IsolateNameServer.lookupPortByName(_refreshPortName)?.send(null);
+  }
+
   /// Route Live Update taps to the map. Call once at startup.
   Future<void> listenForTaps() async {
     if (!_supported) return;
@@ -181,12 +189,20 @@ class _LiveUpdate {
   String? _lastShown;
   Position? _position;
   NearestSite? _nearest;
+  int _refreshRequest = 0;
 
   /// True-north heading of the phone's top edge while it lies flat, from the
   /// service's rotation sensor; null when tilted or without a sensor.
   double? _compass;
 
   Future<void> start() async {
+    final refreshPort = RawReceivePort((_) => _refresh());
+    // A restarted service replaces the previous engine's port.
+    IsolateNameServer.removePortNameMapping(_refreshPortName);
+    IsolateNameServer.registerPortWithName(
+      refreshPort.sendPort,
+      _refreshPortName,
+    );
     if (_settings.nearestSiteShowDirection) {
       _native.setMethodCallHandler((call) async {
         if (call.method != 'heading') return;
@@ -201,14 +217,8 @@ class _LiveUpdate {
   }
 
   Future<void> _update(Position position) async {
-    // ponytail: re-reads sites on each fix (every 50 m) because this engine's
-    // database connection doesn't see the app's writes, such as a check-in.
-    // Fine for a few thousand rows.
-    final sites = await DatabaseService.db.unvisitedSites(
-      includeConstruction: _settings.nearestSiteIncludeConstruction,
-    );
     _position = position;
-    _nearest = findNearestSite(sites, position.latitude, position.longitude);
+    await _refresh();
     if (_settings.nearestSiteShowDirection) {
       // Starts the compass once; later fixes keep its declination current.
       await _native.invokeMethod<void>('watchHeading', {
@@ -216,6 +226,19 @@ class _LiveUpdate {
         'longitude': position.longitude,
       });
     }
+  }
+
+  Future<void> _refresh() async {
+    final position = _position;
+    if (position == null) return;
+    final request = ++_refreshRequest;
+    // This engine has its own database connection. Re-read after a
+    // confirmation as well as on each GPS fix.
+    final sites = await DatabaseService.db.unvisitedSites(
+      includeConstruction: _settings.nearestSiteIncludeConstruction,
+    );
+    if (request != _refreshRequest) return;
+    _nearest = findNearestSite(sites, position.latitude, position.longitude);
     if (_nearest == null) {
       await _show({
         'title': 'No unvisited sites',
@@ -258,7 +281,7 @@ class _LiveUpdate {
       // under the name, such as "1.2 mi NE".
       'metric': '$distance$direction',
       'metricLabel':
-          '${_street(site) ?? (show ? directionPhrase(compassPoint(nearest.bearing)) : '')}'
+          '${_street(site) ?? (show ? directionPhrase(compassPoint(nearest.bearing)) : 'Distance')}'
           '$construction',
       'siteId': site.siteId,
       'checkIn': nearest.km < checkInFromNotificationKm,
@@ -273,9 +296,9 @@ class _LiveUpdate {
   }
 
   Future<void> _show(Map<String, Object?> update) async {
-    // Only repost when the text changes, which is every 0.1 mi or km. The
-    // body holds the direction too.
-    final key = '${update['title']}|${update['body']}|${update['checkIn']}';
+    // Repost when the target, text, or actions change.
+    final key =
+        '${update['siteId']}|${update['title']}|${update['body']}|${update['checkIn']}';
     if (key == _lastShown) return;
     _lastShown = key;
     await _native.invokeMethod<void>('show', update);

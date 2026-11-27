@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show IsolateNameServer;
 
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show Migrator, Value;
@@ -6,6 +7,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:supercharger_bingo/database/database.dart';
 import 'package:supercharger_bingo/services/api_service.dart';
 import 'package:supercharger_bingo/services/checkin_log.dart';
@@ -13,6 +15,7 @@ import 'package:supercharger_bingo/services/checkin_outbox.dart';
 import 'package:supercharger_bingo/services/checkin_writer.dart';
 import 'package:supercharger_bingo/services/checkin_form.dart';
 import 'package:supercharger_bingo/services/database_service.dart';
+import 'package:supercharger_bingo/services/nearest_site_service.dart';
 import 'package:supercharger_bingo/services/session.dart';
 import 'package:supercharger_bingo/services/write_result.dart';
 
@@ -67,6 +70,63 @@ void main() {
     expect(draft.notesPublic, 'Stall 4');
     expect(draft.notesPrivate, isNull);
   });
+
+  test(
+    'an accepted check-in refreshes the live notification without movement',
+    () async {
+      final locations = GeolocatorPlatform.instance;
+      GeolocatorPlatform.instance = _StationaryGeolocator();
+      addTearDown(() => GeolocatorPlatform.instance = locations);
+      const channel = MethodChannel('supercharger_bingo/live_update');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      final first = Completer<void>();
+      final next = Completer<Map>();
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == 'show') {
+          final update = call.arguments as Map;
+          final siteId = update['siteId'];
+          if (siteId == 7) first.complete();
+          if (siteId == 8) next.complete(update);
+        }
+        return null;
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      for (final (id, latitude) in [(7, 40.0), (8, 40.1)]) {
+        await db.upsertSite(
+          SitesCompanion.insert(
+            siteId: id,
+            name: 'Site $id',
+            latitude: Value(latitude),
+            longitude: const Value(-83),
+            status: const Value(SiteStatus.open),
+          ),
+        );
+      }
+      await db.updateUserSettings(
+        const UserSettingsTableCompanion(
+          nearestSiteShowDirection: Value(false),
+        ),
+      );
+      await nearestSiteMain();
+      addTearDown(
+        () => IsolateNameServer.removePortNameMapping(
+          'supercharger_bingo/live_update/refresh',
+        ),
+      );
+      await first.future.timeout(const Duration(seconds: 2));
+
+      final writer = _GatedWriter();
+      final outbox = installTestOutbox(db, writer: writer);
+      final recording = outbox.record(siteId: 7);
+      await writer.started.future;
+      expect(next.isCompleted, isFalse);
+      writer.answer.complete(WriteResult.accepted);
+      expect(await recording, Delivery.sent);
+      final update = await next.future.timeout(const Duration(seconds: 2));
+      expect(update['metricLabel'], 'Distance');
+    },
+  );
 
   for (final result in [
     WriteResult.retry,
@@ -606,4 +666,26 @@ class _GatedWriter implements CheckinWriter {
     started.complete();
     return answer.future;
   }
+}
+
+class _StationaryGeolocator extends GeolocatorPlatform {
+  @override
+  Future<Position> getCurrentPosition({
+    LocationSettings? locationSettings,
+  }) async => Position(
+    latitude: 40,
+    longitude: -83,
+    timestamp: DateTime.now(),
+    accuracy: 5,
+    altitude: 0,
+    altitudeAccuracy: 0,
+    heading: 0,
+    headingAccuracy: 0,
+    speed: 0,
+    speedAccuracy: 0,
+  );
+
+  @override
+  Stream<Position> getPositionStream({LocationSettings? locationSettings}) =>
+      const Stream.empty();
 }
